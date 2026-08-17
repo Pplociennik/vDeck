@@ -1,5 +1,7 @@
-package com.github.pplociennik.vdeck.config;
+package com.github.pplociennik.vdeck.shared.service.impl;
 
+import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
+import com.github.pplociennik.vdeck.shared.service.SystemPropertiesService;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import lombok.extern.log4j.Log4j2;
@@ -40,7 +42,7 @@ import static java.util.Objects.requireNonNull;
  * <p>Values are never written to the log, only key names, because a settings file may hold secrets.
  */
 @Log4j2
-public class SystemPropertiesService {
+public class SystemPropertiesServiceImpl implements SystemPropertiesService {
 
     private static final String FILE_HEADER =
             "vDeck panel settings. Managed by vDeck; comments and key order are not preserved when "
@@ -66,8 +68,8 @@ public class SystemPropertiesService {
      * @throws UncheckedIOException
      *         if the file cannot be read or created
      */
-    public SystemPropertiesService( @Nonnull Path propertiesFile,
-                                    @Nonnull Map< SystemPropertyIf, String > defaultValues ) {
+    public SystemPropertiesServiceImpl( @Nonnull Path propertiesFile,
+                                        @Nonnull Map< SystemPropertyIf, String > defaultValues ) {
         this.propertiesFile = requireNonNull( propertiesFile, "propertiesFile must not be null" );
         requireNonNull( defaultValues, "defaultValues must not be null" );
         if ( !propertiesFile.isAbsolute() ) {
@@ -88,6 +90,7 @@ public class SystemPropertiesService {
      * @throws IllegalArgumentException
      *         if the setting is not owned by this file
      */
+    @Override
     public @Nonnull String getValue( @Nonnull SystemPropertyIf property ) {
         return properties.getProperty( requireManaged( property ) );
     }
@@ -107,6 +110,7 @@ public class SystemPropertiesService {
      * @throws UncheckedIOException
      *         if the file cannot be written
      */
+    @Override
     public void setValue( @Nonnull SystemPropertyIf property, @Nonnull String value ) {
         String name = requireManaged( property );
         requireNonNull( value, "value must not be null" );

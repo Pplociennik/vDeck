@@ -23,7 +23,7 @@ fragmentów niezwiązanych z bieżącą zmianą, ponieważ zaciemnia to diff.
 Cechą charakterystyczną tego projektu są **spacje wewnętrzne** w nawiasach zawierających treść:
 
 ```java
-public PathService( @Nonnull ApplicationHome applicationHome, @Nullable String configuredDirectory ) {
+public PathServiceImpl( @Nonnull ApplicationHome applicationHome, @Nullable String configuredDirectory ) {
     if ( !Files.isDirectory( realPath ) ) {
         throw new PathResolutionException( "Base directory '%s' is not a directory".formatted( realPath ) );
     }

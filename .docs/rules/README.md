@@ -15,6 +15,7 @@ indeks ułatwia odnalezienie reguł, ale nie zastępuje przeczytania dokumentów
 | [`clean-code.md`](clean-code.md) | Czytelność, projektowanie klas, nazewnictwo, nullability oraz frontend. |
 | [`documentation.md`](documentation.md) | Dokumentacja zmian i obowiązkowy angielski Javadoc. |
 | [`formating.md`](formating.md) | Wygląd kodu: wcięcia, odstępy, importy i kolejność elementów w klasie. |
+| [`integration-tests.md`](integration-tests.md) | Izolacja, struktura i uruchamianie testów integracyjnych. |
 | [`maven.md`](maven.md) | Minimalna, czytelna konfiguracja POM i zarządzanie wersjami. |
 | [`security.md`](security.md) | Bezpieczeństwo, ochrona sekretów, walidacja granic oraz logowanie. |
 | [`unit-tests.md`](unit-tests.md) | Zakres i struktura testów jednostkowych, AssertJ oraz zasady mockowania. |
@@ -58,6 +59,8 @@ Zmiana jest kompletna, gdy wszystkie punkty mające zastosowanie są spełnione:
 
 - zachowanie odpowiada zaakceptowanemu zakresowi feature'a i głównym decyzjom projektowym;
 - granice modułów, feature'ów i kierunek zależności pozostają zachowane;
+- elementy mają najmniejszą potrzebną widoczność, a serwisy są wstrzykiwane przez interfejsy z
+  pakietu `service`, implementowane w `service.impl`;
 - kod jest prosty, czytelny, poprawnie nazwany i nie zawiera niepotrzebnych abstrakcji;
 - Lombok usuwa możliwy do bezpiecznego wygenerowania boilerplate, w szczególności zapewnia
   `@Log4j2` klasom wymagającym loggera, bez ukrywania kontraktów i walidacji; dla prostych,
@@ -73,9 +76,10 @@ Zmiana jest kompletna, gdy wszystkie punkty mające zastosowanie są spełnione:
 - POM zawiera wyłącznie potrzebne wpisy i spełnia reguły Maven, jeżeli został zmieniony;
 - nie pozostawiono martwego kodu, nieaktualnych komentarzy, sekretów, przypadkowych plików ani zmian
   niezwiązanych z zakresem;
+- nie pozostawiono pustych pakietów po przeniesieniu lub usunięciu klas;
 - wykonano testy i inne dostępne sprawdzenia proporcjonalne do ryzyka zmiany, a wynik jest znany przed
   przekazaniem pracy.
 
-Brak testów integracyjnych w obecnym etapie projektu jest świadomą decyzją. Nie zastępujemy ich
-testami jednostkowymi uruchamiającymi Spring, prawdziwą bazę, systemowe procesy lub sieć. Zasady testów
-integracyjnych zostaną zdefiniowane osobno, gdy ten poziom testów zostanie wprowadzony.
+Testy integracyjne stosujemy dla zachowania zależnego od współpracy frameworka lub infrastruktury,
+którego test jednostkowy nie potwierdza, zgodnie z `integration-tests.md`. Nie zastępują testów
+jednostkowych logiki klas.

@@ -1,6 +1,6 @@
 # vDeck — główne założenia projektowe
 
-> Data: 2026-08-17 · Status: ustalenia przed implementacją
+> Data: 2026-08-17 · Aktualizacja: 2026-08-18 · Status: żywy opis uzgodnionej architektury
 
 vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim. Aplikacja jest
 dystrybuowana razem z instalacją serwera, uruchamiana lokalnie, a następnie obsługiwana z poziomu
@@ -41,6 +41,12 @@ vDeck jest monolitem modularnym. Modularność obowiązuje na dwóch poziomach:
 2. pionowe moduły funkcjonalne w `vdeck-app` grupują web, logikę aplikacyjną i persystencję według
    funkcji, a nie według warstw technicznych.
 
+Przyjęty styl można precyzyjniej nazwać **modularnym monolitem z pionowymi feature slices i lekkim
+warstwowaniem wewnątrz feature'a**. Nie jest to pełna architektura heksagonalna ani Clean Architecture:
+model feature'a może używać adnotacji JPA, a repozytoria Spring Data są jego bezpośrednią granicą
+persystencji. Interfejsy serwisów wyznaczają kontrakty dla konsumentów bez wprowadzania osobnych
+portów i adapterów dla każdej operacji.
+
 Początkowo projekt składa się z dwóch modułów Maven pod wspólnym parentem:
 
 | Moduł | Odpowiedzialność |
@@ -52,10 +58,11 @@ Kierunek zależności Maven jest jednostronny: `vdeck-app` zależy od `vdeck-run
 zależy od aplikacji ani od Springa. Aplikacja korzysta z fasady `runtime.api`, a szczegóły cyklu życia
 i implementacje Windows pozostają wewnętrzne dla runtime.
 
-W `vdeck-app` obowiązuje package-by-feature. Kod webowy, logika aplikacyjna i persystencja danej
-funkcji pozostają w jej pakiecie. Jeden feature nie sięga bezpośrednio do repozytorium ani encji
-innego feature’a — komunikacja przechodzi przez jego publiczny serwis/fasadę lub zdarzenie.
-Nie tworzymy osobnych modułów Maven dla warstw technicznych.
+W `vdeck-app` obowiązuje package-by-feature. Wszystkie pionowe funkcjonalności znajdują się pod
+wspólnym pakietem `com.github.pplociennik.vdeck.feature`. Kod webowy, logika aplikacyjna i
+persystencja danej funkcji pozostają w jej podpakiecie. Jeden feature nie sięga bezpośrednio do
+repozytorium ani encji innego feature’a — komunikacja przechodzi przez jego publiczny serwis/fasadę
+lub zdarzenie. Nie tworzymy osobnych modułów Maven dla warstw technicznych.
 
 Szablony Thymeleaf i zasoby webowe należą do `vdeck-app`. Granice z systemem operacyjnym oraz
 opcjonalnymi zdolnościami, takimi jak RCON, są ukryte za interfejsami runtime.
@@ -86,6 +93,7 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── README.md
 │       ├── clean-code.md
 │       ├── documentation.md
+│       ├── integration-tests.md
 │       ├── maven.md
 │       ├── security.md
 │       └── unit-tests.md
@@ -145,55 +153,101 @@ vdeck/                                           ← parent i agregator Maven
     └── src/
         ├── main/java/com/github/pplociennik/vdeck/
         │   ├── VdeckApplication.java
-        │   ├── config/                          ← zewnętrzny plik ustawień vDeck.properties
-        │   │   ├── SystemPropertyIf
-        │   │   ├── VdeckProperty
-        │   │   ├── SystemPropertiesService
-        │   │   └── SystemPropertiesConfiguration
-        │   ├── server/                          ← sterowanie i prezentacja stanu runtime
-        │   │   ├── ServerController
-        │   │   ├── ServerService
-        │   │   └── ServerShutdownLifecycle
-        │   ├── launch/                          ← profil uruchomieniowy
-        │   │   ├── LaunchProfile
-        │   │   ├── LaunchProfileService
-        │   │   ├── LaunchProfileController
-        │   │   └── persistence/
-        │   ├── world/                           ← światy, wybór, import i eksport
-        │   │   ├── World
-        │   │   ├── WorldService
-        │   │   ├── WorldController
-        │   │   └── persistence/
-        │   ├── backup/                          ← backup, restore i retencja
-        │   │   ├── Backup
-        │   │   ├── BackupService
-        │   │   ├── BackupController
-        │   │   └── persistence/
-        │   ├── players/                         ← gracze i listy dostępu
-        │   │   ├── PlayerSession
-        │   │   ├── PlayerService
-        │   │   ├── PlayerController
-        │   │   └── persistence/
-        │   ├── logs/                            ← SSE i bufor logów dla UI
-        │   │   ├── LogService
-        │   │   └── LogStreamController
-        │   ├── mods/                            ← BepInEx i RCON
-        │   │   ├── ModService
-        │   │   └── ModController
-        │   ├── security/                        ← dostęp do panelu
-        │   │   ├── PanelUser
-        │   │   ├── PanelUserService
+        │   ├── config/                          ← konfiguracja i inicjalizacja aplikacji
+        │   │   ├── DataInitializer
+        │   │   ├── PathConfiguration
         │   │   ├── SecurityConfiguration
-        │   │   └── persistence/
+        │   │   └── SystemPropertiesConfiguration
+        │   ├── feature/                         ← pionowe funkcjonalności aplikacji
+        │   │   ├── authentication/              ← konta panelu i zmiana hasła
+        │   │   │   ├── PasswordChangeController
+        │   │   │   ├── domain/
+        │   │   │   │   ├── PanelUser
+        │   │   │   │   ├── PanelRole
+        │   │   │   │   └── PasswordChangeResult
+        │   │   │   ├── dto/
+        │   │   │   │   └── PasswordChangeRequest
+        │   │   │   ├── persistence/
+        │   │   │   │   └── UserRepository
+        │   │   │   └── service/
+        │   │   │       ├── PanelUserService
+        │   │   │       └── impl/
+        │   │   │           └── PanelUserServiceImpl
+        │   │   ├── server/                      ← sterowanie i prezentacja stanu runtime
+        │   │   │   ├── ServerController
+        │   │   │   ├── ServerShutdownLifecycle
+        │   │   │   └── service/
+        │   │   │       ├── ServerService
+        │   │   │       └── impl/
+        │   │   │           └── ServerServiceImpl
+        │   │   ├── launch/                      ← profil uruchomieniowy
+        │   │   │   ├── LaunchProfileController
+        │   │   │   ├── domain/
+        │   │   │   │   └── LaunchProfile
+        │   │   │   ├── persistence/
+        │   │   │   └── service/
+        │   │   │       ├── LaunchProfileService
+        │   │   │       └── impl/
+        │   │   │           └── LaunchProfileServiceImpl
+        │   │   ├── world/                       ← światy, wybór, import i eksport
+        │   │   │   ├── WorldController
+        │   │   │   ├── domain/
+        │   │   │   │   └── World
+        │   │   │   ├── persistence/
+        │   │   │   └── service/
+        │   │   │       ├── WorldService
+        │   │   │       └── impl/
+        │   │   │           └── WorldServiceImpl
+        │   │   ├── backup/                      ← backup, restore i retencja
+        │   │   │   ├── BackupController
+        │   │   │   ├── domain/
+        │   │   │   │   └── Backup
+        │   │   │   ├── persistence/
+        │   │   │   └── service/
+        │   │   │       ├── BackupService
+        │   │   │       └── impl/
+        │   │   │           └── BackupServiceImpl
+        │   │   ├── players/                     ← gracze i listy dostępu
+        │   │   │   ├── PlayerController
+        │   │   │   ├── domain/
+        │   │   │   │   └── PlayerSession
+        │   │   │   ├── persistence/
+        │   │   │   └── service/
+        │   │   │       ├── PlayerService
+        │   │   │       └── impl/
+        │   │   │           └── PlayerServiceImpl
+        │   │   ├── logs/                        ← SSE i bufor logów dla UI
+        │   │   │   ├── LogStreamController
+        │   │   │   └── service/
+        │   │   │       ├── LogService
+        │   │   │       └── impl/
+        │   │   │           └── LogServiceImpl
+        │   │   └── mods/                        ← BepInEx i RCON
+        │   │       ├── ModController
+        │   │       └── service/
+        │   │           ├── ModService
+        │   │           └── impl/
+        │   │               └── ModServiceImpl
+        │   ├── security/                        ← przekrojowa infrastruktura Spring Security
+        │   │   ├── PasswordChangeRequiredFilter
+        │   │   └── PasswordChangeAuthenticationSuccessHandler
         │   ├── persistence/                    ← wspólna konfiguracja JPA i SQLite
         │   └── shared/                          ← wyłącznie elementy faktycznie współdzielone
-        │       ├── PathService
-        │       ├── PathConfiguration
-        │       └── exc/
+        │       ├── SystemPropertyIf
+        │       ├── VdeckProperty
+        │       ├── exc/
+        │       └── service/
+        │           ├── PathService
+        │           ├── SystemPropertiesService
+        │           └── impl/
+        │               ├── PathServiceImpl
+        │               └── SystemPropertiesServiceImpl
         ├── main/resources/
         │   ├── application.yaml
         │   ├── templates/
         │   │   ├── layout/
+        │   │   ├── authentication/
+        │   │   │   └── change-password.html
         │   │   ├── fragments/
         │   │   └── pages/
         │   └── static/
@@ -203,19 +257,33 @@ vdeck/                                           ← parent i agregator Maven
 ```
 
 `vdeck-app` zależy od publicznego API `vdeck-runtime`; kod webowy nie odwołuje się bezpośrednio do
-pakietów `windows` ani wewnętrznej orkiestracji runtime. Pakiety `launch`, `world`, `backup`,
-`players`, `logs`, `mods`, `security` i `server` są granicami domenowymi oraz właścicielami swojego
-kodu. Wewnątrz feature’a domyślnie pozostaje płaska, pragmatyczna struktura. Obowiązkowo wydzielana
-jest jedynie persystencja, aby encje JPA i repozytoria nie wyciekały do innych feature’ów.
+pakietów `windows` ani wewnętrznej orkiestracji runtime. Pakiet `feature` jest wspólnym korzeniem
+funkcjonalności `launch`, `world`, `backup`, `players`, `logs`, `mods`, `authentication` i `server`.
+Każdy bezpośredni podpakiet `feature` jest granicą domenową oraz właścicielem swojego kodu. Główne
+pakiety `security`, `config`, `persistence` i `shared` nie są feature'ami: zawierają przekrojową
+infrastrukturę aplikacji. Wewnątrz feature’a domyślnie pozostaje płaska, pragmatyczna struktura. Gdy
+feature ma jawny model domenowy, trafia on do `domain`, DTO granicy webowej do `dto`, a repozytoria do
+`persistence`. Interfejsy serwisów należą do `service`, a implementacje do `service.impl`; konsumenci
+zależą wyłącznie od interfejsów.
+
+Domyślnie stosujemy najmniejszą możliwą widoczność. Element używany wyłącznie we własnej klasie jest
+`private`, a element współdzielony tylko wewnątrz pakietu jest package-private. `public` stosujemy,
+gdy kontrakt rzeczywiście przekracza granicę pakietu albo wymaga go język lub framework. Samo
+wykrywanie komponentu przez Spring nie jest powodem nadania klasie lub konstruktorowi widoczności
+`public`.
 
 Dalsze podpakiety powstają dopiero po pojawieniu się rzeczywistej złożoności. Nie narzucamy każdemu
 feature’owi osobnych portów, adapterów, modeli transportowych, mapperów ani klas use case. Granice
 między feature’ami nadal są pilnowane przez ArchUnit i komunikację przez serwis właściciela danych.
 
-Pakiet `config` jest właścicielem kanału `vDeck.properties`. Nie jest miejscem na klasy
-`@Configuration` należące do konkretnego feature’a — te pozostają w jego pakiecie, tak jak
-`SecurityConfiguration` w `security`. Rozwiązywanie ścieżek względem katalogu instalacji należy do
-`PathService` w `shared` i nie jest powielane w feature’ach.
+Główny pakiet `config` jest composition rootem Springa oraz właścicielem przekrojowej inicjalizacji
+danych podczas startu aplikacji. Wszystkie klasy `@Configuration`, w tym
+`SecurityConfiguration`, `PathConfiguration` i `SystemPropertiesConfiguration`, znajdują się właśnie
+w `config`. `DataInitializer` również pozostaje w `config`, nawet gdy korzysta z repozytorium
+`feature.authentication`. Konfigurowane filtry i handlery nadal należą do głównego `security`, a
+implementacje serwisów do `service.impl` swojego właściciela. Mechanizm właściwości systemowych,
+podobnie jak rozwiązywanie ścieżek względem katalogu instalacji, należy do `shared`; jego serwisy są
+udostępniane przez interfejsy w `shared.service` i nie są powielane w feature’ach.
 
 Własne typy wyjątków umieszczamy w podpakiecie `exc` pakietu, który jest ich właścicielem, np.
 `shared/exc`. Nie tworzymy jednego globalnego pakietu wyjątków dla całej aplikacji, ponieważ
@@ -226,8 +294,10 @@ przecinałby granice feature’ów.
 ## 4. Persystencja
 
 Panel używa SQLite oraz Spring Data JPA. Funkcjonalne repozytoria są generycznymi interfejsami
-`JpaRepository` lub `CrudRepository` i znajdują się razem z encjami w podpakiecie `persistence`
-właściwego feature’a. Wspólny pakiet `persistence` zawiera jedynie konfigurację JPA i SQLite.
+`JpaRepository` lub `CrudRepository` i znajdują się w podpakiecie `persistence` właściwego feature’a.
+Encja stanowiąca model feature'a znajduje się w jego podpakiecie `domain`, tak jak
+`feature.authentication.domain.PanelUser`. Wspólny pakiet `persistence` zawiera jedynie konfigurację
+JPA i SQLite.
 
 Schemat bazy jest tworzony i aktualizowany przez Hibernate:
 
@@ -246,7 +316,7 @@ Flyway nie jest używany. Dla SQLite wykorzystywany jest dialekt z
 `org.hibernate.orm:hibernate-community-dialects`.
 
 Granice pakietów są chronione testami architektonicznymi. Zależności od `jakarta.persistence` mogą
-występować wyłącznie w podpakietach `..persistence..`.
+występować w encjach należących do `..domain..` oraz w technicznych podpakietach `..persistence..`.
 
 ---
 
@@ -482,9 +552,12 @@ auto-restartem, ponieważ ponowny start gry może nadpisać pliki `.old`.
 
 | Obszar | Ustalenie |
 |---|---|
-| Użytkownicy | Jeden użytkownik `admin`; brak rejestracji i ról. |
-| Hasło początkowe | `admin`, z wymuszoną zmianą przy pierwszym logowaniu. |
-| Sesje | Maksymalnie jedna aktywna sesja. |
+| Użytkownicy | Brak rejestracji. Przy pierwszym starcie `DataInitializer` tworzy brakujące konto `admin` z rolą `ADMIN`; istniejącego konta nie zmienia. |
+| Logowanie | Domyślny panel logowania Spring Security. Po zwykłym logowaniu obowiązuje standardowe przekierowanie; osobny ekran docelowy nie jest jeszcze częścią feature'a. |
+| Hasło początkowe | `admin`, zapisane wyłącznie jako adaptacyjny hash i z wymuszoną zmianą przy pierwszym logowaniu. |
+| Zmiana hasła | Bieżące hasło, nowe hasło i potwierdzenie są jednym walidowanym DTO. Nowe hasło ma 12–128 znaków. Po zmianie użytkownik jest wylogowany. |
+| Próby logowania | Na obecnym etapie brak blokady konta i trwałego licznika prób; koszt weryfikacji zapewnia adaptacyjny `PasswordEncoder`. |
+| Sesje | Maksymalnie jedna aktywna sesja; nowsze logowanie unieważnia wcześniejszą sesję. |
 | Widoki | Thymeleaf, fragmenty HTMX i natywne moduły ES bez obowiązkowego procesu budowania frontendu. |
 | Logi | Aktualizowane w przeglądarce przez SSE. |
 | Bezpieczeństwo żądań | Włączone CSRF; token jest dodawany do `hx-post` przez `htmx:configRequest`. |
@@ -516,4 +589,3 @@ nie planem implementacji:
 ## 13. Otwarte ustalenia
 
 - Potwierdzenie na rzeczywistym serwerze, że CTRL+C kończy zapis świata przed wyjściem procesu.
-- Ostateczna polityka hasła początkowego i pierwszego logowania.

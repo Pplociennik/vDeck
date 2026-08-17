@@ -1,5 +1,7 @@
-package com.github.pplociennik.vdeck.config;
+package com.github.pplociennik.vdeck.shared.service.impl;
 
+import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
+import com.github.pplociennik.vdeck.shared.VdeckProperty;
 import jakarta.annotation.Nonnull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,13 +23,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
- * Verifies that {@link SystemPropertiesService} loads, repairs and atomically persists one external
+ * Verifies that {@link SystemPropertiesServiceImpl} loads, repairs and atomically persists one external
  * properties file.
  *
  * <p>A test-local property set is used instead of {@link VdeckProperty} so that the generic contract
  * of the service is verified independently of the settings vDeck currently happens to declare.
  */
-class SystemPropertiesServiceTest {
+class SystemPropertiesServiceImplTest {
 
     // =================================================================================================
     // FIELDS
@@ -38,7 +40,7 @@ class SystemPropertiesServiceTest {
 
     private Path settingsFile;
 
-    private SystemPropertiesService underTest;
+    private SystemPropertiesServiceImpl underTest;
 
     // =================================================================================================
     // BEFORE METHODS
@@ -316,7 +318,7 @@ class SystemPropertiesServiceTest {
         Path relativeFile = Path.of( "test.properties" );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesService( relativeFile, defaults() ) );
+        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( relativeFile, defaults() ) );
 
         // THEN
         assertThat( thrown )
@@ -334,7 +336,7 @@ class SystemPropertiesServiceTest {
         Map< SystemPropertyIf, String > blankDefaults = Map.of( TestProperty.FIRST, "  " );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesService( settingsFile, blankDefaults ) );
+        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( settingsFile, blankDefaults ) );
 
         // THEN
         assertThat( thrown )
@@ -351,7 +353,7 @@ class SystemPropertiesServiceTest {
         // no settings file at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesService( null, defaults() ) );
+        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( null, defaults() ) );
 
         // THEN
         assertThat( thrown )
@@ -368,7 +370,7 @@ class SystemPropertiesServiceTest {
         // no default values at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesService( settingsFile, null ) );
+        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( settingsFile, null ) );
 
         // THEN
         assertThat( thrown )
@@ -431,8 +433,8 @@ class SystemPropertiesServiceTest {
     // HELPER METHODS
     // =================================================================================================
 
-    private SystemPropertiesService createUnderTest() {
-        return new SystemPropertiesService( settingsFile, defaults() );
+    private SystemPropertiesServiceImpl createUnderTest() {
+        return new SystemPropertiesServiceImpl( settingsFile, defaults() );
     }
 
     private static Map< SystemPropertyIf, String > defaults() {

@@ -1,6 +1,9 @@
 package com.github.pplociennik.vdeck.config;
 
-import com.github.pplociennik.vdeck.shared.PathService;
+import com.github.pplociennik.vdeck.shared.VdeckProperty;
+import com.github.pplociennik.vdeck.shared.service.PathService;
+import com.github.pplociennik.vdeck.shared.service.SystemPropertiesService;
+import com.github.pplociennik.vdeck.shared.service.impl.SystemPropertiesServiceImpl;
 import jakarta.annotation.Nonnull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +25,7 @@ class SystemPropertiesConfiguration {
     @Bean
     @Nonnull
     SystemPropertiesService vdeckProperties( @Nonnull PathService pathService ) {
-        return new SystemPropertiesService( pathService.getAbsolutePath( VdeckProperty.FILE_NAME ),
+        return new SystemPropertiesServiceImpl( pathService.getAbsolutePath( VdeckProperty.FILE_NAME ),
                 VdeckProperty.defaults() );
     }
 }

@@ -8,3 +8,10 @@ spring:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
       ddl-auto: update
+server:
+  address: 127.0.0.1
+  servlet:
+    session:
+      cookie:
+        http-only: true
+        same-site: lax

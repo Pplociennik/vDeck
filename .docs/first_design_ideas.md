@@ -322,12 +322,16 @@ Panel jest właścicielem zarządzanego procesu Valheim i przechowuje go jako `R
 Serwer jest uruchamiany przez `CreateProcessW` wywoływane przez FFM z flagą `CREATE_NO_WINDOW`.
 Oddzielna konsola procesu izoluje zdarzenia CTRL+C od panelu i terminala, z którego uruchomiono vDeck.
 
-`stdout` i `stderr` serwera są scalane i kierowane bezpośrednio do trwałego pliku
-`valheim-server.log` w katalogu wskazanym przez właściwość `game.log.directory` (domyślnie
-`vdeck-logs`). Panel jedynie śledzi ten plik, dzięki czemu logowanie nie zależy od życia procesu
-panelu. Launcher używa `CreateFileW`, `STARTF_USESTDHANDLES` oraz `STARTUPINFOEX` z
-`PROC_THREAD_ATTRIBUTE_HANDLE_LIST`, aby proces odziedziczył wyłącznie uchwyt pliku otwartego w
-trybie append. Uchwyt rodzica oraz uchwyty `PROCESS_INFORMATION` są zamykane po uruchomieniu procesu.
+Panel nie przekierowuje strumieni konsoli serwera. Plik logu wskazuje jawnie opcja
+`-logFile <ścieżka>` przekazana w wierszu poleceń, kierująca zapis do `valheim-server.log` w
+katalogu wskazanym przez właściwość `game.log.directory` (domyślnie `vdeck-logs`). Ścieżka jest
+rozwiązywana przez `PathService` i przekazywana jako absolutna. Właścicielem pliku jest proces
+serwera, a panel jedynie go śledzi, dzięki czemu logowanie nie zależy od życia procesu panelu.
+
+Launcher nie dziedziczy więc żadnych uchwytów: `stdout` i `stderr` procesu pozostają domyślne, a
+`STARTUPINFO` nie ustawia `STARTF_USESTDHANDLES`. Uchwyty `PROCESS_INFORMATION` są zamykane
+bezpośrednio po uruchomieniu procesu. Serwer tworzy plik logu na nowo przy każdym starcie, więc
+`LogTailer` musi wykrywać podmianę pliku i wznawiać śledzenie od początku nowej zawartości.
 
 Łagodne zatrzymanie odbywa się przez osobny, krótkotrwały proces-helper wykonujący:
 

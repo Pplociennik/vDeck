@@ -145,6 +145,11 @@ vdeck/                                           ← parent i agregator Maven
     └── src/
         ├── main/java/com/github/pplociennik/vdeck/
         │   ├── VdeckApplication.java
+        │   ├── config/                          ← zewnętrzny plik ustawień vDeck.properties
+        │   │   ├── SystemPropertyIf
+        │   │   ├── VdeckProperty
+        │   │   ├── SystemPropertiesService
+        │   │   └── SystemPropertiesConfiguration
         │   ├── server/                          ← sterowanie i prezentacja stanu runtime
         │   │   ├── ServerController
         │   │   ├── ServerService
@@ -182,6 +187,9 @@ vdeck/                                           ← parent i agregator Maven
         │   │   └── persistence/
         │   ├── persistence/                    ← wspólna konfiguracja JPA i SQLite
         │   └── shared/                          ← wyłącznie elementy faktycznie współdzielone
+        │       ├── PathService
+        │       ├── PathConfiguration
+        │       └── exc/
         ├── main/resources/
         │   ├── application.yaml
         │   ├── templates/
@@ -203,6 +211,15 @@ jest jedynie persystencja, aby encje JPA i repozytoria nie wyciekały do innych 
 Dalsze podpakiety powstają dopiero po pojawieniu się rzeczywistej złożoności. Nie narzucamy każdemu
 feature’owi osobnych portów, adapterów, modeli transportowych, mapperów ani klas use case. Granice
 między feature’ami nadal są pilnowane przez ArchUnit i komunikację przez serwis właściciela danych.
+
+Pakiet `config` jest właścicielem kanału `vDeck.properties`. Nie jest miejscem na klasy
+`@Configuration` należące do konkretnego feature’a — te pozostają w jego pakiecie, tak jak
+`SecurityConfiguration` w `security`. Rozwiązywanie ścieżek względem katalogu instalacji należy do
+`PathService` w `shared` i nie jest powielane w feature’ach.
+
+Własne typy wyjątków umieszczamy w podpakiecie `exc` pakietu, który jest ich właścicielem, np.
+`shared/exc`. Nie tworzymy jednego globalnego pakietu wyjątków dla całej aplikacji, ponieważ
+przecinałby granice feature’ów.
 
 ---
 
@@ -250,16 +267,41 @@ Katalog danych Valheim jest zawsze wskazywany jawnie przez opcję `-savedir`. Dz
 zależy od domyślnych ścieżek profilu użytkownika i jednoznacznie wie, gdzie znajdują się światy oraz
 listy graczy.
 
+### Kanały konfiguracji
+
+Konfiguracja vDeck jest rozdzielona według właściciela i nie miesza się w jednym pliku:
+
+| Kanał | Właściciel | Zawartość | Edycja |
+|---|---|---|---|
+| `application.yaml` w jarze | Aplikacja | Infrastruktura Spring Boot: datasource, port, poziomy logowania, cykl życia kontekstu. | Tylko przez nowe wydanie. |
+| `vDeck.properties` w katalogu instalacji | Użytkownik | Ustawienia aplikacyjne panelu, docelowo edytowalne z GUI. | Ręcznie oraz z panelu. |
+
+Plik `vDeck.properties` leży obok `vdeck.jar`, nigdy w `src/main/resources`, i jest tworzony z
+wartościami domyślnymi przy pierwszym starcie. Brakujące i puste klucze są uzupełniane przy kolejnym
+starcie, dzięki czemu właściwości dodane w nowym wydaniu pojawiają się w istniejącej instalacji.
+Zbiór właściwości opisuje enum implementujący `SystemPropertyIf`; dostęp zapewnia
+`SystemPropertiesService`, tworzony osobno dla każdego obsługiwanego pliku. Plik jest kodowany w
+UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE` — dlatego zapis wykonany przez panel
+zachowuje wpisy nienależące do panelu, ale nie zachowuje komentarzy ani kolejności kluczy wpisanych
+ręcznie.
+
+Pierwszą właściwością jest `game.log.directory` — względna ścieżka katalogu logów serwera gry,
+domyślnie `vdeck-logs`. Każda skonfigurowana ścieżka przechodzi przez `PathService`: musi być
+względna, jest normalizowana i po rozwiązaniu do postaci rzeczywistej musi pozostać wewnątrz katalogu
+instalacji. Ścieżka absolutna, wychodząca poza katalog instalacji albo prowadząca poza niego przez
+dowiązanie lub punkt reparsowania jest odrzucana.
+
 Podstawowy układ danych:
 
 ```text
 <ApplicationHome>/
 ├── valheim_server.exe
 ├── vdeck.jar
+├── vDeck.properties
 ├── vdeck.lock
 ├── server.pid
 ├── vdeck.db
-└── vdeck-logs/
+└── vdeck-logs/                        ← katalog domyślny; zmienia go `game.log.directory`
     └── valheim-server.log
 
 <katalog danych Valheim>/
@@ -281,8 +323,9 @@ Serwer jest uruchamiany przez `CreateProcessW` wywoływane przez FFM z flagą `C
 Oddzielna konsola procesu izoluje zdarzenia CTRL+C od panelu i terminala, z którego uruchomiono vDeck.
 
 `stdout` i `stderr` serwera są scalane i kierowane bezpośrednio do trwałego pliku
-`vdeck-logs/valheim-server.log`. Panel jedynie śledzi ten plik, dzięki czemu logowanie nie zależy od
-życia procesu panelu. Launcher używa `CreateFileW`, `STARTF_USESTDHANDLES` oraz `STARTUPINFOEX` z
+`valheim-server.log` w katalogu wskazanym przez właściwość `game.log.directory` (domyślnie
+`vdeck-logs`). Panel jedynie śledzi ten plik, dzięki czemu logowanie nie zależy od życia procesu
+panelu. Launcher używa `CreateFileW`, `STARTF_USESTDHANDLES` oraz `STARTUPINFOEX` z
 `PROC_THREAD_ATTRIBUTE_HANDLE_LIST`, aby proces odziedziczył wyłącznie uchwyt pliku otwartego w
 trybie append. Uchwyt rodzica oraz uchwyty `PROCESS_INFORMATION` są zamykane po uruchomieniu procesu.
 

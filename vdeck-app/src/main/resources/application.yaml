@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: vdeck
+  datasource:
+    url: jdbc:sqlite:vdeck.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    hibernate:
+      ddl-auto: update

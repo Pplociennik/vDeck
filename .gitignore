@@ -4,6 +4,14 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### vDeck runtime artifacts ###
+# Created in the process working directory by a local run, never part of the source tree.
+vdeck.db
+vDeck.properties
+vdeck.lock
+server.pid
+vdeck-logs/
+
 ### STS ###
 .apt_generated
 .classpath

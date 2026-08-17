@@ -12,3 +12,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** vDeck traktuje zużycie RAM oraz złożoność pamięciową i obliczeniową jako nadrzędne kryterium wyboru rozwiązań.
 - **Powód:** Aplikacja ma działać płynnie na słabym sprzęcie, obok serwera gry zajmującego większość zasobów maszyny.
 - **Konsekwencja:** Zabronione są struktury rosnące bez ograniczenia — logi i wyjście procesów przetwarzamy strumieniowo, w buforach o stałym rozmiarze.
+
+## AD-002 — Rozdział kanałów konfiguracji
+
+- **Status:** obowiązująca (2026-08-17)
+- **Decyzja:** Ustawienia edytowalne przez użytkownika trzymamy w zewnętrznym `vDeck.properties` w katalogu instalacji, a `application.yaml` obejmuje wyłącznie infrastrukturę Spring Boot.
+- **Powód:** Plik w `src/main/resources` jest zamknięty w jarze i nie może być edytowany po instalacji.
+- **Konsekwencja:** Ustawienia aplikacyjne opisuje enum implementujący `SystemPropertyIf`, a nie `application.yaml`.

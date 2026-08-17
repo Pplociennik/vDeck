@@ -43,6 +43,10 @@ wyłącznie kod wygenerowany przez kompilator, Lombok lub framework.
 - Jedna klasa testowa odpowiada jednej klasie produkcyjnej.
 - Testy jednostkowe nie uruchamiają kontekstu Springa. Test wymagający Springa, bazy, systemu plików,
   procesu lub sieci jest testem integracyjnym i powinien być oznaczony oraz zorganizowany osobno.
+- Wyjątkiem jest katalog tymczasowy JUnit (`@TempDir`): taki test pozostaje testem jednostkowym,
+  ponieważ katalog jest izolowany, unikalny dla metody testowej, tworzony i usuwany przez framework
+  oraz nie dotyka katalogu instalacji, danych użytkownika ani żadnego zasobu współdzielonego. Zakaz
+  dotyczy rzeczywistego systemu plików aplikacji, bazy danych, procesów systemowych i sieci.
 
 ## 3. Wymagana struktura klasy testowej
 

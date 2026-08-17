@@ -4,12 +4,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-vDeck is a freshly scaffolded Spring Boot application — the only Java sources are
-`VdeckApplication` (the `@SpringBootApplication` entry point) and a `contextLoads` smoke test.
-There is no domain code, no controllers, no entities, and no templates yet. Do not infer the
-architecture from the current empty package layout; follow the design document described below.
+vDeck is an early-stage Maven reactor with two modules, matching `first_design_ideas.md` §2:
 
-Base package: `com.github.pplociennik.vdeck` (`src/main/java`, mirrored in `src/test/java`).
+- `vdeck-runtime` — pure Java, no Spring. **Currently empty and has no `src/` directory at all**, so
+  the build prints a `JAR will be empty` warning for it. That is expected, not a defect.
+- `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, the `shared` package
+  (`PathService` resolving configured paths against the installation directory) and the `config`
+  package (the external `vDeck.properties` settings channel).
+
+There are still no controllers, entities or templates. Do not infer the architecture from the current
+package layout; follow the design documents described below. Only packages holding real code exist —
+the rest of the `first_design_ideas.md` §3 tree is created when its feature is implemented.
+
+Base package: `com.github.pplociennik.vdeck` (`vdeck-app/src/main/java`, mirrored in
+`vdeck-app/src/test/java`).
+
+## Configuration channels
+
+Configuration is split by owner (see `AD-002`):
+
+- `application.yaml` inside the jar — Spring Boot infrastructure only (datasource, ports, log levels).
+  Not user-editable.
+- `vDeck.properties` next to `vdeck.jar` — the panel's own user-editable settings, described by an
+  enum implementing `SystemPropertyIf` and served by `SystemPropertiesService` (one instance per
+  file). Created with defaults on first start; missing keys are restored on the next start.
+
+Every configured path goes through `PathService.getAbsolutePath(String)`: it must be relative, is
+normalized, and after resolution must stay inside the installation directory.
+
+**Running from an IDE or via `spring-boot:run` requires `-Dvdeck.server-directory=<dir>`.**
+Without it `ApplicationHome.getDir()` resolves to `vdeck-app/target/classes`, so the settings file
+would be written into a directory devtools watches, causing a restart loop.
 
 ## Required design context
 
@@ -32,7 +57,10 @@ maintainability, naming, design, modern-Java, public nullability annotation, and
 conventions. `.docs/rules/maven.md` defines the mandatory minimal POM structure, formatting,
 dependency and plugin version-property, inheritance, and Maven verification rules.
 `.docs/rules/security.md` defines mandatory secret handling, authentication, input validation,
-process and file safety, and application logging rules.
+process and file safety, and application logging rules. `.docs/rules/formating.md` defines the
+mandatory code layout — 4-space indents, the project's inner-space bracket style
+(`method( arg )`, `Map< K, V >`), import grouping, and the rule that public methods always come
+first in a class.
 
 Do not silently override a documented decision. If a requested change conflicts with the design,
 call out the conflict and update the design document only when the user has approved the new
@@ -46,10 +74,15 @@ decision.
   not the Boot 3 `org.springframework.boot.autoconfigure.<module>` locations. Starters are also
   renamed: `spring-boot-starter-webmvc` (not `-web`), and test starters are per-module
   (`spring-boot-starter-webmvc-test`, `-data-jpa-test`, `-thymeleaf-test`) rather than a single
-  `spring-boot-starter-test`.
+  `spring-boot-starter-test`. **None of the test starters is currently declared** — there are no slice
+  tests yet, and pulling Spring onto the test classpath of the parent would leak it into
+  `vdeck-runtime`. Add the one you need when the first slice test is written.
+- JUnit 5, AssertJ and Mockito are declared individually in the root POM, for the same reason
 - Spring MVC + Thymeleaf for the web layer, Spring Data JPA + SQLite (`org.xerial:sqlite-jdbc`) for persistence
-- Log4j2 is the required application logging API and backend; production classes use Lombok
-  `@Log4j2` by default and do not introduce a parallel logging facade
+- Log4j2 is the required application logging API and backend; `spring-boot-starter-log4j2` is declared
+  in `vdeck-app` and `spring-boot-starter-logging` is excluded from **every** starter that pulls it in
+  (exclusions apply per declaration path, so one omission puts Logback back). Production classes use
+  Lombok `@Log4j2` by default and do not introduce a parallel logging facade
 - Lombok is preferred wherever it safely removes mechanical boilerplate without hiding validation or
   domain behavior, but Java records take precedence when both approaches model an immutable data
   carrier equally well. Its annotation processor is wired explicitly in `pom.xml` for both
@@ -62,40 +95,27 @@ decision.
 Use the wrapper (`.\mvnw.cmd` in PowerShell, `./mvnw` in Bash) — it guarantees Maven 3.9.16.
 
 ```powershell
-.\mvnw.cmd spring-boot:run          # run the app
-.\mvnw.cmd test                     # full test suite
-.\mvnw.cmd test -Dtest=ClassName    # single test class
-.\mvnw.cmd test -Dtest=ClassName#methodName
-.\mvnw.cmd package                  # build the executable jar into target/
-.\mvnw.cmd spring-boot:build-image  # OCI image
+.\mvnw.cmd test                                  # full test suite, whole reactor
+.\mvnw.cmd test -pl vdeck-app -Dtest=ClassName   # single test class
+.\mvnw.cmd test -pl vdeck-app -Dtest=ClassName#methodName
+.\mvnw.cmd package                               # executable jar in vdeck-app/target/
+.\mvnw.cmd -pl vdeck-app spring-boot:build-image # OCI image
+
+# Run the app. The override is mandatory — see "Configuration channels" above.
+# Do NOT add -am: spring-boot:run would also fire on the aggregator, which has no main class
+# ("Unable to find a suitable main class"). Run install once so vdeck-runtime is resolvable.
+.\mvnw.cmd install -DskipTests
+.\mvnw.cmd -pl vdeck-app spring-boot:run `
+  "-Dspring-boot.run.jvmArguments=-Dvdeck.server-directory=D:\path\to\sandbox"
 ```
 
 There is no linter or formatter configured.
 
-## Known blocker: no datasource is configured
+## Known warnings during the build
 
-`src/main/resources/application.yaml` sets only `spring.application.name`. Because
-`spring-boot-starter-data-jpa` is on the classpath and SQLite has no embedded-datasource
-auto-configuration, both `spring-boot:run` and `mvnw test` currently fail during context refresh with:
+Both are expected and must not be "fixed" by adding code:
 
-```
-Failed to determine a suitable driver class
-```
-
-This is a pre-existing failure, not something a change introduced. Any work that boots the Spring
-context needs a datasource first, e.g.:
-
-```yaml
-spring:
-  datasource:
-    url: jdbc:sqlite:vdeck.db
-    driver-class-name: org.sqlite.JDBC
-  jpa:
-    hibernate:
-      ddl-auto: update
-    database-platform: org.hibernate.community.dialect.SQLiteDialect
-```
-
-The SQLite Hibernate dialect lives in `org.hibernate.orm:hibernate-community-dialects`, which is
-**not** currently a dependency — add it before relying on `database-platform`. Alternatively, slice
-tests (`@WebMvcTest`, `@DataJpaTest` with an in-memory DB) avoid booting the full context.
+- `JAR will be empty - no content was marked for inclusion!` for `vdeck-runtime`, which has no sources yet.
+- `Mockito is currently self-attaching to enable the inline-mock-maker.` Mockito 5 self-attaches on
+  JDK 25. Harmless today; it needs a `-javaagent` entry in the surefire configuration before a future
+  JDK turns it into an error.

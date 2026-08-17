@@ -118,6 +118,30 @@ Publiczne API klasy powinno być możliwie małe. Stan obiektu pozostaje prywatn
 są ustanawiane w konstruktorze lub fabryce. Zależności przekazujemy jawnie przez konstruktor; nie
 ukrywamy ich w globalnym stanie ani statycznym locatorze serwisów.
 
+### Wstrzykiwanie zależności
+
+Zależności komponentów Springa wstrzykujemy **wyłącznie przez konstruktor**. Pola zależności są
+`private final`, dzięki czemu obiekt nigdy nie istnieje w stanie niekompletnym, a komplet wymaganych
+współpracowników jest widoczny w sygnaturze.
+
+- Nie używamy wstrzykiwania w pole ani przez setter. `@Autowired` na polu, `@Inject` na polu oraz
+  `@Autowired` na setterze są zabronione; ukrywają zależność przed kontraktem klasy i uniemożliwiają
+  utworzenie obiektu w teście jednostkowym bez kontenera.
+- Klasa z jednym konstruktorem nie potrzebuje `@Autowired` — Spring wybiera go automatycznie.
+  Adnotację dodajemy dopiero przy wielu konstruktorach, co samo w sobie jest sygnałem do uproszczenia.
+- Nie wstrzykujemy `ApplicationContext`, `BeanFactory` ani `ObjectProvider` po to, aby wyszukiwać
+  współpracowników w trakcie działania. Jest to statyczny locator serwisów w innym przebraniu.
+- Przy kilku kandydatach tego samego typu rozstrzygamy przez `@Qualifier` albo osobny typ, nigdy przez
+  zbieżność nazwy pola.
+- Konstruktor zapisujemy ręcznie zawsze, gdy wymaga `@Nonnull`, `requireNonNull`, dodatkowej walidacji
+  lub szczegółowego Javadoc. `@RequiredArgsConstructor` stosujemy tylko wtedy, gdy wygenerowany
+  konstruktor spełnia wszystkie te wymagania, zgodnie z regułami Lomboka.
+- Zależność opcjonalna jest jawnym parametrem konstruktora z `@Nullable` albo `Optional<T>` w
+  sygnaturze metody `@Bean`, a nie polem uzupełnianym po utworzeniu obiektu.
+
+Reguła obowiązuje także klasy tworzone ręcznie w metodach `@Bean`. Konstruktor pozostaje wtedy jedynym
+kanałem przekazania zależności, dzięki czemu komponent daje się przetestować bez kontenera.
+
 ### Metody fabryczne i obiekty parametrów
 
 Stosujemy statyczne metody fabryczne, gdy dają realną korzyść w porównaniu z publicznym konstruktorem,
@@ -315,6 +339,11 @@ Wyjątki:
 
 Nie przechwytujemy ogólnego `Exception` lub `Throwable`, chyba że jest to świadoma granica procesu,
 która rejestruje błąd, zachowuje przyczynę i określa dalszy stan systemu.
+
+Własny typ wyjątku tworzymy dopiero wtedy, gdy biblioteka standardowa nie wyraża danego warunku, np.
+`IllegalArgumentException` dla niepoprawnego argumentu i `UncheckedIOException` dla awarii wejścia lub
+wyjścia. Własne wyjątki umieszczamy w podpakiecie `exc` pakietu będącego ich właścicielem, np.
+`shared/exc`; nie tworzymy jednego globalnego pakietu wyjątków dla całej aplikacji.
 
 Parametry wymagane przez kontrakt walidujemy przy wejściu. Znaczenie `null` musi być jawne; brak
 wartości zwracanej można reprezentować przez `Optional`, ale nie używamy `Optional` mechanicznie jako

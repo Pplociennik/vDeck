@@ -153,8 +153,10 @@ Nie uruchamiamy tej samej pracy przez kilka pluginów. Nie wiążemy ciężkich 
 ## 8. Profile
 
 Profile Maven są ostatecznością dla różnic procesu budowania, a nie mechanizmem konfiguracji
-zachowania aplikacji. Konfiguracja runtime należy do Spring Boot i `application.yaml`, argumentów lub
-zmiennych środowiskowych.
+zachowania aplikacji. Konfiguracja infrastruktury runtime należy do Spring Boot i `application.yaml`,
+argumentów lub zmiennych środowiskowych. Ustawienia aplikacyjne edytowalne przez użytkownika nie
+należą ani do profili, ani do `application.yaml` — ich kanałem jest zewnętrzny plik `vDeck.properties`
+opisany w `first_design_ideas.md` §5.
 
 Profil musi mieć jasno określony cel i nie może powodować, że standardowy build bez profilu jest
 niepełny albo niewiarygodny. Nie tworzymy profili zależnych od konkretnego komputera programisty.

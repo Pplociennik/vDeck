@@ -4,7 +4,10 @@
       "Bash(./mvnw -B -q dependency:tree)",
       "Bash(./mvnw -B dependency:tree)",
       "WebSearch",
-      "PowerShell(.\\\\mvnw.cmd -q help:effective-pom \"-Doutput=$env:TEMP\\\\vdeck-effective-pom.xml\"; if \\($?\\) { .\\\\mvnw.cmd -q test-compile })"
+      "PowerShell(.\\\\mvnw.cmd -q help:effective-pom \"-Doutput=$env:TEMP\\\\vdeck-effective-pom.xml\"; if \\($?\\) { .\\\\mvnw.cmd -q test-compile })",
+      "PowerShell(.\\\\mvnw.cmd -q -o compile 2>&1 | Select-Object -Last 40)",
+      "Bash(java -Dvdeck.server-directory='D:\\\\DEV_PROJECTS\\\\vDeck\\\\does-not-exist' -jar /d/DEV_PROJECTS/vDeck/vdeck/vdeck-app/target/vdeck-app-0.0.1-SNAPSHOT.jar)",
+      "Bash(echo \"exit=$?\")"
     ]
   }
 }

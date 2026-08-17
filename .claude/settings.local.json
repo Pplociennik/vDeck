@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./mvnw -B -q dependency:tree)",
+      "Bash(./mvnw -B dependency:tree)",
+      "WebSearch"
+    ]
+  }
+}

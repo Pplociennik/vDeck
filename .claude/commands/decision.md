@@ -1,4 +1,4 @@
----
+﻿---
 description: Dopisuje zwięzłą decyzję architektoniczną do .docs/architectural_decisions.md
 argument-hint: [treść decyzji, np. "stan serwera trzymamy w jednym serializowanym event queue"]
 allowed-tools: Read, Edit, Write, Grep, Glob
@@ -15,7 +15,7 @@ Decyzja podana przez użytkownika: $ARGUMENTS
    konkretnego zdania w trybie orzekającym — zadaj użytkownikowi pytania doprecyzowujące
    (czego dotyczy, co zostało wybrane, co zostało odrzucone) i dopiero potem pisz wpis.
    Nie zgaduj i nie dopisuj wpisu „na zapas”.
-3. Przeczytaj `.docs/first_design_ideas.md` oraz odpowiedni plik z `.docs/rules/` **tylko wtedy**,
+3. Przeczytaj `.docs/design.md` oraz odpowiedni plik z `.docs/rules/` **tylko wtedy**,
    gdy decyzja dotyka opisanego tam obszaru i musisz sprawdzić sprzeczność. Nie czytaj całego
    `.docs` rutynowo.
 
@@ -23,7 +23,7 @@ Decyzja podana przez użytkownika: $ARGUMENTS
 
 - **Duplikat:** jeżeli istniejący wpis mówi to samo, nie dodawaj nowego. Zaproponuj doprecyzowanie
   istniejącego wpisu i poczekaj na zgodę użytkownika.
-- **Sprzeczność:** jeżeli decyzja unieważnia istniejący wpis lub ustalenie z `first_design_ideas.md`,
+- **Sprzeczność:** jeżeli decyzja unieważnia istniejący wpis lub ustalenie z `design.md`,
   nazwij sprzeczność wprost i poproś o akceptację przed zapisem. Po akceptacji:
   stary wpis dostaje `**Status:** wycofana (YYYY-MM-DD, zastąpiona przez AD-NNN)` — nie usuwaj go,
   a nowy wpis dostaje wiersz `**Zastępuje:** AD-NNN`.
@@ -32,7 +32,7 @@ Decyzja podana przez użytkownika: $ARGUMENTS
   technologiczne. Szczegół implementacyjny, konwencja kodu lub plan feature'a tu nie trafia;
   w takim wypadku powiedz użytkownikowi, gdzie to miejsce (`.docs/rules/*`, plan feature'a)
   i nie zapisuj wpisu.
-- Jeżeli decyzja wymaga zmiany w `first_design_ideas.md`, zgłoś to użytkownikowi jako osobny krok,
+- Jeżeli decyzja wymaga zmiany w `design.md`, zgłoś to użytkownikowi jako osobny krok,
   ale sam tego pliku w tej komendzie nie modyfikuj.
 
 ## Krok 3 — format wpisu
@@ -46,7 +46,7 @@ Jeżeli plik jest pusty, utwórz najpierw dokładnie taki nagłówek:
 
 Rejestr zawiera wyłącznie decyzje krytyczne i trwałe. Wpisy są niezmienne — decyzję zmienia się
 przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury opisuje
-`.docs/first_design_ideas.md`, reguły pracy — `.docs/rules/`.
+`.docs/design.md`, reguły pracy — `.docs/rules/`.
 ```
 
 Nowy wpis dopisz **na końcu pliku**, w tym formacie:
@@ -74,4 +74,4 @@ Zasady, których pilnujesz bezwzględnie:
 ## Krok 4 — potwierdzenie
 
 Po zapisie wypisz użytkownikowi wyłącznie dodany wpis oraz — jeżeli wystąpiły — informację
-o wycofanym wpisie i o potrzebie aktualizacji `.docs/first_design_ideas.md`.
+o wycofanym wpisie i o potrzebie aktualizacji `.docs/design.md`.

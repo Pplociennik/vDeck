@@ -8,6 +8,8 @@ spring:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
       ddl-auto: update
+  messages:
+    use-code-as-default-message: true
 server:
   address: 127.0.0.1
   servlet:

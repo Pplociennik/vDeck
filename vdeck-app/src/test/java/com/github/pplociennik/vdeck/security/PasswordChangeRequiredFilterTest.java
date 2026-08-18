@@ -79,7 +79,7 @@ class PasswordChangeRequiredFilterTest {
         underTest.doFilterInternal( request, response, filterChain );
 
         // THEN
-        assertThat( response.getRedirectedUrl() ).isEqualTo( "/change-password" );
+        assertThat( response.getRedirectedUrl() ).isEqualTo( "/initial-password-change" );
         assertThat( filterChain.getRequest() ).isNull();
     }
 
@@ -91,7 +91,7 @@ class PasswordChangeRequiredFilterTest {
      *         whitelisted first-login request path
      */
     @ParameterizedTest( name = "[{index}] allowedPath={0}" )
-    @ValueSource( strings = { "/change-password", "/logout" } )
+    @ValueSource( strings = { "/initial-password-change", "/logout" } )
     void shouldContinueFilterChain_whenRestrictedUserRequestsAllowedPath( String allowedPath ) throws Exception {
         // GIVEN
         authenticate( "ROLE_ADMIN", PanelUserService.PASSWORD_CHANGE_REQUIRED_AUTHORITY );
@@ -103,6 +103,69 @@ class PasswordChangeRequiredFilterTest {
         // THEN
         assertThat( filterChain.getRequest() ).isSameAs( request );
         assertThat( response.getRedirectedUrl() ).isNull();
+    }
+
+    /**
+     * Verifies that the restricted user is sent to the initial replacement even when asking for the
+     * ordinary password-change screen, which would demand a current password the account never chose.
+     */
+    @Test
+    void shouldRedirectToInitialPasswordChange_whenRestrictedUserRequestsOrdinaryPasswordChange() throws Exception {
+        // GIVEN
+        authenticate( "ROLE_ADMIN", PanelUserService.PASSWORD_CHANGE_REQUIRED_AUTHORITY );
+        request.setRequestURI( "/change-password" );
+
+        // WHEN
+        underTest.doFilterInternal( request, response, filterChain );
+
+        // THEN
+        assertThat( response.getRedirectedUrl() ).isEqualTo( "/initial-password-change" );
+        assertThat( filterChain.getRequest() ).isNull();
+    }
+
+    /**
+     * Verifies that the restricted user can load the static resources rendering the password change
+     * screen, so the screen is not served without its stylesheet, icon sprite or textures.
+     *
+     * @param resourcePath
+     *         static resource path required by the password change screen
+     */
+    @ParameterizedTest( name = "[{index}] resourcePath={0}" )
+    @ValueSource( strings = { "/css/base.css", "/css/variables.css", "/icons/icons.svg", "/img/page-background.jpg" } )
+    void shouldContinueFilterChain_whenRestrictedUserRequestsStaticResource( String resourcePath ) throws Exception {
+        // GIVEN
+        authenticate( "ROLE_ADMIN", PanelUserService.PASSWORD_CHANGE_REQUIRED_AUTHORITY );
+        request.setRequestURI( resourcePath );
+
+        // WHEN
+        underTest.doFilterInternal( request, response, filterChain );
+
+        // THEN
+        assertThat( filterChain.getRequest() ).isSameAs( request );
+        assertThat( response.getRedirectedUrl() ).isNull();
+    }
+
+    /**
+     * Verifies that the static resource exception matches the beginning of the path only, so an
+     * application endpoint cannot be reached by naming a resource directory inside its path.
+     *
+     * @param disguisedPath
+     *         panel path containing a static resource directory somewhere else than at its beginning
+     */
+    @ParameterizedTest( name = "[{index}] disguisedPath={0}" )
+    @ValueSource( strings = { "/servers/css/list", "/cssservers", "/icons" } )
+    void shouldRedirectToPasswordChange_whenRestrictedUserRequestsDisguisedPanelPath( String disguisedPath )
+            throws Exception {
+        // GIVEN
+        authenticate( "ROLE_ADMIN", PanelUserService.PASSWORD_CHANGE_REQUIRED_AUTHORITY );
+        request.setRequestURI( disguisedPath );
+
+        // WHEN
+        underTest.doFilterInternal( request, response, filterChain );
+
+        // THEN
+        assertThat( response.getRedirectedUrl() ).isEqualTo( "/initial-password-change" );
+        assertThat( filterChain.getRequest() ).isNull();
     }
 
     /**

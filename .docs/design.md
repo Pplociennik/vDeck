@@ -1,6 +1,6 @@
-# vDeck — główne założenia projektowe
+﻿# vDeck — główne założenia projektowe
 
-> Data: 2026-08-17 · Aktualizacja: 2026-08-18 · Status: żywy opis uzgodnionej architektury
+> Data: 2026-08-17 · Aktualizacja: 2026-08-19 · Status: żywy opis uzgodnionej architektury
 
 vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim. Aplikacja jest
 dystrybuowana razem z instalacją serwera, uruchamiana lokalnie, a następnie obsługiwana z poziomu
@@ -88,7 +88,8 @@ vdeck/                                           ← parent i agregator Maven
 ├── pom.xml
 ├── .docs/
 │   ├── architectural_decisions.md
-│   ├── first_design_ideas.md
+│   ├── design.md
+│   ├── ui.md
 │   └── rules/
 │       ├── README.md
 │       ├── clean-code.md
@@ -169,18 +170,24 @@ vdeck/                                           ← parent i agregator Maven
         │   ├── feature/                         ← pionowe funkcjonalności aplikacji
         │   │   ├── authentication/              ← konta panelu i zmiana hasła
         │   │   │   ├── PasswordChangeController
+        │   │   │   ├── InitialPasswordChangeController
+        │   │   │   ├── PasswordChangeMessage
         │   │   │   ├── domain/
         │   │   │   │   ├── PanelUser
         │   │   │   │   ├── PanelRole
+        │   │   │   │   ├── PasswordChangeStatus
         │   │   │   │   └── PasswordChangeResult
         │   │   │   ├── dto/
-        │   │   │   │   └── PasswordChangeRequest
+        │   │   │   │   ├── PasswordChangeRequest
+        │   │   │   │   └── InitialPasswordChangeRequest
         │   │   │   ├── persistence/
         │   │   │   │   └── UserRepository
         │   │   │   └── service/
         │   │   │       ├── PanelUserService
         │   │   │       └── impl/
         │   │   │           └── PanelUserServiceImpl
+        │   │   ├── home/                        ← strona główna panelu
+        │   │   │   └── HomeController
         │   │   ├── server/                      ← sterowanie i prezentacja stanu runtime
         │   │   │   ├── ServerController
         │   │   │   ├── ServerShutdownLifecycle
@@ -252,15 +259,18 @@ vdeck/                                           ← parent i agregator Maven
         │               └── SystemPropertiesServiceImpl
         ├── main/resources/
         │   ├── application.yaml
+        │   ├── messages.properties              ← polski zestaw tekstów interfejsu
         │   ├── templates/
-        │   │   ├── layout/
-        │   │   ├── authentication/
-        │   │   │   └── change-password.html
-        │   │   ├── fragments/
-        │   │   └── pages/
+        │   │   ├── common/                      ← reużywalne komponenty: island.html, password-rules.html
+        │   │   ├── home/
+        │   │   │   └── index.html
+        │   │   └── authentication/
+        │   │       ├── change-password.html
+        │   │       └── initial-password-change.html
         │   └── static/
-        │       ├── css/
-        │       └── js/
+        │       ├── css/                         ← variables.css + arkusze
+        │       ├── icons/                       ← icons.svg (jeden sprite)
+        │       └── img/                         ← tekstury interfejsu
         └── test/java/…                          ← testy funkcji i granic ArchUnit
 ```
 
@@ -362,6 +372,10 @@ Zbiór właściwości opisuje enum implementujący `SystemPropertyIf`; dostęp z
 UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE` — dlatego zapis wykonany przez panel
 zachowuje wpisy nienależące do panelu, ale nie zachowuje komentarzy ani kolejności kluczy wpisanych
 ręcznie.
+
+Teksty interfejsu nie są kanałem konfiguracji i nie leżą w katalogu instalacji. Zgodnie z `AD-009`
+panel jest jednojęzyczny, a jego teksty pochodzą z pliku `resources/messages.properties` dołączonego
+do aplikacji i czytanego przez domyślny `MessageSource` Spring Boota.
 
 Pierwszą właściwością jest `game.log.directory` — względna ścieżka katalogu logów serwera gry,
 domyślnie `vdeck-logs`. Każda skonfigurowana ścieżka przechodzi przez `PathService`: musi być
@@ -561,9 +575,9 @@ auto-restartem, ponieważ ponowny start gry może nadpisać pliki `.old`.
 | Obszar | Ustalenie |
 |---|---|
 | Użytkownicy | Brak rejestracji. Przy pierwszym starcie `DataInitializer` tworzy brakujące konto `admin` z rolą `ADMIN`; istniejącego konta nie zmienia. |
-| Logowanie | Domyślny panel logowania Spring Security. Po zwykłym logowaniu obowiązuje standardowe przekierowanie; osobny ekran docelowy nie jest jeszcze częścią feature'a. |
+| Logowanie | Domyślny panel logowania Spring Security. Po zwykłym logowaniu obowiązuje standardowe przekierowanie, a przy braku zapamiętanego żądania — strona główna panelu (`/`). |
 | Hasło początkowe | `admin`, zapisane wyłącznie jako adaptacyjny hash i z wymuszoną zmianą przy pierwszym logowaniu. |
-| Zmiana hasła | Bieżące hasło, nowe hasło i potwierdzenie są jednym walidowanym DTO. Nowe hasło ma 12–128 znaków. Po zmianie użytkownik jest wylogowany. |
+| Zmiana hasła | Dwa osobne ekrany. `/initial-password-change` obsługuje wymuszoną zmianę hasła początkowego: nie pyta o aktualne hasło, bo konto go nigdy nie wybierało, i wymaga uprawnienia `PASSWORD_CHANGE_REQUIRED`. `/change-password` obsługuje zmianę na życzenie, uruchamianą z wyspy akcji, i wymaga podania aktualnego hasła. Każdy ekran ma własne walidowane DTO; nowe hasło ma 12–128 znaków, a po zmianie użytkownik jest wylogowany. |
 | Próby logowania | Na obecnym etapie brak blokady konta i trwałego licznika prób; koszt weryfikacji zapewnia adaptacyjny `PasswordEncoder`. |
 | Sesje | Maksymalnie jedna aktywna sesja; nowsze logowanie unieważnia wcześniejszą sesję. |
 | Widoki | Thymeleaf, fragmenty HTMX i natywne moduły ES bez obowiązkowego procesu budowania frontendu. |

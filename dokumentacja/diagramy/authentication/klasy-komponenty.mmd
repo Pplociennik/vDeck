@@ -1,0 +1,108 @@
+%% Diagram klas: feature authentication oraz współpracujące komponenty bezpieczeństwa
+classDiagram
+    direction TB
+
+    class PanelUser {
+        -String username
+        -String passwordHash
+        -PanelRole role
+        -boolean passwordChangeRequired
+        +getUsername() String
+        +getPasswordHash() String
+        +getRole() PanelRole
+        +isPasswordChangeRequired() boolean
+        +changePassword(String newPasswordHash) void
+    }
+
+    class PanelRole {
+        <<enumeration>>
+        ADMIN
+    }
+
+    class PasswordChangeResult {
+        <<enumeration>>
+        SUCCESS
+        CURRENT_PASSWORD_INCORRECT
+        NEW_PASSWORD_MISMATCH
+        NEW_PASSWORD_UNCHANGED
+    }
+
+    class PasswordChangeRequest {
+        <<record>>
+        +currentPassword() String
+        +newPassword() String
+        +confirmation() String
+        +toString() String
+    }
+
+    class UserRepository {
+        <<interface>>
+        +findById(String) Optional
+        +existsById(String) boolean
+        +save(PanelUser) PanelUser
+    }
+
+    class UserDetailsService {
+        <<interface>>
+        +loadUserByUsername(String) UserDetails
+    }
+
+    class PanelUserService {
+        <<interface>>
+        +PASSWORD_CHANGE_REQUIRED_AUTHORITY String
+        +changePassword(String, PasswordChangeRequest) PasswordChangeResult
+    }
+
+    class PanelUserServiceImpl {
+        -UserRepository userRepository
+        -PasswordEncoder passwordEncoder
+        +loadUserByUsername(String) UserDetails
+        +changePassword(String, PasswordChangeRequest) PasswordChangeResult
+        -toUserDetails(PanelUser) UserDetails
+    }
+
+    class PasswordChangeController {
+        -PanelUserService panelUserService
+        -SecurityContextLogoutHandler logoutHandler
+        +showPasswordChange(Model) String
+        +changePassword(...) String
+    }
+
+    class PasswordChangeAuthenticationSuccessHandler {
+        -AuthenticationSuccessHandler defaultSuccessHandler
+        +onAuthenticationSuccess(...) void
+    }
+
+    class PasswordChangeRequiredFilter {
+        -ALLOWED_PATHS Set
+        #doFilterInternal(...) void
+    }
+
+    class SecurityConfiguration {
+        +passwordEncoder() PasswordEncoder
+        +securityFilterChain(...) SecurityFilterChain
+        +passwordChangeRequiredFilter() PasswordChangeRequiredFilter
+        +authenticationSuccessHandler() PasswordChangeAuthenticationSuccessHandler
+        +httpSessionEventPublisher() HttpSessionEventPublisher
+    }
+
+    class DataInitializer {
+        -UserRepository userRepository
+        -PasswordEncoder passwordEncoder
+        +run(String...) void
+    }
+
+    UserDetailsService <|-- PanelUserService
+    PanelUserService <|.. PanelUserServiceImpl
+    PanelUserServiceImpl --> UserRepository : używa
+    PanelUserServiceImpl ..> PasswordChangeRequest : przyjmuje
+    PanelUserServiceImpl ..> PasswordChangeResult : zwraca
+    UserRepository ..> PanelUser : przechowuje
+    PanelUser --> PanelRole : ma
+    PasswordChangeController --> PanelUserService : deleguje
+    PasswordChangeController ..> PasswordChangeResult : mapuje na komunikat
+    PasswordChangeAuthenticationSuccessHandler ..> PanelUserService : czyta uprawnienie
+    PasswordChangeRequiredFilter ..> PanelUserService : czyta uprawnienie
+    SecurityConfiguration ..> PasswordChangeRequiredFilter : tworzy
+    SecurityConfiguration ..> PasswordChangeAuthenticationSuccessHandler : tworzy
+    DataInitializer --> UserRepository : tworzy konto domyślne

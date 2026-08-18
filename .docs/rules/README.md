@@ -13,7 +13,7 @@ indeks ułatwia odnalezienie reguł, ale nie zastępuje przeczytania dokumentów
 | [`../architectural_decisions.md`](../architectural_decisions.md) | Nadrzędny rejestr najbardziej krytycznych decyzji projektu. |
 | [`../first_design_ideas.md`](../first_design_ideas.md) | Uzgodniona architektura, granice modułów i feature'ów oraz zachowanie systemu. |
 | [`clean-code.md`](clean-code.md) | Czytelność, projektowanie klas, nazewnictwo, nullability oraz frontend. |
-| [`documentation.md`](documentation.md) | Dokumentacja zmian i obowiązkowy angielski Javadoc. |
+| [`documentation.md`](documentation.md) | Dokumentacja zmian, dokumentacja projektowa w `dokumentacja/` i obowiązkowy angielski Javadoc. |
 | [`formating.md`](formating.md) | Wygląd kodu: wcięcia, odstępy, importy i kolejność elementów w klasie. |
 | [`integration-tests.md`](integration-tests.md) | Izolacja, struktura i uruchamianie testów integracyjnych. |
 | [`maven.md`](maven.md) | Minimalna, czytelna konfiguracja POM i zarządzanie wersjami. |

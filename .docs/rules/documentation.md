@@ -35,7 +35,165 @@ Zmiana wymaga aktualizacji odpowiedniego pliku w `.docs`, gdy wpływa na:
 zmieniać decyzji w tych plikach bez akceptacji użytkownika. Plany realizacji poszczególnych feature’ów
 powstają osobno i nie są dopisywane do dokumentów z decyzjami i głównymi założeniami.
 
-## 3. Zakres obowiązkowego Javadoc
+## 3. Dokumentacja projektowa systemu w katalogu `dokumentacja/`
+
+Poza regułami i decyzjami z `.docs` repozytorium utrzymuje osobną dokumentację projektową opisującą
+sam system: jego funkcjonalności i sposób ich działania. `.docs` odpowiada na pytanie „dlaczego tak
+zdecydowaliśmy”, a `dokumentacja/` na pytanie „co system robi i jak to realizuje”. Nie powielamy
+treści między tymi katalogami; zamiast kopiowania decyzji wstawiamy odnośnik do właściwego dokumentu
+w `.docs`.
+
+### 3.1 Lokalizacja i układ plików
+
+Dokumentacja projektowa znajduje się w katalogu `dokumentacja/` w głównym katalogu projektu, obok
+`pom.xml`. Obowiązuje następujący układ:
+
+```text
+vdeck/
+├── pom.xml
+└── dokumentacja/
+    ├── dokumentacja-projektowa.md          ← główny dokument opisujący system
+    └── diagramy/
+        ├── mermaid-config.json             ← konfiguracja renderowania obrazków
+        ├── <feature>/                      ← jeden katalog = jeden feature
+        │   ├── klasy-<obszar>.mmd          ← źródło diagramu
+        │   ├── przeplyw-<proces>.mmd
+        │   └── img/                        ← obrazki wygenerowane ze źródeł
+        │       ├── klasy-<obszar>.svg
+        │       └── przeplyw-<proces>.svg
+        └── wspolne/                        ← diagramy nienależące do żadnego feature'a
+            ├── przeplyw-<proces>.mmd
+            └── img/
+                └── przeplyw-<proces>.svg
+```
+
+- `dokumentacja-projektowa.md` jest jedynym punktem wejścia. Jeżeli dokument urośnie na tyle, że
+  przestaje być czytelny, wydzielamy pliki tematyczne w tym samym katalogu, a główny dokument
+  pozostaje spisem treści i odsyła do nich odnośnikami.
+- Podkatalog `diagramy/` zawiera źródła diagramów, po jednym diagramie na plik, oraz wygenerowane
+  z nich obrazki.
+- **Obrazek wygenerowany ze źródła leży w podkatalogu `img/` katalogu feature'a** i ma tę samą nazwę
+  co źródło, z rozszerzeniem `.svg`. Obrazki są wersjonowane w repozytorium — bez nich dokumentacja
+  nie pokazuje diagramów.
+- **Diagramy są podzielone na katalogi w regule „jeden katalog = jeden feature".** Katalog nazywa się
+  dokładnie tak jak pakiet feature'a w `com.github.pplociennik.vdeck.feature`, na przykład
+  `diagramy/authentication/`. Żaden plik `.mmd` nie leży bezpośrednio w `diagramy/`.
+- Każdy katalog feature'a ma własny podkatalog `img/`; obrazki nie są trzymane wspólnie ani obok
+  źródeł.
+- Diagram opisujący zagadnienie przekrojowe albo infrastrukturę, czyli nienależący do żadnego
+  pojedynczego feature'a — jak start aplikacji czy konfiguracja — trafia do katalogu
+  `diagramy/wspolne/`. `wspolne/` nie jest workiem na diagramy, których właściciela nie chciało się
+  ustalić: diagram dotyczący jednego feature'a zawsze należy do jego katalogu.
+- Katalog feature'a powstaje razem z pierwszym jego diagramem i jest usuwany razem z ostatnim.
+- Nazwy plików zapisujemy małymi literami, z myślnikami, bez polskich znaków diakrytycznych.
+- Dokumentację projektową piszemy po polsku, spójnie z pozostałymi dokumentami w repozytorium.
+  Nazwy klas, metod, pakietów, endpointów, właściwości konfiguracyjnych i stanów podajemy dokładnie
+  tak jak w kodzie, bez tłumaczenia. Reguła obowiązkowego angielskiego Javadoc pozostaje niezmieniona.
+
+### 3.2 Spis treści
+
+Główny dokument zaczyna się od spisu treści z odnośnikami do wszystkich sekcji pierwszego i drugiego
+poziomu. Spis treści jest aktualizowany razem z dodaniem, usunięciem lub zmianą nazwy sekcji.
+
+### 3.3 Zakres i podział na sekcje
+
+Dokument opisuje wszystkie zaimplementowane funkcjonalności systemu, z czytelnym podziałem na sekcje.
+Opisujemy stan faktyczny — funkcjonalność trafia do dokumentacji dopiero wtedy, gdy jest
+zaimplementowana. Planowanego zachowania nie przedstawiamy jako gotowego; jeżeli jest potrzebne dla
+kontekstu, jawnie oznaczamy je jako nieukończone.
+
+Dokument zawiera co najmniej:
+
+- krótkie wprowadzenie: przeznaczenie systemu, główne moduły i sposób uruchomienia;
+- przekrojowy opis architektury na poziomie modułów i feature'ów;
+- osobną sekcję dla każdej funkcjonalności;
+- sekcje przekrojowe dla zagadnień wspólnych, takich jak konfiguracja, bezpieczeństwo, persystencja
+  i logowanie.
+
+Sekcja pojedynczej funkcjonalności opisuje, stosownie do jej charakteru:
+
+- odpowiedzialność funkcjonalności i problem, który rozwiązuje;
+- widoczne zachowanie: ekrany, endpointy, akcje użytkownika i wynik ich wykonania;
+- najważniejsze komponenty realizujące funkcjonalność wraz z pakietami, w których się znajdują;
+- przebieg głównego scenariusza oraz istotnych wariantów i błędów;
+- dane utrwalane oraz ich cykl życia;
+- konfigurację wpływającą na zachowanie funkcjonalności;
+- ograniczenia i znane luki.
+
+### 3.4 Diagramy
+
+Każdy proces złożony — obejmujący kilka komponentów, stanów, kroków w czasie albo wariantów błędu —
+wymaga diagramu. W szczególności dotyczy to procesów opisanych w sekcji 8 tego dokumentu. Stosujemy
+dwa rodzaje diagramów:
+
+- **diagram klas** (`classDiagram`) — struktura komponentów obszaru i relacje między nimi;
+- **diagram przepływu** (`flowchart`, `sequenceDiagram` albo `stateDiagram-v2`) — kolejność kroków,
+  rozgałęzienia, przejścia stanów i obsługa błędów.
+
+Obowiązują następujące zasady:
+
+- Źródło każdego diagramu jest zapisane jako osobny plik `.mmd` w katalogu feature'a albo w
+  `wspolne/`, zgodnie z sekcją 3.1. Plik zawiera wyłącznie kod Mermaid, bez ogrodzenia blokiem kodu
+  Markdown, i zaczyna się od komentarza `%%` z tytułem diagramu.
+- Nazwa pliku zaczyna się od rodzaju diagramu: `klasy-` albo `przeplyw-`, a dalej wskazuje opisywany
+  obszar lub proces, na przykład `authentication/przeplyw-zmiana-hasla.mmd`,
+  `wspolne/przeplyw-start-aplikacji.mmd`. Nazwa nie powtarza nazwy katalogu feature'a.
+- **Diagram musi być widoczny w dokumentacji.** W treści dokumentu osadzamy wygenerowany obrazek,
+  a nie kod Mermaid — bloki ` ```mermaid ` renderują się tylko w części czytników Markdown, więc
+  wklejone źródło jest dla czytelnika ścianą tekstu. Wklejanie zawartości pliku `.mmd` do dokumentu
+  jest niedozwolone.
+- Osadzenie ma postać obrazka z tekstem alternatywnym równym tytułowi diagramu, a bezpośrednio pod
+  nim znajduje się odnośnik do źródła:
+
+  ```markdown
+  ![Diagram przepływu: wymuszona zmiana hasła panelu vDeck](diagramy/authentication/img/przeplyw-zmiana-hasla.svg)
+
+  Źródło diagramu: [`diagramy/authentication/przeplyw-zmiana-hasla.mmd`](diagramy/authentication/przeplyw-zmiana-hasla.mmd)
+  ```
+
+- **Obrazek generujemy ze źródła i nigdy nie edytujemy ręcznie.** Po każdej zmianie pliku `.mmd`
+  obrazek trzeba wygenerować ponownie w tej samej zmianie:
+
+  ```powershell
+  npx -y @mermaid-js/mermaid-cli `
+    -i dokumentacja\diagramy\<feature>\<nazwa>.mmd `
+    -o dokumentacja\diagramy\<feature>\img\<nazwa>.svg `
+    -b white -c dokumentacja\diagramy\mermaid-config.json
+  ```
+
+  Konfiguracja z `dokumentacja/diagramy/mermaid-config.json` jest obowiązkowa: wyłącza etykiety HTML,
+  bez czego napisy trafiają do `foreignObject` i znikają, gdy SVG jest wyświetlane jako obrazek.
+  Jeżeli po wygenerowaniu diagram jest nieczytelny — na przykład skrajnie szeroki — poprawiamy układ
+  w źródle, na przykład zmieniając `direction`, zamiast zostawiać nieczytelny obrazek.
+- **Każdy diagram jest podlinkowany w dokumentacji projektowej** — odnośnikiem względnym do pliku
+  źródłowego, umieszczonym w sekcji opisującej dany proces.
+- W `diagramy/` nie pozostawiamy źródeł ani obrazków, do których nie prowadzi żaden odnośnik, ani
+  odnośników do plików nieistniejących. Usunięcie diagramu oznacza usunięcie źródła, obrazka,
+  osadzenia i wpisu w indeksie diagramów.
+- Diagram pokazuje kontrakt procesu, a nie każdą prywatną metodę pomocniczą. Jeżeli staje się
+  nieczytelny, dzielimy go na kilka diagramów o węższym zakresie.
+
+### 3.5 Kiedy aktualizować dokumentację projektową
+
+Dokumentację projektową **oraz jej diagramy** aktualizujemy w tej samej zmianie co kod, gdy zmiana:
+
+- dodaje, usuwa albo istotnie zmienia funkcjonalność systemu;
+- **zmienia warunki lub zasady działania funkcjonalności** — warunki wstępne, reguły walidacji,
+  warunki decyzyjne i ich kolejność, wymagane uprawnienia, wartości domyślne, limity, timeouty,
+  przejścia stanów albo klasyfikację wyników i błędów;
+- zmienia widoczne zachowanie panelu, przebieg procesu albo obsługę błędu;
+- zmienia komponenty lub relacje pokazane na istniejącym diagramie;
+- zmienia konfigurację, dane utrwalane albo sposób uruchomienia opisany w dokumencie.
+
+Zmiana warunku lub reguły działania nigdy nie jest wyłącznie zmianą kodu: wymaga poprawienia opisu
+w sekcji danej funkcjonalności **i** każdego diagramu, który ten warunek pokazuje — także wtedy, gdy
+nie zmieniają się nazwy klas ani struktura komponentów. Diagram, który pokazuje nieaktualny warunek,
+kolejność kroków albo wariant błędu, traktujemy jak błąd w dokumentacji.
+
+Refaktoryzacja bez zmiany zachowania wymaga aktualizacji tylko wtedy, gdy unieważnia nazwy albo
+strukturę pokazaną w dokumencie lub na diagramie.
+
+## 4. Zakres obowiązkowego Javadoc
 
 Javadoc jest wymagany nad:
 
@@ -50,7 +208,7 @@ uboczne nie są oczywiste z nazwy i kodu. Javadoc nie zastępuje właściwego na
 Wygenerowane elementy oraz proste akcesory utworzone przez Lombok nie wymagają osobnego Javadoc,
 jeśli udokumentowany jest typ lub pole będące źródłem ich kontraktu.
 
-## 4. Javadoc typu
+## 5. Javadoc typu
 
 Opis typu powinien krótko określać:
 
@@ -73,7 +231,7 @@ final class ServerRuntime {
 }
 ```
 
-## 5. Javadoc pól
+## 6. Javadoc pól
 
 Opis pola wyjaśnia jego znaczenie, jednostkę, dozwolone wartości albo rolę w cyklu życia obiektu.
 W szczególności należy dokumentować:
@@ -85,7 +243,7 @@ W szczególności należy dokumentować:
 
 Nie należy opisywać oczywistego szczegółu implementacyjnego, który nie stanowi kontraktu.
 
-## 6. Javadoc metod i konstruktorów
+## 7. Javadoc metod i konstruktorów
 
 Pierwsze zdanie krótko opisuje odpowiedzialność metody albo efekt utworzenia obiektu. Dalsza część,
 jeśli jest potrzebna, opisuje kontrakt, warunki wejściowe, skutki uboczne i zachowanie w sytuacjach
@@ -129,7 +287,7 @@ ServerStatus adopt(RecoveryCandidate candidate) {
 }
 ```
 
-## 7. Metody rozpoczynające złożone procesy
+## 8. Metody rozpoczynające złożone procesy
 
 Metoda będąca wejściem do procesu obejmującego kilka etapów, stanów, komponentów albo wariantów błędu
 wymaga rozszerzonego Javadoc. Dotyczy to w szczególności uruchamiania i zatrzymywania serwera,
@@ -183,10 +341,11 @@ CompletionStage<StopOutcome> stop(StopRequest request) {
 }
 ```
 
-Jeżeli diagram nie mieści się czytelnie w Javadoc, krótki Javadoc powinien odsyłać do dedykowanego
-dokumentu Markdown zawierającego diagram Mermaid lub większy diagram tekstowy.
+Jeżeli diagram nie mieści się czytelnie w Javadoc, krótki Javadoc powinien odsyłać do sekcji
+dokumentacji projektowej opisującej ten proces oraz do jego diagramu w `dokumentacja/diagramy/`,
+zgodnie z sekcją 3.
 
-## 8. Komentarze wewnątrz kodu
+## 9. Komentarze wewnątrz kodu
 
 Komentarze liniowe stosujemy oszczędnie. Powinny wyjaśniać przede wszystkim „dlaczego”, np. wymóg
 Win32, obejście zachowania biblioteki albo nieoczywistą kolejność operacji. Komentarz opisujący
@@ -195,7 +354,7 @@ Win32, obejście zachowania biblioteki albo nieoczywistą kolejność operacji. 
 Komentarze zawierające uzasadnienie techniczne muszą pozostać aktualne po refaktoryzacji. Tymczasowe
 obejścia powinny wskazywać warunek, po którego zniknięciu można je usunąć.
 
-## 9. Kontrola przed zakończeniem zmiany
+## 10. Kontrola przed zakończeniem zmiany
 
 Przed uznaniem zmiany za kompletną należy sprawdzić:
 
@@ -204,5 +363,14 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
 - czy `@param`, `@return` i `@throws` odpowiadają rzeczywistej sygnaturze i zachowaniu;
 - czy złożone wejścia do procesów opisują warianty, stany i błędy;
 - czy zmiana nie unieważniła diagramu lub opisu w `.docs`;
+- czy `dokumentacja/dokumentacja-projektowa.md` opisuje zmienioną funkcjonalność, a jej spis treści
+  jest aktualny;
+- czy zmienione warunki i reguły działania funkcjonalności zostały poprawione w opisie i na każdym
+  diagramie, który je pokazuje;
+- czy każdy złożony proces objęty zmianą ma aktualny diagram w katalogu swojego feature'a;
+- czy obrazek w `img/` został wygenerowany ponownie po zmianie źródła `.mmd` i jest osadzony
+  w dokumencie zamiast kodu Mermaid;
+- czy każdy diagram jest podlinkowany w dokumentacji i nie pozostał żaden osierocony plik `.mmd`
+  ani `.svg`;
 - czy dokumentacja nie przedstawia niezaimplementowanego zachowania jako gotowego;
 - czy odnośniki i nazwy plików nadal są poprawne.

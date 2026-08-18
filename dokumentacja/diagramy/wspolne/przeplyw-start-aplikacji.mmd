@@ -1,0 +1,24 @@
+%% Diagram przepływu: start aplikacji vDeck i przygotowanie środowiska
+flowchart TD
+    start([Uruchomienie VdeckApplication]) --> home{Ustawiono<br/>vdeck.server-directory?}
+    home -- tak --> configured[Katalog bazowy = wartość override]
+    home -- nie --> appHome[Katalog bazowy = ApplicationHome.getDir]
+    configured --> real[PathServiceImpl: toRealPath i sprawdzenie,<br/>czy to katalog]
+    appHome --> real
+    real -- nie jest katalogiem --> fail([PathResolutionException:<br/>start przerwany])
+    real -- ok --> props[SystemPropertiesConfiguration:<br/>PathService.getAbsolutePath vDeck.properties]
+    props --> exists{Plik vDeck.properties<br/>istnieje?}
+    exists -- nie --> create[Zapis pliku z wartościami domyślnymi<br/>z VdeckProperty.defaults]
+    exists -- tak --> read[Wczytanie pliku i przycięcie wartości]
+    read --> missing{Brakuje kluczy<br/>zarządzanych?}
+    missing -- tak --> restore[Przywrócenie wartości domyślnych<br/>i zapis pliku]
+    missing -- nie --> ready[Ustawienia gotowe w pamięci]
+    create --> ready
+    restore --> ready
+    ready --> schema[Hibernate ddl-auto=update:<br/>utworzenie lub aktualizacja tabeli panel_users]
+    schema --> init[DataInitializer.run]
+    init --> adminExists{Konto 'admin'<br/>istnieje?}
+    adminExists -- tak --> skip[Pominięcie inicjalizacji]
+    adminExists -- nie --> createAdmin[Zapis PanelUser 'admin'<br/>z zahaszowanym hasłem 'admin'<br/>i passwordChangeRequired = true]
+    skip --> up([Panel nasłuchuje na 127.0.0.1])
+    createAdmin --> up

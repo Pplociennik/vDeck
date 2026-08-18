@@ -98,6 +98,14 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── security.md
 │       └── unit-tests.md
 │
+├── dokumentacja/                                ← dokumentacja projektowa systemu
+│   ├── dokumentacja-projektowa.md
+│   └── diagramy/                                ← źródła diagramów Mermaid (.mmd)
+│       ├── <feature>/                           ← jeden katalog = jeden feature
+│       │   └── img/                             ← obrazki .svg osadzane w dokumentacji
+│       └── wspolne/                             ← diagramy przekrojowe i infrastruktury
+│           └── img/
+│
 ├── vdeck-runtime/                               ← czysta Java, bez Springa
 │   ├── pom.xml
 │   └── src/

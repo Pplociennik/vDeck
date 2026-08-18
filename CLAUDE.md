@@ -74,7 +74,12 @@ Also read every Markdown file in `.docs/rules/` before making changes. These fil
 repository-wide working rules. Start with `.docs/rules/README.md`, which indexes the rule set,
 defines precedence between documents, and provides the repository-wide Definition of Done. In
 particular, `.docs/rules/documentation.md` defines the required
-Javadoc coverage and the documentation that must be updated together with code changes. All Javadoc
+Javadoc coverage, the documentation that must be updated together with code changes, and the
+project documentation kept in the top-level `dokumentacja/` directory (`dokumentacja-projektowa.md`
+plus one Mermaid `.mmd` source per diagram under `dokumentacja/diagramy/<feature>/`, cross-cutting
+diagrams in `dokumentacja/diagramy/wspolne/`, and the rendered `.svg` that the document actually
+embeds in each directory's `img/` subdirectory — regenerate it with mermaid-cli whenever the source
+changes; never paste Mermaid code into the document). All Javadoc
 must always be written in English. `.docs/rules/unit-tests.md` defines the mandatory unit-test
 coverage, test-class structure, GIVEN/WHEN/THEN convention, and AssertJ assertion style for new or
 modified Java classes containing behavior. `.docs/rules/clean-code.md` defines the mandatory readability,

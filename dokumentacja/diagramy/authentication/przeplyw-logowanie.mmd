@@ -1,0 +1,36 @@
+%% Diagram przepływu: logowanie do panelu i skierowanie do wymuszonej zmiany hasła
+sequenceDiagram
+    actor Uzytkownik as Użytkownik
+    participant Chain as SecurityFilterChain
+    participant Service as PanelUserServiceImpl
+    participant Repo as UserRepository
+    participant Handler as PasswordChangeAuthenticationSuccessHandler
+    participant Filter as PasswordChangeRequiredFilter
+
+    Uzytkownik->>Chain: GET /panel (bez uwierzytelnienia)
+    Chain-->>Uzytkownik: Przekierowanie na /login (strona generowana przez Spring Security)
+    Uzytkownik->>Chain: POST /login (username, password)
+    Chain->>Service: loadUserByUsername(username)
+    Service->>Repo: findById(username)
+    alt Konto nie istnieje
+        Repo-->>Service: Optional.empty
+        Service-->>Chain: UsernameNotFoundException
+        Chain-->>Uzytkownik: Przekierowanie na /login?error
+    else Konto istnieje
+        Repo-->>Service: PanelUser
+        Service-->>Chain: UserDetails (ROLE_ADMIN [+ PASSWORD_CHANGE_REQUIRED])
+        Chain->>Chain: Weryfikacja hasła przez PasswordEncoder
+        alt Hasło niepoprawne
+            Chain-->>Uzytkownik: Przekierowanie na /login?error
+        else Hasło poprawne
+            Chain->>Chain: Zmiana identyfikatora sesji (session fixation)
+            Chain->>Handler: onAuthenticationSuccess
+            alt Uprawnienie PASSWORD_CHANGE_REQUIRED obecne
+                Handler-->>Uzytkownik: Przekierowanie na /change-password
+                Uzytkownik->>Filter: Próba wejścia na inny adres
+                Filter-->>Uzytkownik: Przekierowanie na /change-password
+            else Zwykłe logowanie
+                Handler-->>Uzytkownik: Przekierowanie na zapamiętane żądanie lub stronę główną
+            end
+        end
+    end

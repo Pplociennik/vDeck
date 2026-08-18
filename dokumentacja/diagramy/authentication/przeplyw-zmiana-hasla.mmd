@@ -1,0 +1,23 @@
+%% Diagram przepływu: wymuszona zmiana hasła panelu vDeck
+flowchart TD
+    start([GET /change-password]) --> form[PasswordChangeController.showPasswordChange:<br/>pusty formularz PasswordChangeRequest]
+    form --> submit([POST /change-password])
+    submit --> bean{Walidacja adnotacji<br/>NotBlank i Size 12-128?}
+    bean -- błędy --> generic[Komunikat: wszystkie pola wymagane,<br/>nowe hasło 12-128 znaków]
+    bean -- ok --> load[PanelUserServiceImpl.changePassword<br/>dla nazwy z Authentication]
+    load --> found{Konto nadal<br/>istnieje?}
+    found -- nie --> missing([UsernameNotFoundException])
+    found -- tak --> current{PasswordEncoder.matches<br/>aktualne hasło?}
+    current -- nie --> incorrect[CURRENT_PASSWORD_INCORRECT]
+    current -- tak --> equal{Nowe hasło<br/>= potwierdzenie?}
+    equal -- nie --> mismatch[NEW_PASSWORD_MISMATCH]
+    equal -- tak --> same{Nowe hasło różne<br/>od aktualnego?}
+    same -- nie --> unchanged[NEW_PASSWORD_UNCHANGED]
+    same -- tak --> apply[PanelUser.changePassword:<br/>nowy hash i passwordChangeRequired = false]
+    apply --> commit[Zapis w transakcji przez dirty checking]
+    commit --> logout[SecurityContextLogoutHandler:<br/>wyczyszczenie kontekstu i unieważnienie sesji]
+    logout --> done([Przekierowanie na /login])
+    incorrect --> render
+    mismatch --> render
+    unchanged --> render
+    generic --> render[Ponowne wyświetlenie formularza<br/>z komunikatem i pustymi polami]

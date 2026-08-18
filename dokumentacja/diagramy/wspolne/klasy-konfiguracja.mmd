@@ -1,0 +1,68 @@
+%% Diagram klas: infrastruktura konfiguracji i rozwiązywania ścieżek
+classDiagram
+    direction TB
+
+    class SystemPropertyIf {
+        <<interface>>
+        +getName() String
+    }
+
+    class VdeckProperty {
+        <<enumeration>>
+        GAME_LOG_DIRECTORY
+        +FILE_NAME String
+        +defaults() Map
+        +getName() String
+        +getDefaultValue() String
+    }
+
+    class SystemPropertiesService {
+        <<interface>>
+        +getValue(SystemPropertyIf) String
+        +setValue(SystemPropertyIf, String) void
+    }
+
+    class SystemPropertiesServiceImpl {
+        -Path propertiesFile
+        -Properties defaults
+        -Properties properties
+        -loadOrCreate() void
+        -read() void
+        -restoreMissingValues() boolean
+        -save() void
+    }
+
+    class PathService {
+        <<interface>>
+        +getBaseDirectory() Path
+        +getAbsolutePath(String) Path
+    }
+
+    class PathServiceImpl {
+        -ApplicationHome applicationHome
+        -Path baseDirectory
+        -resolveBaseDirectory(String) Path
+        -requireInsideBaseDirectory(Path, String) void
+    }
+
+    class PathResolutionException {
+        <<exception>>
+    }
+
+    class PathConfiguration {
+        +pathService(String) PathService
+    }
+
+    class SystemPropertiesConfiguration {
+        +vdeckProperties(PathService) SystemPropertiesService
+    }
+
+    SystemPropertyIf <|.. VdeckProperty
+    SystemPropertiesService <|.. SystemPropertiesServiceImpl
+    SystemPropertiesServiceImpl ..> SystemPropertyIf : klucze ustawień
+    PathService <|.. PathServiceImpl
+    PathServiceImpl ..> PathResolutionException : zgłasza
+    PathConfiguration ..> PathServiceImpl : tworzy
+    SystemPropertiesConfiguration ..> SystemPropertiesServiceImpl : tworzy
+    SystemPropertiesConfiguration --> PathService : rozwiązuje plik ustawień
+    SystemPropertiesConfiguration ..> VdeckProperty : wartości domyślne

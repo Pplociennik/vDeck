@@ -1,6 +1,7 @@
-package com.github.pplociennik.vdeck.shared;
+package com.github.pplociennik.vdeck.shared.service.impl;
 
 import com.github.pplociennik.vdeck.shared.exc.PathResolutionException;
+import com.github.pplociennik.vdeck.shared.service.PathService;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import lombok.extern.log4j.Log4j2;
@@ -28,7 +29,7 @@ import static java.util.Objects.requireNonNull;
  * system only to read metadata and never creates directories or files.
  */
 @Log4j2
-public class PathService {
+public class PathServiceImpl implements PathService {
 
     private final ApplicationHome applicationHome;
 
@@ -48,7 +49,7 @@ public class PathService {
      * @throws UncheckedIOException
      *         if the resolved base directory does not exist or cannot be read
      */
-    public PathService( @Nonnull ApplicationHome applicationHome, @Nullable String configuredDirectory ) {
+    public PathServiceImpl( @Nonnull ApplicationHome applicationHome, @Nullable String configuredDirectory ) {
         this.applicationHome = requireNonNull( applicationHome, "applicationHome must not be null" );
         this.baseDirectory = resolveBaseDirectory( configuredDirectory );
         log.info( "Base directory resolved to {}", this.baseDirectory );
@@ -59,6 +60,7 @@ public class PathService {
      *
      * @return the base directory every relative path is resolved against
      */
+    @Override
     public @Nonnull Path getBaseDirectory() {
         return baseDirectory;
     }
@@ -83,6 +85,7 @@ public class PathService {
      * @throws UncheckedIOException
      *         if the real form of an existing target cannot be read
      */
+    @Override
     public @Nonnull Path getAbsolutePath( @Nonnull String relativePath ) {
         requireNonNull( relativePath, "relativePath must not be null" );
         String strippedPath = relativePath.strip();

@@ -1,4 +1,4 @@
-package com.github.pplociennik.vdeck.shared;
+package com.github.pplociennik.vdeck.shared.service.impl;
 
 import com.github.pplociennik.vdeck.shared.exc.PathResolutionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
 
 /**
- * Verifies that {@link PathService} resolves configured paths against the installation directory and
+ * Verifies that {@link PathServiceImpl} resolves configured paths against the installation directory and
  * rejects every path that would leave it.
  *
  * <p>Escapes through a symbolic link or a Windows junction are not covered here: creating one requires
@@ -30,7 +30,7 @@ import static org.mockito.BDDMockito.given;
  * verified manually.
  */
 @ExtendWith( MockitoExtension.class )
-class PathServiceTest {
+class PathServiceImplTest {
 
     // =================================================================================================
     // FIELDS
@@ -44,7 +44,7 @@ class PathServiceTest {
 
     private Path realBaseDirectory;
 
-    private PathService underTest;
+    private PathServiceImpl underTest;
 
     // =================================================================================================
     // BEFORE METHODS
@@ -57,7 +57,7 @@ class PathServiceTest {
     void setUp() throws IOException {
         realBaseDirectory = baseDirectory.toRealPath();
         given( applicationHome.getDir() ).willReturn( baseDirectory.toFile() );
-        underTest = new PathService( applicationHome, null );
+        underTest = new PathServiceImpl( applicationHome, null );
     }
 
     // =================================================================================================
@@ -90,7 +90,7 @@ class PathServiceTest {
         // an application home pointing at the temporary directory
 
         // WHEN
-        underTest = new PathService( applicationHome, configuredDirectory );
+        underTest = new PathServiceImpl( applicationHome, configuredDirectory );
 
         // THEN
         assertThat( underTest.getBaseDirectory() ).isEqualTo( realBaseDirectory );
@@ -105,7 +105,7 @@ class PathServiceTest {
         Path installation = Files.createDirectory( baseDirectory.resolve( "installation" ) );
 
         // WHEN
-        underTest = new PathService( applicationHome, installation.toString() );
+        underTest = new PathServiceImpl( applicationHome, installation.toString() );
 
         // THEN
         assertThat( underTest.getBaseDirectory() ).isEqualTo( installation.toRealPath() );
@@ -253,7 +253,7 @@ class PathServiceTest {
         String missingDirectory = baseDirectory.resolve( "missing" ).toString();
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new PathService( applicationHome, missingDirectory ) );
+        Throwable thrown = catchThrowable( () -> new PathServiceImpl( applicationHome, missingDirectory ) );
 
         // THEN
         assertThat( thrown )
@@ -270,7 +270,7 @@ class PathServiceTest {
         Path file = Files.createFile( baseDirectory.resolve( "not-a-directory" ) );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new PathService( applicationHome, file.toString() ) );
+        Throwable thrown = catchThrowable( () -> new PathServiceImpl( applicationHome, file.toString() ) );
 
         // THEN
         assertThat( thrown )
@@ -287,7 +287,7 @@ class PathServiceTest {
         // no application home at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new PathService( null, null ) );
+        Throwable thrown = catchThrowable( () -> new PathServiceImpl( null, null ) );
 
         // THEN
         assertThat( thrown )

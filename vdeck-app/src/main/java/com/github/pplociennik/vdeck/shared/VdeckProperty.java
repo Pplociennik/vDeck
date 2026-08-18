@@ -1,4 +1,4 @@
-package com.github.pplociennik.vdeck.config;
+package com.github.pplociennik.vdeck.shared;
 
 import jakarta.annotation.Nonnull;
 

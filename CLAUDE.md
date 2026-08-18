@@ -8,16 +8,40 @@ vDeck is an early-stage Maven reactor with two modules, matching `first_design_i
 
 - `vdeck-runtime` — pure Java, no Spring. **Currently empty and has no `src/` directory at all**, so
   the build prints a `JAR will be empty` warning for it. That is expected, not a defect.
-- `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, the `shared` package
-  (`PathService` resolving configured paths against the installation directory) and the `config`
-  package (the external `vDeck.properties` settings channel).
+- `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, shared path/configuration
+  infrastructure and the first implemented feature: panel authentication with a persisted admin
+  account, forced initial password change and Spring Security's generated login page.
 
-There are still no controllers, entities or templates. Do not infer the architecture from the current
-package layout; follow the design documents described below. Only packages holding real code exist —
-the rest of the `first_design_ideas.md` §3 tree is created when its feature is implemented.
+Only packages holding real code exist; the rest of the `first_design_ideas.md` §3 tree is created when
+its feature is implemented. Do not infer missing architecture from the incomplete package layout.
 
 Base package: `com.github.pplociennik.vdeck` (`vdeck-app/src/main/java`, mirrored in
 `vdeck-app/src/test/java`).
+
+## Feature and infrastructure package ownership
+
+The package locations below are explicit architectural decisions (`AD-003` through `AD-005`), not
+interchangeable technical naming conventions:
+
+- every vertical feature belongs under `com.github.pplociennik.vdeck.feature.<name>`; no feature is
+  created directly under the base package;
+- account, password-change and login-domain code belongs to `feature.authentication`; its JPA model
+  belongs to `feature.authentication.domain`, web input records to `feature.authentication.dto`, and
+  repository interfaces to `feature.authentication.persistence`;
+- service contracts belong to the feature's `service` package and implementations to `service.impl`;
+  consumers inject the contract, while implementation classes remain package-private where possible;
+- infrastructure services use the same `service` and `service.impl` split inside their owning
+  infrastructure package, as in `shared.service.PathService` and `shared.service.SystemPropertiesService`;
+- every Spring `@Configuration` class belongs to the top-level
+  `com.github.pplociennik.vdeck.config` composition root; `VdeckApplication` is the bootstrap-class
+  exception that remains in the base package;
+- cross-cutting Spring Security filters and handlers belong to the top-level
+  `com.github.pplociennik.vdeck.security` package, not under `feature.authentication`;
+- startup data initialization, including `DataInitializer`, belongs to the top-level
+  `com.github.pplociennik.vdeck.config` package, even when it injects an authentication repository.
+
+Use the narrowest viable Java visibility. Spring components and their constructors are package-private
+unless an actual cross-package contract or a Java/framework requirement makes them public.
 
 ## Configuration channels
 
@@ -26,8 +50,9 @@ Configuration is split by owner (see `AD-002`):
 - `application.yaml` inside the jar — Spring Boot infrastructure only (datasource, ports, log levels).
   Not user-editable.
 - `vDeck.properties` next to `vdeck.jar` — the panel's own user-editable settings, described by an
-  enum implementing `SystemPropertyIf` and served by `SystemPropertiesService` (one instance per
-  file). Created with defaults on first start; missing keys are restored on the next start.
+  enum implementing `shared.SystemPropertyIf` and served by
+  `shared.service.SystemPropertiesService` (one instance per file). Created with defaults on first
+  start; missing keys are restored on the next start.
 
 Every configured path goes through `PathService.getAbsolutePath(String)`: it must be relative, is
 normalized, and after resolution must stay inside the installation directory.
@@ -74,9 +99,8 @@ decision.
   not the Boot 3 `org.springframework.boot.autoconfigure.<module>` locations. Starters are also
   renamed: `spring-boot-starter-webmvc` (not `-web`), and test starters are per-module
   (`spring-boot-starter-webmvc-test`, `-data-jpa-test`, `-thymeleaf-test`) rather than a single
-  `spring-boot-starter-test`. **None of the test starters is currently declared** — there are no slice
-  tests yet, and pulling Spring onto the test classpath of the parent would leak it into
-  `vdeck-runtime`. Add the one you need when the first slice test is written.
+  `spring-boot-starter-test`. Security and Web MVC test starters are declared only in `vdeck-app`;
+  keep Spring test dependencies out of the parent so they do not leak into `vdeck-runtime`.
 - JUnit 5, AssertJ and Mockito are declared individually in the root POM, for the same reason
 - Spring MVC + Thymeleaf for the web layer, Spring Data JPA + SQLite (`org.xerial:sqlite-jdbc`) for persistence
 - Log4j2 is the required application logging API and backend; `spring-boot-starter-log4j2` is declared

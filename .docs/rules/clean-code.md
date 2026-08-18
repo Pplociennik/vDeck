@@ -23,7 +23,9 @@ jest redukcja złożoności, a nie mechaniczne spełnianie metryk albo używanie
   szczegółów systemu operacyjnego, sieci ani innych niestabilnych granic.
 
 SOLID nie oznacza obowiązkowego tworzenia interfejsu dla każdej klasy ani architektury heksagonalnej
-w każdym feature. Abstrakcja musi usuwać rzeczywiste sprzężenie lub reprezentować faktyczny kontrakt.
+w każdym feature. Serwisy aplikacyjne są jawnym wyjątkiem: zawsze udostępniają interfejs zgodnie z
+sekcją „Wstrzykiwanie zależności”. Pozostała abstrakcja musi usuwać rzeczywiste sprzężenie lub
+reprezentować faktyczny kontrakt.
 
 ### KISS
 
@@ -51,8 +53,7 @@ tworzymy ręcznie:
 - getterów, konstruktorów, loggerów, `equals`, `hashCode` i `toString`, jeśli mogą zostać bezpiecznie
   wygenerowane zgodnie z kontraktem klasy;
 - implementacji CRUD delegujących bez dodatkowego zachowania do generycznego repozytorium Spring Data;
-- interfejsu, implementacji i delegującego serwisu dla pojedynczej odpowiedzialności bez rzeczywistej
-  granicy lub zmienności;
+- interfejsu i implementacji dla klasy niebędącej serwisem, bez rzeczywistej granicy lub zmienności;
 - par DTO i mapperów kopiujących te same pola, jeżeli nie istnieje faktyczna różnica kontraktów;
 - wrapperów, adapterów i klas pomocniczych, które tylko zmieniają nazwę tego samego wywołania;
 - builderów, fabryk albo obiektów parametrów, które nie poprawiają czytelności i nie chronią
@@ -118,11 +119,37 @@ Publiczne API klasy powinno być możliwie małe. Stan obiektu pozostaje prywatn
 są ustanawiane w konstruktorze lub fabryce. Zależności przekazujemy jawnie przez konstruktor; nie
 ukrywamy ich w globalnym stanie ani statycznym locatorze serwisów.
 
+### Higiena pakietów
+
+Pakiet istnieje tylko wtedy, gdy zawiera rzeczywisty kod lub wymagany plik opisujący kontrakt pakietu.
+Po przeniesieniu albo usunięciu ostatniej klasy usuwamy również pusty katalog pakietu z drzewa
+`src/main` lub `src/test`. Nie pozostawiamy pustych pakietów jako rezerwacji pod przyszły kod ani jako
+śladu po wcześniejszej strukturze. Katalogi generowane w `target` nie należą do źródłowego drzewa
+pakietów i nie są przedmiotem tej reguły.
+
+Każdy typ, konstruktor, pole i metoda otrzymuje najmniejszą widoczność potrzebną rzeczywistym
+konsumentom. Szczegół używany wyłącznie w klasie jest `private`, a element współdzielony wyłącznie w
+pakiecie jest package-private. `public` i `protected` stosujemy dopiero dla kontraktu przekraczającego
+granicę pakietu albo gdy wymaga ich Java lub framework. Wykrywanie komponentów, kontrolerów i klas
+konfiguracyjnych przez Spring nie wymaga samo w sobie widoczności `public`.
+
 ### Wstrzykiwanie zależności
 
 Zależności komponentów Springa wstrzykujemy **wyłącznie przez konstruktor**. Pola zależności są
 `private final`, dzięki czemu obiekt nigdy nie istnieje w stanie niekompletnym, a komplet wymaganych
 współpracowników jest widoczny w sygnaturze.
+
+Każdy serwis ma interfejs w podpakiecie `service` pakietu będącego jego właścicielem oraz implementację
+w `service.impl`. Dla feature'a są to odpowiednio
+`com.github.pplociennik.vdeck.feature.<nazwa>.service` i jego `impl`; serwis infrastrukturalny stosuje
+ten sam układ pod pakietem infrastruktury, np. `shared.service` i `shared.service.impl`. Konsumenci
+deklarują i wstrzykują wyłącznie typ interfejsu. Implementacja pozostaje package-private, o ile
+techniczny mechanizm proxy albo centralna konfiguracja w innym pakiecie nie wymaga szerszej
+widoczności. Interfejs jest `public` tylko wtedy, gdy ma konsumentów poza własnym pakietem.
+
+Wszystkie klasy Spring oznaczone `@Configuration` umieszczamy w głównym pakiecie
+`com.github.pplociennik.vdeck.config`. Stanowią composition root i mogą zależeć od konkretnych
+implementacji wyłącznie w celu utworzenia beanów. Pozostali konsumenci zależą od interfejsów.
 
 - Nie używamy wstrzykiwania w pole ani przez setter. `@Autowired` na polu, `@Inject` na polu oraz
   `@Autowired` na setterze są zabronione; ukrywają zależność przed kontraktem klasy i uniemożliwiają
@@ -650,6 +677,11 @@ już używana zależność nie rozwiązuje problemu wystarczająco prosto.
 Przed uznaniem zmiany za kompletną należy sprawdzić:
 
 - czy klasy i metody mają jedną spójną odpowiedzialność;
+- czy po przeniesieniach i usunięciach nie pozostały puste pakiety źródłowe lub testowe;
+- czy każdy element ma najmniejszą wystarczającą widoczność, a `public` nie zostało użyte wyłącznie
+  dla wygody albo wykrywania przez Spring;
+- czy serwisy mają interfejs w `service`, implementację w `service.impl`, a konsumenci wstrzykują
+  interfejs;
 - czy główny przepływ jest płaski i zrozumiały przy szybkim czytaniu;
 - czy nie napisano ręcznie boilerplate'u, który bezpiecznie usuwa Java, Lombok, Spring Data albo
   istniejący mechanizm projektu;

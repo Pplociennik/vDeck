@@ -14,12 +14,12 @@ import java.io.IOException;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Redirects first-login users to mandatory password replacement and otherwise preserves Spring
- * Security's saved-request behavior.
+ * Redirects first-login users to mandatory replacement of the initial password and otherwise preserves
+ * Spring Security's saved-request behavior.
  */
 public class PasswordChangeAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
 
-    private static final String CHANGE_PASSWORD_PATH = "/change-password";
+    private static final String INITIAL_PASSWORD_CHANGE_PATH = "/initial-password-change";
 
     private final AuthenticationSuccessHandler defaultSuccessHandler;
 
@@ -58,7 +58,8 @@ public class PasswordChangeAuthenticationSuccessHandler implements Authenticatio
         requireNonNull( response, "response must not be null" );
         requireNonNull( authentication, "authentication must not be null" );
         if ( requiresPasswordChange( authentication ) ) {
-            response.sendRedirect( response.encodeRedirectURL( request.getContextPath() + CHANGE_PASSWORD_PATH ) );
+            response.sendRedirect(
+                    response.encodeRedirectURL( request.getContextPath() + INITIAL_PASSWORD_CHANGE_PATH ) );
             return;
         }
         defaultSuccessHandler.onAuthenticationSuccess( request, response, authentication );

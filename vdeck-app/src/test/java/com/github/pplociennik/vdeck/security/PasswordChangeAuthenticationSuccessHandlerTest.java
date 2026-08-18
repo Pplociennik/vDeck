@@ -72,7 +72,7 @@ class PasswordChangeAuthenticationSuccessHandlerTest {
         underTest.onAuthenticationSuccess( request, response, authentication );
 
         // THEN
-        assertThat( response.getRedirectedUrl() ).isEqualTo( "/change-password" );
+        assertThat( response.getRedirectedUrl() ).isEqualTo( "/initial-password-change" );
         verify( defaultSuccessHandler, never() ).onAuthenticationSuccess( request, response, authentication );
     }
 

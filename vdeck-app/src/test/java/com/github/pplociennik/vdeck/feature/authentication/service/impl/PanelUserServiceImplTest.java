@@ -1,14 +1,19 @@
 package com.github.pplociennik.vdeck.feature.authentication.service.impl;
 
+import com.github.pplociennik.vdeck.feature.authentication.PasswordChangeMessage;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelRole;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelUser;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
+import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeStatus;
+import com.github.pplociennik.vdeck.feature.authentication.dto.InitialPasswordChangeRequest;
 import com.github.pplociennik.vdeck.feature.authentication.dto.PasswordChangeRequest;
 import com.github.pplociennik.vdeck.feature.authentication.persistence.UserRepository;
 import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -21,8 +26,9 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
 
 /**
- * Verifies that {@link PanelUserServiceImpl} maps persistent users for Spring Security and replaces
- * passwords only after all credential-dependent checks succeed.
+ * Verifies that {@link PanelUserServiceImpl} maps persistent users for Spring Security, replaces
+ * passwords only after all applicable checks succeed, and skips the current-password proof exactly for
+ * an account that still has to leave the first-login state.
  */
 @ExtendWith( MockitoExtension.class )
 class PanelUserServiceImplTest {
@@ -130,7 +136,7 @@ class PanelUserServiceImplTest {
         PasswordChangeResult result = underTest.changePassword( USERNAME, request );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.SUCCESS );
+        assertThat( result ).isEqualTo( PasswordChangeResult.success() );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( "{bcrypt}replacement" );
         assertThat( panelUser.isPasswordChangeRequired() ).isFalse();
     }
@@ -150,7 +156,8 @@ class PanelUserServiceImplTest {
         PasswordChangeResult result = underTest.changePassword( USERNAME, request );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.CURRENT_PASSWORD_INCORRECT );
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.CURRENT_PASSWORD_INCORRECT, PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
     }
 
@@ -162,7 +169,7 @@ class PanelUserServiceImplTest {
         // GIVEN
         PanelUser panelUser = panelUser( true );
         PasswordChangeRequest request = new PasswordChangeRequest(
-                "admin", "replacement-password", "different-password" );
+                "admin", "Replacement-1", "different-password" );
         given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
         given( passwordEncoder.matches( request.currentPassword(), CURRENT_HASH ) ).willReturn( true );
 
@@ -170,7 +177,8 @@ class PanelUserServiceImplTest {
         PasswordChangeResult result = underTest.changePassword( USERNAME, request );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.NEW_PASSWORD_MISMATCH );
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.NEW_PASSWORD_MISMATCH, PasswordChangeMessage.NEW_PASSWORD_MISMATCH ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
     }
 
@@ -191,8 +199,179 @@ class PanelUserServiceImplTest {
         PasswordChangeResult result = underTest.changePassword( USERNAME, request );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.NEW_PASSWORD_UNCHANGED );
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.NEW_PASSWORD_UNCHANGED, PasswordChangeMessage.NEW_PASSWORD_UNCHANGED ) );
         assertThat( panelUser.isPasswordChangeRequired() ).isTrue();
+    }
+
+    /**
+     * Verifies that a replacement missing any of the required character kinds is rejected and leaves
+     * the stored credentials untouched.
+     *
+     * @param weakPassword
+     *         replacement long enough for annotation validation but missing one character kind
+     */
+    @ParameterizedTest( name = "[{index}] weakPassword={0}" )
+    @ValueSource( strings = { "Haslo-bez-cyfry", "HASLO-BEZ-MALEJ1", "haslo-bez-duzej1", "HasloBezZnaku12" } )
+    void shouldRejectPasswordChange_whenNewPasswordMissesRequiredCharacterKind( String weakPassword ) {
+        // GIVEN
+        PanelUser panelUser = panelUser( true );
+        PasswordChangeRequest request = new PasswordChangeRequest( "admin", weakPassword, weakPassword );
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
+        given( passwordEncoder.matches( request.currentPassword(), CURRENT_HASH ) ).willReturn( true );
+        given( passwordEncoder.matches( weakPassword, CURRENT_HASH ) ).willReturn( false );
+
+        // WHEN
+        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+
+        // THEN
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK, PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
+        assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
+        assertThat( panelUser.isPasswordChangeRequired() ).isTrue();
+    }
+
+    /**
+     * Verifies that whitespace alone does not pass for a special character, so a password built only
+     * from letters, digits and spaces stays rejected.
+     */
+    @Test
+    void shouldRejectPasswordChange_whenOnlySpecialCharacterIsWhitespace() {
+        // GIVEN
+        PanelUser panelUser = panelUser( true );
+        String spacedPassword = "Haslo bez znaku 12";
+        PasswordChangeRequest request = new PasswordChangeRequest( "admin", spacedPassword, spacedPassword );
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
+        given( passwordEncoder.matches( request.currentPassword(), CURRENT_HASH ) ).willReturn( true );
+        given( passwordEncoder.matches( spacedPassword, CURRENT_HASH ) ).willReturn( false );
+
+        // WHEN
+        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+
+        // THEN
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK, PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
+        assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
+    }
+
+    /**
+     * Verifies that replacing the initial password succeeds without the current password being supplied
+     * or verified at all.
+     */
+    @Test
+    void shouldChangeInitialPassword_whenReplacementIsValid() {
+        // GIVEN
+        PanelUser panelUser = panelUser( true );
+        InitialPasswordChangeRequest request = validInitialRequest();
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
+        given( passwordEncoder.matches( request.newPassword(), CURRENT_HASH ) ).willReturn( false );
+        given( passwordEncoder.encode( request.newPassword() ) ).willReturn( "{bcrypt}replacement" );
+
+        // WHEN
+        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+
+        // THEN
+        assertThat( result ).isEqualTo( PasswordChangeResult.success() );
+        assertThat( panelUser.getPasswordHash() ).isEqualTo( "{bcrypt}replacement" );
+        assertThat( panelUser.isPasswordChangeRequired() ).isFalse();
+    }
+
+    /**
+     * Verifies that the initial replacement still refuses a confirmation that does not match.
+     */
+    @Test
+    void shouldRejectInitialPasswordChange_whenConfirmationDoesNotMatch() {
+        // GIVEN
+        PanelUser panelUser = panelUser( true );
+        InitialPasswordChangeRequest request = new InitialPasswordChangeRequest(
+                "Replacement-1", "different-password" );
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
+
+        // WHEN
+        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+
+        // THEN
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.NEW_PASSWORD_MISMATCH, PasswordChangeMessage.NEW_PASSWORD_MISMATCH ) );
+        assertThat( panelUser.isPasswordChangeRequired() ).isTrue();
+    }
+
+    /**
+     * Verifies that the initial replacement refuses to keep the published default password.
+     */
+    @Test
+    void shouldRejectInitialPasswordChange_whenNewPasswordMatchesInitialPassword() {
+        // GIVEN
+        PanelUser panelUser = panelUser( true );
+        InitialPasswordChangeRequest request = validInitialRequest();
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
+        given( passwordEncoder.matches( request.newPassword(), CURRENT_HASH ) ).willReturn( true );
+
+        // WHEN
+        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+
+        // THEN
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.NEW_PASSWORD_UNCHANGED, PasswordChangeMessage.NEW_PASSWORD_UNCHANGED ) );
+        assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
+    }
+
+    /**
+     * Verifies that the initial replacement enforces the same character-kind rule as an ordinary change.
+     */
+    @Test
+    void shouldRejectInitialPasswordChange_whenNewPasswordMissesRequiredCharacterKind() {
+        // GIVEN
+        PanelUser panelUser = panelUser( true );
+        String weakPassword = "haslo-bez-duzej1";
+        InitialPasswordChangeRequest request = new InitialPasswordChangeRequest( weakPassword, weakPassword );
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
+        given( passwordEncoder.matches( weakPassword, CURRENT_HASH ) ).willReturn( false );
+
+        // WHEN
+        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+
+        // THEN
+        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
+                PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK, PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
+        assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
+    }
+
+    /**
+     * Verifies that an account which already chose its own password cannot have it replaced without the
+     * current password, even if the request reaches the service directly.
+     */
+    @Test
+    void shouldThrowException_whenInitialPasswordWasAlreadyReplaced() {
+        // GIVEN
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser( false ) ) );
+
+        // WHEN
+        Throwable thrown = catchThrowable(
+                () -> underTest.changeInitialPassword( USERNAME, validInitialRequest() ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( IllegalStateException.class )
+                .hasMessageContaining( "Initial password replacement is not pending" );
+    }
+
+    /**
+     * Verifies that an account removed while its session was alive produces the neutral lookup failure.
+     */
+    @Test
+    void shouldThrowException_whenAccountDisappearedBeforeInitialPasswordChange() {
+        // GIVEN
+        given( userRepository.findById( USERNAME ) ).willReturn( Optional.empty() );
+
+        // WHEN
+        Throwable thrown = catchThrowable(
+                () -> underTest.changeInitialPassword( USERNAME, validInitialRequest() ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( UsernameNotFoundException.class )
+                .hasMessageContaining( "Authenticated panel user was not found" );
     }
 
     /**
@@ -227,6 +406,40 @@ class PanelUserServiceImplTest {
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "passwordChangeRequest must not be null" );
+    }
+
+    /**
+     * Verifies that a null username is rejected before the initial replacement touches persistence.
+     */
+    @Test
+    void shouldThrowException_whenUsernameOfInitialChangeIsNull() {
+        // GIVEN
+        // no username
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.changeInitialPassword( null, validInitialRequest() ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "username must not be null" );
+    }
+
+    /**
+     * Verifies that a null initial-password request is rejected before persistent lookup.
+     */
+    @Test
+    void shouldThrowException_whenInitialPasswordChangeRequestIsNull() {
+        // GIVEN
+        // no initial password-change request
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.changeInitialPassword( USERNAME, null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "initialPasswordChangeRequest must not be null" );
     }
 
     /**
@@ -272,6 +485,10 @@ class PanelUserServiceImplTest {
     }
 
     private PasswordChangeRequest validRequest() {
-        return new PasswordChangeRequest( "admin", "replacement-password", "replacement-password" );
+        return new PasswordChangeRequest( "admin", "Replacement-1", "Replacement-1" );
+    }
+
+    private InitialPasswordChangeRequest validInitialRequest() {
+        return new InitialPasswordChangeRequest( "Replacement-1", "Replacement-1" );
     }
 }

@@ -1,6 +1,7 @@
 package com.github.pplociennik.vdeck.config;
 
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelRole;
+import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
 import com.github.pplociennik.vdeck.security.PasswordChangeAuthenticationSuccessHandler;
 import com.github.pplociennik.vdeck.security.PasswordChangeRequiredFilter;
 import jakarta.annotation.Nonnull;
@@ -16,6 +17,10 @@ import org.springframework.security.web.session.HttpSessionEventPublisher;
 
 /**
  * Wires form login, persistent panel-user authentication and mandatory first-login password replacement.
+ * The initial-password screen is reserved for accounts that still carry
+ * {@link PanelUserService#PASSWORD_CHANGE_REQUIRED_AUTHORITY}, because it replaces a password without
+ * asking for the current one; every other panel address, the ordinary password-change screen included,
+ * requires the administrator role.
  */
 @Configuration( proxyBeanMethods = false )
 class SecurityConfiguration {
@@ -51,7 +56,8 @@ class SecurityConfiguration {
             @Nonnull PasswordChangeRequiredFilter passwordChangeRequiredFilter,
             @Nonnull PasswordChangeAuthenticationSuccessHandler authenticationSuccessHandler ) throws Exception {
         http.authorizeHttpRequests( authorization -> authorization
-                        .requestMatchers( "/change-password" ).authenticated()
+                        .requestMatchers( "/initial-password-change" )
+                        .hasAuthority( PanelUserService.PASSWORD_CHANGE_REQUIRED_AUTHORITY )
                         .anyRequest().hasRole( PanelRole.ADMIN.name() ) )
                 .formLogin( form -> form.successHandler( authenticationSuccessHandler ) )
                 .logout( Customizer.withDefaults() )

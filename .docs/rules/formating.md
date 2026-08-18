@@ -1,4 +1,4 @@
-# Reguły formatowania kodu
+﻿# Reguły formatowania kodu
 
 > Status: obowiązujący
 
@@ -16,6 +16,9 @@ fragmentów niezwiązanych z bieżącą zmianą, ponieważ zaciemnia to diff.
 - Maksymalna długość linii to **125 znaków**. Tekst ciągły w Javadoc i komentarzach łamiemy wcześniej,
   w okolicach 110 znaków, żeby pozostał czytelny w recenzji obok kodu.
 - Pliki zapisujemy w UTF-8, z zakończeniami linii LF i jedną pustą linią na końcu pliku.
+- W plikach `.properties` polskie znaki diakrytyczne zapisujemy sekwencjami `\uXXXX`, a nie
+  literalnie: tekst „Zmień hasło” zapisujemy jako `Zmie\u0144 has\u0142o`. Treść pliku pozostaje
+  wtedy czysto ASCII i nie zależy od kodowania, jakim odczyta go edytor lub narzędzie.
 - Nie zostawiamy białych znaków na końcu linii ani więcej niż jednej pustej linii z rzędu.
 
 ## 2. Odstępy wewnątrz nawiasów
@@ -167,4 +170,5 @@ SystemPropertiesService vdeckProperties( @Nonnull PathService pathService ) {
 - czy nawiasy z treścią mają spacje wewnętrzne, a puste listy argumentów ich nie mają;
 - czy metody publiczne znajdują się nad wszystkimi metodami o węższej widoczności;
 - czy importy są pogrupowane, posortowane i nie zawierają nieużywanych ani gwiazdkowych;
+- czy pliki `.properties` nie zawierają znaków spoza ASCII;
 - czy nie przeformatowano fragmentów niezwiązanych z zakresem zmiany.

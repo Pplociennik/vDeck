@@ -1,13 +1,13 @@
-# vDeck — dokumentacja projektowa
+﻿# vDeck — dokumentacja projektowa
 
-> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-08-18
+> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-08-19
 
 Dokument opisuje, **co system robi i jak to realizuje**. Uzasadnienia decyzji projektowych znajdują się
 w [`.docs/architectural_decisions.md`](../.docs/architectural_decisions.md) oraz
-[`.docs/first_design_ideas.md`](../.docs/first_design_ideas.md) i nie są tutaj powielane.
+[`.docs/design.md`](../.docs/design.md) i nie są tutaj powielane.
 
 Opisane jest wyłącznie zachowanie już zaimplementowane. Obszary zaplanowane, ale nieukończone, są
-wymienione w sekcji [8. Stan implementacji i znane ograniczenia](#8-stan-implementacji-i-znane-ograniczenia)
+wymienione w sekcji [9. Stan implementacji i znane ograniczenia](#9-stan-implementacji-i-znane-ograniczenia)
 i wyraźnie oznaczone jako niezrealizowane.
 
 ---
@@ -26,19 +26,25 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [3.2 Ustawienia panelu w vDeck.properties](#32-ustawienia-panelu-w-vdeckproperties)
   - [3.3 Rozwiązywanie ścieżek](#33-rozwiązywanie-ścieżek)
   - [3.4 Komponenty konfiguracji](#34-komponenty-konfiguracji)
+  - [3.5 Tłumaczenia interfejsu](#35-tłumaczenia-interfejsu)
 - [4. Uwierzytelnianie i dostęp do panelu](#4-uwierzytelnianie-i-dostęp-do-panelu)
   - [4.1 Zakres funkcjonalności](#41-zakres-funkcjonalności)
   - [4.2 Model danych](#42-model-danych)
   - [4.3 Domyślne konto administratora](#43-domyślne-konto-administratora)
   - [4.4 Logowanie](#44-logowanie)
-  - [4.5 Wymuszona zmiana hasła](#45-wymuszona-zmiana-hasła)
+  - [4.5 Zmiana hasła](#45-zmiana-hasła)
   - [4.6 Sesje i wylogowanie](#46-sesje-i-wylogowanie)
   - [4.7 Komponenty feature'a](#47-komponenty-featurea)
-- [5. Bezpieczeństwo](#5-bezpieczeństwo)
-- [6. Persystencja](#6-persystencja)
-- [7. Logowanie zdarzeń](#7-logowanie-zdarzeń)
-- [8. Stan implementacji i znane ograniczenia](#8-stan-implementacji-i-znane-ograniczenia)
-- [9. Indeks diagramów](#9-indeks-diagramów)
+- [5. Warstwa interfejsu użytkownika](#5-warstwa-interfejsu-użytkownika)
+  - [5.1 Zasoby statyczne i arkusze stylów](#51-zasoby-statyczne-i-arkusze-stylów)
+  - [5.2 Wyspa akcji](#52-wyspa-akcji)
+  - [5.3 Ikony](#53-ikony)
+  - [5.4 Ekrany panelu](#54-ekrany-panelu)
+- [6. Bezpieczeństwo](#6-bezpieczeństwo)
+- [7. Persystencja](#7-persystencja)
+- [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
+- [9. Stan implementacji i znane ograniczenia](#9-stan-implementacji-i-znane-ograniczenia)
+- [10. Indeks diagramów](#10-indeks-diagramów)
 
 ---
 
@@ -82,7 +88,8 @@ java -jar vdeck-app\target\vdeck-app-0.0.1-SNAPSHOT.jar
 
 Nazwa artefaktu buildu to `vdeck-app-<wersja>.jar`; dokumenty projektowe mówią o `vdeck.jar` jako
 nazwie pliku w gotowej instalacji obok `valheim_server.exe`. Katalog, w którym leży uruchomiony jar,
-jest katalogiem instalacyjnym opisanym w sekcji [3.3](#33-rozwiązywanie-ścieżek).
+jest katalogiem instalacyjnym opisanym w sekcji [3.3](#33-rozwiązywanie-ścieżek). Przy pierwszym
+starcie powstają w nim `vDeck.properties` oraz plik bazy `vdeck.db`.
 
 Uruchomienie z IDE lub przez `spring-boot:run` **wymaga** wskazania katalogu instalacyjnego, ponieważ
 bez niego `ApplicationHome` wskazuje na `vdeck-app/target/classes`:
@@ -107,10 +114,10 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | Pakiet | Zawartość |
 |---|---|
 | `` (bazowy) | `VdeckApplication` — jedyny wyjątek od reguły umieszczania klas w podpakietach |
-| `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SystemPropertiesConfiguration`, `SecurityConfiguration` oraz inicjalizacja danych startowych `DataInitializer` |
+| `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SystemPropertiesConfiguration`, `SecurityConfiguration` oraz inicjalizacja startowa `DataInitializer` |
 | `feature.authentication` | Pionowy feature uwierzytelniania: kontroler, `domain`, `dto`, `persistence`, `service` i `service.impl` |
 | `security` | Przekrojowe filtry i handlery Spring Security, niezwiązane z jednym feature'em |
-| `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, serwisy ścieżek i properties, wyjątki w `shared.exc` |
+| `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc` |
 
 Kontrakty serwisów znajdują się w pakiecie `service`, a implementacje w `service.impl`. Konsumenci
 wstrzykują interfejs; klasy implementacyjne pozostają pakietowo-prywatne tam, gdzie to możliwe.
@@ -139,8 +146,9 @@ Konfiguracja jest rozdzielona według właściciela:
 | `vDeck.properties` | obok `vdeck.jar`, w katalogu instalacyjnym | własne ustawienia panelu | tak |
 
 Bieżąca zawartość `application.yaml` obejmuje nazwę aplikacji, źródło danych SQLite
-(`jdbc:sqlite:vdeck.db`), dialekt Hibernate `SQLiteDialect` z `ddl-auto: update` oraz ustawienia
-serwera: `address: 127.0.0.1` i ciasteczko sesji z `http-only: true` i `same-site: lax`.
+(`jdbc:sqlite:vdeck.db`), dialekt Hibernate `SQLiteDialect` z `ddl-auto: update`, zachowanie
+`MessageSource` (`spring.messages.use-code-as-default-message`) oraz ustawienia serwera:
+`address: 127.0.0.1` i ciasteczko sesji z `http-only: true` i `same-site: lax`.
 
 ### 3.2 Ustawienia panelu w vDeck.properties
 
@@ -195,6 +203,30 @@ Dodanie kolejnego pliku ustawień polega na utworzeniu nowego typu wyliczenioweg
 `SystemPropertyIf` i nowego beana `SystemPropertiesService` dla tego pliku. `SystemPropertyIf` celowo
 nie niesie nic poza kluczem — wartość domyślna i plik właściciela należą do konkretnego enuma.
 
+### 3.5 Tłumaczenia interfejsu
+
+Interfejs jest w języku polskim, ale wszystkie teksty przechodzą przez mechanizm tłumaczeń Springa
+(patrz [`AD-009`](../.docs/architectural_decisions.md)). Teksty nie są kanałem ustawień z
+[3.1](#31-dwa-kanały-konfiguracji) ani zasobem zewnętrznym — są częścią aplikacji.
+
+| Element | Wartość |
+|---|---|
+| Plik | `vdeck-app/src/main/resources/messages.properties` |
+| Źródło | Classpath aplikacji, przez domyślny `MessageSource` Spring Boota |
+| Zapis znaków | Czysto ASCII — polskie znaki jako sekwencje `\uXXXX` |
+| Konfiguracja | `spring.messages.use-code-as-default-message: true` w `application.yaml` |
+
+Zachowanie:
+
+- Panel ma jeden język, więc nie istnieje plik `messages_<język>.properties`, katalog tłumaczeń w
+  instalacji ani własna klasa `@Configuration` tworząca `MessageSource`. Bundle rozwiązuje się dla
+  każdego locale, ponieważ plik bazowy nie ma sufiksu językowego.
+- Klucz bez tłumaczenia renderuje się jako sam klucz — widoczna usterka tekstu jest bezpieczniejsza
+  niż błąd całej strony.
+- Zmiana albo dodanie tekstu jest zmianą w repozytorium i wymaga nowego wydania panelu.
+- Kod Javy nigdy nie przekazuje gotowego tekstu, tylko klucz; zamknięte zbiory komunikatów opisują
+  typy wyliczeniowe implementujące `TranslationKeyIf`, jak `PasswordChangeMessage`.
+
 ---
 
 ## 4. Uwierzytelnianie i dostęp do panelu
@@ -209,13 +241,26 @@ Widoczne zachowanie:
 | Adres | Metoda | Dostęp | Efekt |
 |---|---|---|---|
 | `/login` | GET, POST | publiczny | Formularz logowania generowany przez Spring Security |
-| `/change-password` | GET | uwierzytelniony | Formularz wymuszonej zmiany hasła |
-| `/change-password` | POST | uwierzytelniony | Zmiana hasła i wylogowanie albo ponowny formularz z komunikatem |
+| `/initial-password-change` | GET | uprawnienie `PASSWORD_CHANGE_REQUIRED` | Formularz wymuszonej zmiany hasła początkowego, bez pola aktualnego hasła |
+| `/initial-password-change` | POST | uprawnienie `PASSWORD_CHANGE_REQUIRED` | Zmiana hasła i wylogowanie albo ponowny formularz z komunikatem |
+| `/change-password` | GET | rola `ADMIN` | Formularz zmiany hasła na życzenie, z polem aktualnego hasła i wyspą akcji |
+| `/change-password` | POST | rola `ADMIN` | Zmiana hasła i wylogowanie albo ponowny formularz z komunikatem |
+| `/` | GET | rola `ADMIN` | Strona główna panelu |
 | `/logout` | POST | uwierzytelniony | Domyślne wylogowanie Spring Security |
+| `/css/**`, `/icons/**`, `/img/**` | GET | rola `ADMIN` | Zasoby statyczne interfejsu; osiągalne także przed zmianą hasła początkowego |
 | pozostałe | dowolna | rola `ADMIN` | Dostęp do panelu |
 
+Zmiana hasła ma **dwa osobne ekrany**, bo są to dwie różne operacje. Wymuszona zmiana hasła
+początkowego nie pyta o aktualne hasło — konto używa opublikowanego hasła domyślnego, którego
+użytkownik nigdy nie wybierał — i dlatego jej adres jest zarezerwowany dla kont z uprawnieniem
+`PASSWORD_CHANGE_REQUIRED`. Zmiana na życzenie, uruchamiana z wyspy akcji w dowolnym momencie, wymaga
+podania aktualnego hasła i jest dostępna dla każdego konta z rolą `ADMIN`. Konto przed zmianą hasła
+początkowego nie może otworzyć tego drugiego ekranu — filtr odsyła je na ekran wymuszony.
+
 Panel nie ma na tym etapie własnej strony logowania — używana jest strona generowana przez Spring
-Security. Jedynym własnym widokiem jest szablon Thymeleaf `authentication/change-password`.
+Security. Własne widoki Thymeleaf osiągalne pod adresem to `authentication/change-password`,
+`authentication/initial-password-change` oraz `home/index`; opisuje je sekcja
+[5. Warstwa interfejsu użytkownika](#5-warstwa-interfejsu-użytkownika).
 
 ### 4.2 Model danych
 
@@ -261,37 +306,76 @@ także dla sesji nawiązanej przed zmianą hasła.
 Źródło diagramu: [`diagramy/authentication/przeplyw-logowanie.mmd`](diagramy/authentication/przeplyw-logowanie.mmd)
 
 `PasswordChangeAuthenticationSuccessHandler` przekierowuje konto z ograniczeniem prosto na
-`/change-password`, a pozostałe logowania deleguje do `SavedRequestAwareAuthenticationSuccessHandler`,
-więc po zwykłym zalogowaniu użytkownik wraca do adresu, o który pierwotnie prosił.
+`/initial-password-change`, a pozostałe logowania deleguje do
+`SavedRequestAwareAuthenticationSuccessHandler`, więc po zwykłym zalogowaniu użytkownik wraca do
+adresu, o który pierwotnie prosił, a przy braku zapamiętanego żądania trafia na stronę główną `/`.
 
 `PasswordChangeRequiredFilter` jest wpięty za `UsernamePasswordAuthenticationFilter` i działa raz na
-żądanie. Dla konta z uprawnieniem `PASSWORD_CHANGE_REQUIRED` dopuszcza wyłącznie ścieżki
-`/change-password` i `/logout`; każde inne żądanie kończy się przekierowaniem na `/change-password`.
+żądanie. Dla konta z uprawnieniem `PASSWORD_CHANGE_REQUIRED` dopuszcza:
 
-### 4.5 Wymuszona zmiana hasła
+- dokładne ścieżki `/initial-password-change` i `/logout`;
+- żądania zaczynające się od `/css/`, `/icons/` albo `/img/`, czyli zasoby statyczne, bez których
+  ekran zmiany hasła nie ma stylów, ikon ani tekstur.
 
-Formularz obsługuje `PasswordChangeController`, a decyzje o poprawności podejmuje
-`PanelUserServiceImpl.changePassword`. Walidacja adnotacjami (`@NotBlank`, `@Size(min = 12, max = 128)`
-dla nowego hasła i potwierdzenia) odrzuca wejście przed sięgnięciem do bazy. Po każdym niepowodzeniu
-formularz jest renderowany ponownie z **pustymi** polami i pojedynczym komunikatem; komunikaty nie
-zdradzają, który element poświadczeń był niepoprawny bardziej, niż wymaga tego obsługa błędu.
+Ekran `/change-password` **nie** jest na tej liście: pytałby o aktualne hasło, którego konto z hasłem
+początkowym nigdy nie wybierało. Każde inne żądanie kończy się przekierowaniem na
+`/initial-password-change`. Dopasowanie zasobów działa
+wyłącznie na początku ścieżki, więc adres panelu zawierający katalog zasobów w dalszej części
+(`/servers/css/list`) pozostaje zablokowany, a wyjątek nie omija reguł autoryzacji łańcucha
+bezpieczeństwa — zasoby nadal wymagają roli `ADMIN`.
 
-Wynik operacji jest zwracany jako `PasswordChangeResult`:
+### 4.5 Zmiana hasła
 
-| Wynik | Warunek | Komunikat dla użytkownika |
+Zmiana hasła ma dwa warianty, obsługiwane przez osobne kontrolery i osobne operacje serwisu:
+
+| Wariant | Adres i kontroler | Operacja serwisu | Nośnik żądania | Pyta o aktualne hasło | Wyspa akcji |
+|---|---|---|---|---|---|
+| Wymuszona zmiana hasła początkowego | `/initial-password-change`, `InitialPasswordChangeController` | `changeInitialPassword` | `InitialPasswordChangeRequest` | nie | nie |
+| Zmiana na życzenie | `/change-password`, `PasswordChangeController` | `changePassword` | `PasswordChangeRequest` | tak | tak |
+
+Walidacja adnotacjami (`@NotBlank`, `@Size(min = 12, max = 128)` dla nowego hasła i potwierdzenia)
+odrzuca wejście przed sięgnięciem do bazy. Dalsze kontrole wykonuje `PanelUserServiceImpl`, a pierwsza
+nieudana kontrola kończy operację:
+
+1. **tylko wariant na życzenie** — zgodność aktualnego hasła z zapisanym hashem;
+2. **tylko wariant wymuszony** — czy konto nadal ma znacznik `passwordChangeRequired`; jego brak
+   oznacza, że hasło zostało już wybrane, więc pominięcie kontroli aktualnego hasła przestaje być
+   dopuszczalne i operacja kończy się `IllegalStateException`;
+3. zgodność nowego hasła z potwierdzeniem;
+4. różnicę względem aktualnego hasła;
+5. wymagany zestaw rodzajów znaków — cyfrę, małą literę, wielką literę oraz znak specjalny, czyli
+   znak niebędący literą, cyfrą ani białym znakiem.
+
+Po każdym niepowodzeniu formularz jest renderowany ponownie z **pustymi** polami i pojedynczym
+komunikatem; komunikaty nie zdradzają, który element poświadczeń był niepoprawny bardziej, niż wymaga
+tego obsługa błędu.
+
+Wynik operacji jest rekordem `PasswordChangeResult`, który niesie **status oraz klucz komunikatu do
+pokazania**. Dzięki temu kontroler nie tłumaczy statusu na własne brzmienie i oba ekrany opisują ten
+sam wynik identycznie. Rekord pilnuje niezmiennika: sukces nie ma klucza komunikatu, a odrzucenie
+zawsze go ma.
+
+| `PasswordChangeStatus` | Warunek | `messageKey` |
 |---|---|---|
-| `CURRENT_PASSWORD_INCORRECT` | Aktualne hasło nie pasuje do zapisanego hasha | „The current password is incorrect." |
-| `NEW_PASSWORD_MISMATCH` | Nowe hasło różni się od potwierdzenia | „The new password and confirmation do not match." |
-| `NEW_PASSWORD_UNCHANGED` | Nowe hasło jest identyczne z aktualnym | „The new password must differ from the current password." |
+| `CURRENT_PASSWORD_INCORRECT` | Aktualne hasło nie pasuje do zapisanego hasha (tylko wariant na życzenie) | `PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT` |
+| `NEW_PASSWORD_MISMATCH` | Nowe hasło różni się od potwierdzenia | `PasswordChangeMessage.NEW_PASSWORD_MISMATCH` |
+| `NEW_PASSWORD_UNCHANGED` | Nowe hasło jest identyczne z aktualnym | `PasswordChangeMessage.NEW_PASSWORD_UNCHANGED` |
+| `NEW_PASSWORD_TOO_WEAK` | Nowe hasło nie zawiera cyfry, małej litery, wielkiej litery i znaku specjalnego | `PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK` |
 | `SUCCESS` | Wszystkie kontrole przeszły | brak — następuje wylogowanie i przekierowanie na `/login` |
 
-![Diagram przepływu: wymuszona zmiana hasła panelu vDeck](diagramy/authentication/img/przeplyw-zmiana-hasla.svg)
+Błąd walidacji adnotacji nie tworzy `PasswordChangeResult` — kontroler od razu publikuje
+`PasswordChangeMessage.INVALID_INPUT`, bo żądanie nie dotarło do serwisu.
+
+Kontroler dodaje do modelu wyłącznie klucz tłumaczenia (`passwordChangeErrorKey`), a brzmienie
+komunikatu pochodzi z pliku tłumaczeń opisanego w [3.5](#35-tłumaczenia-interfejsu).
+
+![Diagram przepływu: zmiana hasła panelu vDeck w obu wariantach](diagramy/authentication/img/przeplyw-zmiana-hasla.svg)
 
 Źródło diagramu: [`diagramy/authentication/przeplyw-zmiana-hasla.mmd`](diagramy/authentication/przeplyw-zmiana-hasla.mmd)
 
-Po sukcesie sesja jest unieważniana, a kontekst bezpieczeństwa czyszczony, więc użytkownik musi
-zalogować się nowym hasłem. Uprawnienie `PASSWORD_CHANGE_REQUIRED` nie pojawi się już przy kolejnym
-załadowaniu konta.
+Po sukcesie — w obu wariantach — sesja jest unieważniana, a kontekst bezpieczeństwa czyszczony, więc
+użytkownik musi zalogować się nowym hasłem. Po wymuszonej zmianie uprawnienie
+`PASSWORD_CHANGE_REQUIRED` nie pojawi się już przy kolejnym załadowaniu konta.
 
 ### 4.6 Sesje i wylogowanie
 
@@ -316,9 +400,118 @@ Filtr i handler bezpieczeństwa leżą w przekrojowym pakiecie `security`, a nie
 dotyczą każdego żądania do panelu. `DataInitializer` należy do `config`, mimo że wstrzykuje repozytorium
 uwierzytelniania, ponieważ jest elementem inicjalizacji startowej aplikacji.
 
+`PasswordChangeStatus` i `PasswordChangeResult` należą do `domain`, a `PasswordChangeMessage` — do
+korzenia feature'a, bo zawiera również `INVALID_INPUT`, komunikat walidacji warstwy webowej, którego
+serwis nigdy nie zwraca. Rekord wyniku wiąże je, nie znając zbioru komunikatów: jego pole
+`messageKey` ma typ `shared.TranslationKeyIf`, więc `domain` zależy wyłącznie od pakietu wspólnego.
+
 ---
 
-## 5. Bezpieczeństwo
+## 5. Warstwa interfejsu użytkownika
+
+Reguły obowiązujące przy budowie interfejsu opisuje [`.docs/ui.md`](../.docs/ui.md); ta sekcja opisuje
+wyłącznie stan zaimplementowany. Interfejs jest budowany z szablonów Thymeleaf i arkuszy CSS, bez
+JavaScriptu i bez zależności od CDN — panel wyświetla się w całości z zasobów wbudowanych w aplikację.
+
+### 5.1 Zasoby statyczne i arkusze stylów
+
+```text
+vdeck-app/src/main/resources/
+├── static/
+│   ├── css/
+│   │   ├── variables.css        ← wszystkie zmienne CSS panelu
+│   │   ├── base.css             ← baza dokumentu, layout, komponenty wspólne
+│   │   └── authentication.css   ← styl ekranów hasła
+│   ├── icons/icons.svg          ← jeden sprite ze wszystkimi ikonami
+│   └── img/                     ← page-background.jpg, panel-background.jpg, island-background.jpg
+├── messages.properties          ← polski zestaw tekstów interfejsu
+└── templates/
+    ├── common/island.html          ← komponent wspólny: wyspa akcji
+    ├── common/password-rules.html  ← komponent wspólny: wymagania dla nowego hasła
+    ├── home/index.html             ← strona główna panelu
+    ├── authentication/change-password.html
+    └── authentication/initial-password-change.html
+```
+
+- `variables.css` jest jedynym miejscem definicji zmiennych CSS. Każdy pozostały arkusz zaczyna się
+  od `@import url("variables.css")` i nie definiuje własnych tokenów.
+- `base.css` zawiera bazę dokumentu, wyśrodkowanie widoku (`.page-center`), wspólną powierzchnię
+  z ramą i teksturą (`.surface`), kontrakt ikony (`.icon`) oraz style komponentów wspólnych.
+- Interfejs używa trzech tekstur: `page-background.jpg` na tle strony, `panel-background.jpg` na
+  panelach oraz `island-background.jpg` na wyspie akcji. Panel jest przypadkiem domyślnym: `.surface`
+  ustawia teksturę panelu, a powierzchnia o innej teksturze nadpisuje wyłącznie lokalną właściwość
+  `--surface-texture` — robi to jedynie modyfikator `.surface--island`.
+- Kontrolki — przyciski i pola formularza — mają jednolicie czarne tło, więc odcinają się od tekstury
+  zamiast jej prześwitywać. Stan wyróżnia jasność tła (`hover`), obramowanie akcentem (`focus`) oraz
+  przygaszona ikona lub etykieta (`disabled`); wyłączona kontrolka nie jest wygaszana przezroczystością,
+  bo pokazałaby wtedy teksturę pod spodem.
+- Tło strony to tekstura `page-background.jpg` przyciemniona winietą. Obie warstwy są rysowane
+  w jednym stałym elemencie za treścią, bez `background-attachment: fixed`, którego przeglądarki
+  mobilne nie renderują stabilnie.
+- Układ jest responsywny w obu orientacjach: wysokości pełnoekranowe liczone są w `dvh`, obszary
+  dotykowe mają co najmniej 44 × 44 px, a przy szerokości poniżej 33 rem wyspa zawija grupy akcji.
+- **Strona nie przewija się w żadnej osi.** `body` jest powłoką o wysokości jednego widoku
+  (`100dvh`, `overflow: hidden`); wyspa zajmuje swoją wysokość, a obszar treści (`.page-content`)
+  bierze resztę. Gdy widok nie mieści się w bardzo niskim oknie, układ najpierw oddaje odstępy
+  dekoracyjne, a dopiero potem przewija się sam obszar treści albo karta widoku — nigdy strona.
+
+### 5.2 Wyspa akcji
+
+Wyspa jest komponentem wspólnym — plik `templates/common/island.html` z fragmentem `island`, który
+widok osadza przez `th:replace="~{common/island :: island}"`. Jest to pasek nagłówka wyśrodkowany
+w poziomie u góry strony, o zaokrąglonych rogach, grubej czarnej ramie, teksturze
+`island-background.jpg` i wysokości nieprzekraczającej 100 px.
+
+Wyspa dzieli się na trzy grupy akcji rozdzielone pionowymi liniami o wysokości 80 % wyspy:
+
+| Grupa | Szerokość | Akcje | Stan |
+|---|---|---|---|
+| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Przyciski bez akcji — funkcjonalność nie jest zaimplementowana |
+| Kopie bezpieczeństwa | nieco węższa | utworzenie kopii świata, utworzenie kopii serwera | Przyciski bez akcji — funkcjonalność nie jest zaimplementowana |
+| Zarządzanie panelem | wąska | zmiana hasła, wylogowanie | Działa: odnośnik do `/change-password` oraz formularz `POST /logout` obsługiwany przez domyślne wylogowanie Spring Security |
+
+Przyciski są kwadratowe i zawierają wyłącznie ikonę, więc każdy ma `aria-label` z nazwą akcji.
+Na wąskich ekranach grupy zawijają się do kolejnych wierszy, a separatory — które nie leżałyby już
+między sąsiadami — są ukrywane.
+
+Formularz wylogowania korzysta z `th:action`, więc Thymeleaf dokłada do niego ukryty token CSRF
+wymagany przez łańcuch bezpieczeństwa. Wyspa nie jest osadzana na ekranie wymuszonej zmiany hasła
+początkowego — konto przed zmianą hasła nie może wykonać żadnej z jej akcji.
+
+### 5.3 Ikony
+
+Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są osadzane przez `<use>`.
+Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
+`icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
+`icon-key` i `icon-logout`. Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
+przyciski tworzą kopię, a nie pobierają pliku.
+
+Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlatego
+`PasswordChangeRequiredFilter` przepuszcza katalogi zasobów statycznych (patrz [4.4](#44-logowanie)).
+
+### 5.4 Ekrany panelu
+
+- **Strona główna** (`home/index.html`, `HomeController`, adres `/`) osadza wyspę akcji nad pustym
+  obszarem treści. Na tym etapie pokazuje wyłącznie tło panelu i wyspę — treść pojawi się razem
+  z funkcjonalnościami, które ma prezentować.
+- **Wymuszona zmiana hasła początkowego** (`authentication/initial-password-change.html`) to
+  wyśrodkowana karta na wspólnej powierzchni `.surface`, **bez wyspy i bez jakiejkolwiek innej
+  akcji**: nagłówek z ikoną klucza, opis, opcjonalny komunikat błędu z `role="alert"` oraz formularz
+  dwóch pól hasła — nowego i potwierdzenia — z przyciskiem wysłania.
+- **Zmiana hasła na życzenie** (`authentication/change-password.html`) to ta sama karta osadzona pod
+  wyspą akcji, w zwykłym obszarze treści, uzupełniona o pole aktualnego hasła.
+- Oba ekrany hasła osadzają komponent wspólny `common/password-rules.html` z wymaganiami
+  egzekwowanymi przez serwer — długość 12–128 znaków, cyfra, mała litera, wielka litera, znak
+  specjalny, różnica względem aktualnego hasła i zgodność obu pól — powiązany z polem nowego hasła
+  przez `aria-describedby`. Pola mają rozmiar tekstu 1 rem, aby przeglądarki mobilne nie przybliżały
+  widoku po ustawieniu fokusu.
+- **Logowanie** korzysta ze strony generowanej przez Spring Security — nie jest ani stylowane, ani
+  tłumaczone, więc pozostaje w języku angielskim.
+
+Żaden szablon nie zawiera tekstu wpisanego na stałe: teksty, tytuły stron oraz atrybuty `aria-label`
+i `title` pochodzą z tłumaczeń opisanych w [3.5](#35-tłumaczenia-interfejsu).
+
+## 6. Bezpieczeństwo
 
 Zaimplementowane mechanizmy przekrojowe:
 
@@ -327,27 +520,33 @@ Zaimplementowane mechanizmy przekrojowe:
   Ten sam enkoder obsługuje hasło początkowe i zmienione, więc zmiana rekomendacji nie wymaga migracji.
 - **Brak wycieku sekretów.** Hasła jawne nie są logowane ani zwracane w `toString()`. Serwis ustawień
   loguje tylko nazwy kluczy. Logi zmiany hasła nie zawierają nazwy konta ani wartości.
-- **Domyślne poświadczenia.** Konto `admin`/`admin` jest bezużyteczne poza formularzem zmiany hasła —
-  ograniczenie jest egzekwowane po stronie serwera przy każdym żądaniu, a nie tylko po zalogowaniu.
-- **Dostęp.** Wszystkie żądania poza `/change-password` wymagają roli `ADMIN`; `/change-password`
-  wymaga samego uwierzytelnienia, ponieważ konto z ograniczeniem musi móc się tam dostać.
+- **Domyślne poświadczenia.** Konto `admin`/`admin` jest bezużyteczne poza formularzem wymuszonej
+  zmiany hasła — ograniczenie jest egzekwowane po stronie serwera przy każdym żądaniu, a nie tylko
+  po zalogowaniu.
+- **Dostęp.** Wszystkie żądania poza `/initial-password-change` wymagają roli `ADMIN`. Adres
+  `/initial-password-change` wymaga uprawnienia `PASSWORD_CHANGE_REQUIRED`, ponieważ zmienia hasło
+  bez weryfikacji aktualnego; konto, które wybrało już własne hasło, dostaje na nim `403`, a serwis
+  odrzuca takie żądanie również wtedy, gdy trafi do niego z pominięciem łańcucha. Konto z hasłem
+  początkowym poza tym adresem osiąga tylko katalogi zasobów statycznych `/css/`, `/icons/`
+  i `/img/`; wyjątek jest dopasowywany po początku ścieżki i nie zdejmuje wymagania roli.
 - **Ekspozycja sieciowa.** Panel nasłuchuje wyłącznie na `127.0.0.1`.
 - **Granice systemu plików.** Każda skonfigurowana ścieżka przechodzi przez `PathService` i nie może
   opuścić katalogu instalacyjnego — także przez dowiązania i junction (patrz [3.3](#33-rozwiązywanie-ścieżek)).
 - **Trwałość ustawień.** Zapis pliku ustawień jest atomowy i wymuszony na urządzenie, więc utrata
   zasilania nie zostawia pustego pliku konfiguracji.
 
-## 6. Persystencja
+## 7. Persystencja
 
 Bazą jest jednoplikowy SQLite (`vdeck.db`) obsługiwany przez Spring Data JPA z dialektem
 `org.hibernate.community.dialect.SQLiteDialect`. Schemat jest utrzymywany przez `ddl-auto: update`.
 
 Obecnie utrwalana jest jedna encja — `PanelUser` w tabeli `panel_users`. Repozytorium `UserRepository`
 rozszerza `JpaRepository< PanelUser, String >` i nie deklaruje własnych metod. Operacje zmieniające
-stan (`DataInitializer.run`, `PanelUserServiceImpl.changePassword`) są `@Transactional`; zmiana hasła
-zapisuje się przez dirty checking zarządzanej encji, bez jawnego `save`.
+stan (`DataInitializer.run`, `PanelUserServiceImpl.changePassword` oraz
+`PanelUserServiceImpl.changeInitialPassword`) są `@Transactional`; zmiana hasła zapisuje się przez
+dirty checking zarządzanej encji, bez jawnego `save`.
 
-## 7. Logowanie zdarzeń
+## 8. Logowanie zdarzeń
 
 Log4j2 jest jedynym API i backendem logowania; `spring-boot-starter-logging` jest wykluczony ze
 wszystkich starterów, które go wciągają. Klasy produkcyjne używają Lombokowego `@Log4j2`.
@@ -356,16 +555,19 @@ Zdarzenia rejestrowane obecnie:
 
 | Poziom | Zdarzenie |
 |---|---|
-| `INFO` | Rozwiązanie katalogu bazowego; utworzenie pliku ustawień z domyślnymi wartościami; wczytanie ustawień; zmiana ustawienia; utworzenie domyślnego administratora; zmiana hasła użytkownika panelu |
+| `INFO` | Rozwiązanie katalogu bazowego; utworzenie pliku ustawień z domyślnymi wartościami; wczytanie ustawień; zmiana ustawienia; utworzenie domyślnego administratora; zmiana hasła na życzenie użytkownika; zmiana hasła początkowego wraz ze zdjęciem ograniczenia pierwszego logowania |
 | `WARN` | Przywrócenie domyślnej wartości brakującego ustawienia; nieudane usunięcie pliku tymczasowego |
-| `DEBUG` | Źródło katalogu bazowego (override albo `ApplicationHome`); pominięcie inicjalizacji istniejącego administratora |
+| `DEBUG` | Źródło katalogu bazowego (override albo `ApplicationHome`); pominięcie inicjalizacji istniejącego administratora; odrzucenie zmiany hasła wraz z `PasswordChangeStatus`, który o tym zdecydował |
 
-Żaden komunikat nie zawiera hasła, hasha ani wartości ustawień.
+Żaden komunikat nie zawiera hasła, hasha ani wartości ustawień. Wpis o odrzuconej zmianie hasła
+zawiera wyłącznie nazwę statusu, a nie wprowadzone wartości ani nazwę konta.
 
-## 8. Stan implementacji i znane ograniczenia
+## 9. Stan implementacji i znane ograniczenia
 
 Zaimplementowane: infrastruktura konfiguracji (`shared`), rozwiązywanie ścieżek, uwierzytelnianie
-panelu wraz z wymuszoną zmianą hasła początkowego.
+panelu wraz z oboma wariantami zmiany hasła, teksty interfejsu w resource bundle oraz warstwa
+interfejsu — arkusze stylów, sprite ikon, komponenty wspólne wyspy akcji i wymagań dla hasła,
+strona główna panelu oraz oba ostylowane ekrany hasła.
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
 sterowanie cyklem życia serwera Valheim, moduł `vdeck-runtime` (nie ma katalogu `src`), profile
@@ -374,8 +576,14 @@ i aktualizacje serwera.
 
 Znane ograniczenia stanu bieżącego:
 
-- panel nie ma własnej strony logowania ani żadnej strony głównej — po zalogowaniu konta bez
-  ograniczenia zapamiętane żądanie prowadzi do zasobu, którego jeszcze nie ma;
+- panel nie ma własnej strony logowania — używana jest strona generowana przez Spring Security;
+- strona główna jest pusta poza wyspą akcji: pokazuje tło i wyspę, ale nie prezentuje jeszcze żadnych
+  danych ani stanu serwera;
+- przyciski sterowania serwerem i kopii bezpieczeństwa na wyspie są elementami interfejsu bez
+  akcji — odpowiadające funkcjonalności nie są zaimplementowane;
+- panel jest jednojęzyczny i nie ma mechanizmu zmiany języka; zmiana brzmienia tekstu wymaga nowego
+  wydania, a strona logowania generowana przez Spring Security pozostaje angielska niezależnie od
+  tekstów panelu;
 - rejestracja i zarządzanie kontami nie istnieją: jedynym kontem jest `admin` tworzony przy starcie,
   a `PanelRole` ma jedną wartość;
 - brak mechanizmu odzyskiwania dostępu po utracie hasła — odzyskanie wymaga ingerencji w plik bazy;
@@ -385,7 +593,7 @@ Znane ograniczenia stanu bieżącego:
 - zapis pliku ustawień gubi komentarze i kolejność kluczy;
 - brak testów ArchUnit egzekwujących opisane granice pakietów.
 
-## 9. Indeks diagramów
+## 10. Indeks diagramów
 
 W treści dokumentu osadzone są wygenerowane obrazki `.svg`, dzięki czemu diagramy są widoczne w każdym
 podglądzie Markdown. Źródłem prawdy pozostaje plik `.mmd`; obrazek leży w podkatalogu `img/` obok
@@ -406,5 +614,5 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Start aplikacji vDeck | przepływ | [`img/przeplyw-start-aplikacji.svg`](diagramy/wspolne/img/przeplyw-start-aplikacji.svg) | [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd) | [2.2](#22-start-aplikacji) |
 | Infrastruktura konfiguracji | klasy | [`img/klasy-konfiguracja.svg`](diagramy/wspolne/img/klasy-konfiguracja.svg) | [`diagramy/wspolne/klasy-konfiguracja.mmd`](diagramy/wspolne/klasy-konfiguracja.mmd) | [3.4](#34-komponenty-konfiguracji) |
 | Logowanie do panelu | przepływ | [`img/przeplyw-logowanie.svg`](diagramy/authentication/img/przeplyw-logowanie.svg) | [`diagramy/authentication/przeplyw-logowanie.mmd`](diagramy/authentication/przeplyw-logowanie.mmd) | [4.4](#44-logowanie) |
-| Wymuszona zmiana hasła | przepływ | [`img/przeplyw-zmiana-hasla.svg`](diagramy/authentication/img/przeplyw-zmiana-hasla.svg) | [`diagramy/authentication/przeplyw-zmiana-hasla.mmd`](diagramy/authentication/przeplyw-zmiana-hasla.mmd) | [4.5](#45-wymuszona-zmiana-hasła) |
+| Zmiana hasła w obu wariantach | przepływ | [`img/przeplyw-zmiana-hasla.svg`](diagramy/authentication/img/przeplyw-zmiana-hasla.svg) | [`diagramy/authentication/przeplyw-zmiana-hasla.mmd`](diagramy/authentication/przeplyw-zmiana-hasla.mmd) | [4.5](#45-zmiana-hasła) |
 | Feature authentication | klasy | [`img/klasy-komponenty.svg`](diagramy/authentication/img/klasy-komponenty.svg) | [`diagramy/authentication/klasy-komponenty.mmd`](diagramy/authentication/klasy-komponenty.mmd) | [4.7](#47-komponenty-featurea) |

@@ -7,7 +7,26 @@
       "PowerShell(.\\\\mvnw.cmd -q help:effective-pom \"-Doutput=$env:TEMP\\\\vdeck-effective-pom.xml\"; if \\($?\\) { .\\\\mvnw.cmd -q test-compile })",
       "PowerShell(.\\\\mvnw.cmd -q -o compile 2>&1 | Select-Object -Last 40)",
       "Bash(java -Dvdeck.server-directory='D:\\\\DEV_PROJECTS\\\\vDeck\\\\does-not-exist' -jar /d/DEV_PROJECTS/vDeck/vdeck/vdeck-app/target/vdeck-app-0.0.1-SNAPSHOT.jar)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "PowerShell(Add-Type -AssemblyName System.Drawing; foreach \\($f in @\\(\"D:\\\\DEV_PROJECTS\\\\vDeck\\\\background_2.jpg\",\"D:\\\\DEV_PROJECTS\\\\vDeck\\\\notch_background.jpg\"\\)\\) { $i = [System.Drawing.Image]::FromFile\\($f\\); \"$f -> $\\($i.Width\\)x$\\($i.Height\\)\"; $i.Dispose\\(\\) })",
+      "Bash(git -C /d/DEV_PROJECTS/vDeck/vdeck diff .docs/first_design_ideas.md .docs/rules/README.md)",
+      "PowerShell(.\\\\mvnw.cmd -q test -pl vdeck-app -Dtest=PasswordChangeRequiredFilterTest)",
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\authentication\\\\przeplyw-logowanie.mmd -o dokumentacja\\\\diagramy\\\\authentication\\\\img\\\\przeplyw-logowanie.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json)",
+      "PowerShell($f = \"D:\\\\DEV_PROJECTS\\\\vDeck\\\\vdeck\\\\dokumentacja\\\\diagramy\\\\authentication\\\\img\\\\przeplyw-logowanie.svg\"; \"{0} bytes, {1}\" -f \\(Get-Item $f\\).Length, \\(Get-Item $f\\).LastWriteTime; if \\(Select-String -Path $f -Pattern \"zasoby /css/\" -Quiet\\) { \"note text present\" } else { \"NOTE TEXT MISSING\" })",
+      "PowerShell(.\\\\mvnw.cmd -q test)",
+      "PowerShell(Copy-Item *)",
+      "PowerShell(git *)",
+      "PowerShell($c = Get-Content \"D:\\\\DEV_PROJECTS\\\\vDeck\\\\vdeck\\\\.docs\\\\architectural_decisions.md\" -Raw; $i = $c.IndexOf\\(\"## AD-008\"\\); $entry = $c.Substring\\($i\\).Trim\\(\\); \"znaki: {0}\" -f $entry.Length)",
+      "PowerShell($c = Get-Content \"D:\\\\DEV_PROJECTS\\\\vDeck\\\\vdeck\\\\.docs\\\\architectural_decisions.md\" -Raw; $entry = $c.Substring\\($c.IndexOf\\(\"## AD-008\"\\)\\).Trim\\(\\); \"znaki: {0}\" -f $entry.Length)",
+      "PowerShell(.\\\\mvnw.cmd -q test -pl vdeck-app \"-Dtest=MessageSourceConfigurationTest+TranslationsInitializerTest+PasswordChangeControllerTest\")",
+      "PowerShell(.\\\\mvnw.cmd -q test -pl vdeck-app \"-Dtest=MessageSourceConfigurationTest,TranslationsInitializerTest,PasswordChangeControllerTest\")",
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\wspolne\\\\przeplyw-start-aplikacji.mmd -o dokumentacja\\\\diagramy\\\\wspolne\\\\img\\\\przeplyw-start-aplikacji.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json)",
+      "PowerShell($f = \"D:\\\\DEV_PROJECTS\\\\vDeck\\\\vdeck\\\\dokumentacja\\\\diagramy\\\\wspolne\\\\img\\\\przeplyw-start-aplikacji.svg\"; \"{0} bytes, {1}\" -f \\(Get-Item $f\\).Length, \\(Get-Item $f\\).LastWriteTime; if \\(Select-String -Path $f -Pattern \"TranslationsInitializer\" -Quiet\\) { \"diagram zawiera nowy krok\" } else { \"BRAK nowego kroku\" })",
+      "PowerShell($f = \"D:\\\\DEV_PROJECTS\\\\vDeck\\\\vdeck\\\\vdeck-app\\\\src\\\\main\\\\resources\\\\i18n\\\\messages.properties\"; $bytes = [System.IO.File]::ReadAllBytes\\($f\\)[0..2]; \"pierwsze bajty: {0}\" -f \\(\\($bytes | ForEach-Object { \"{0:X2}\" -f $_ }\\) -join \" \"\\); $text = [System.IO.File]::ReadAllText\\($f, [System.Text.UTF8Encoding]::new\\($false\\)\\); if \\($text -match \"changePassword.heading=Zmień hasło\"\\) { \"polskie znaki OK\" } else { \"PROBLEM z kodowaniem\" })",
+      "PowerShell(.\\\\mvnw.cmd -q test 2>&1 | Select-Object -Last 60)",
+      "PowerShell(Set-Content *)",
+      "PowerShell(.\\\\mvnw.cmd -q compile)",
+      "PowerShell($files = @\\(\"przeplyw-zmiana-hasla\",\"przeplyw-logowanie\",\"klasy-komponenty\"\\); foreach \\($f in $files\\) { npx -y @mermaid-js/mermaid-cli -i \"dokumentacja\\\\diagramy\\\\authentication\\\\$f.mmd\" -o \"dokumentacja\\\\diagramy\\\\authentication\\\\img\\\\$f.svg\" -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json })"
     ]
   }
 }

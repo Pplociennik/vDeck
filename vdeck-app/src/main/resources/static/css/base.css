@@ -1,0 +1,315 @@
+@import url("variables.css");
+
+/*
+ * Document base, page layout and interface elements shared by more than one panel view.
+ * Design tokens are never declared here - they belong to variables.css.
+ */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    block-size: 100%;
+}
+
+/*
+ * Application shell: the page fills exactly one viewport and never scrolls, in either direction.
+ * A region that cannot fit scrolls inside itself instead, so nothing becomes unreachable on a short
+ * viewport - a phone held in landscape in particular.
+ */
+body {
+    display: flex;
+    flex-direction: column;
+    block-size: 100dvh;
+    margin: 0;
+    overflow: hidden;
+    font-family: var(--font-family-base);
+    color: var(--color-text);
+    background-color: var(--color-backdrop);
+}
+
+/*
+ * Page texture with a vignette darkening its edges. Both layers sit in one fixed element behind the
+ * content instead of using background-attachment: fixed on the body, which mobile browsers - iOS
+ * Safari in particular - do not render reliably.
+ */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: var(--page-vignette), var(--page-texture);
+    background-position: center center;
+    background-repeat: no-repeat;
+    background-size: cover;
+}
+
+/*
+ * Layout wrapper centring a single view-level block in the space the shell leaves for it.
+ * It takes the remaining height and clips, so the block sizes itself against the viewport instead of
+ * pushing the page into a scrollbar.
+ */
+.page-center {
+    display: flex;
+    flex: 1;
+    min-block-size: 0;
+    align-items: center;
+    align-items: safe center;
+    justify-content: center;
+    overflow: hidden;
+    padding: var(--space-lg) var(--space-md);
+}
+
+/*
+ * Framed surface: thick black frame, strongly rounded corners and a texture. Every panel of the
+ * interface uses the panel texture; a surface that needs a different one overrides the local
+ * --surface-texture property instead of redeclaring the whole background.
+ */
+.surface {
+    --surface-texture: var(--panel-texture);
+
+    border: var(--surface-border-width) solid var(--color-frame);
+    border-radius: var(--surface-radius);
+    background-color: var(--color-backdrop);
+    background-image: var(--surface-texture);
+    background-position: center center;
+    background-size: cover;
+    box-shadow: var(--surface-shadow), var(--surface-inner-shadow);
+}
+
+/* The island is the one surface that keeps its own texture. */
+.surface--island {
+    --surface-texture: var(--island-texture);
+}
+
+/*
+ * Content area of a view, rendered below the island. It is the region that gives way when a view has
+ * more content than the viewport: the page stays fixed and this area scrolls.
+ */
+.page-content {
+    flex: 1;
+    min-block-size: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-md);
+}
+
+/* Contract for every sprite symbol rendered through <use>: sized and coloured by its component. */
+.icon {
+    display: block;
+    inline-size: var(--icon-size);
+    block-size: var(--icon-size);
+    fill: currentColor;
+    pointer-events: none;
+}
+
+.icon--large {
+    inline-size: var(--icon-size-large);
+    block-size: var(--icon-size-large);
+}
+
+/*
+ * Island - reusable action strip rendered from the common/island fragment. Its styles live in the
+ * global stylesheet because the fragment is embedded by several views and brings no <link> of its own.
+ */
+
+/* Header strip keeping the island centred at the top of the page; it never gives up its height. */
+.island-header {
+    display: flex;
+    flex: 0 0 auto;
+    justify-content: center;
+    padding: var(--space-md) var(--space-sm) 0;
+}
+
+/*
+ * The island is a header element, not a content block: its height is capped so it stays a strip
+ * even when a section grows. overflow: hidden keeps the texture inside the rounded frame.
+ */
+.island {
+    display: flex;
+    align-items: stretch;
+    block-size: var(--island-block-size);
+    max-block-size: var(--island-max-block-size);
+    max-inline-size: 100%;
+    overflow: hidden;
+}
+
+/*
+ * One group of related actions. Sections keep their own width so the group sizes stay stable
+ * regardless of how many controls a group currently holds.
+ */
+.island-section {
+    position: relative;
+    display: flex;
+    flex: 0 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding-inline: var(--space-md);
+}
+
+/* Vertical separator between neighbouring groups, kept shorter than the island itself. */
+.island-section + .island-section::before {
+    content: "";
+    position: absolute;
+    inset-block: calc((100% - var(--island-divider-block-size)) / 2);
+    inset-inline-start: 0;
+    inline-size: var(--island-divider-inline-size);
+    border-radius: var(--island-divider-inline-size);
+    background-color: var(--color-divider);
+    box-shadow: var(--island-divider-inline-size) 0 0 var(--color-divider-highlight);
+}
+
+.island-section--server-control {
+    inline-size: var(--island-section-inline-size-wide);
+}
+
+.island-section--backups {
+    inline-size: var(--island-section-inline-size-medium);
+}
+
+.island-section--panel-management {
+    inline-size: var(--island-section-inline-size-narrow);
+}
+
+/* Wrapper for an island action that has to be submitted, for example the POST logout form. */
+.island-action-form {
+    display: flex;
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+/*
+ * Icon-only control; its hit area is independent of the icon size and never drops below the size
+ * required for comfortable touch operation.
+ */
+.action-button {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--control-size);
+    block-size: var(--control-size);
+    min-inline-size: var(--control-touch-size);
+    min-block-size: var(--control-touch-size);
+    padding: 0;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    border: 0.0625rem solid var(--color-control-border);
+    border-radius: var(--control-radius);
+    color: var(--color-text);
+    background-color: var(--color-control-surface);
+    box-shadow: inset 0 0.0625rem 0 var(--color-edge-highlight);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast),
+        transform var(--transition-fast);
+}
+
+/* Only pointing devices get the hover treatment; on touch screens it would stick after a tap. */
+@media (hover: hover) {
+    .action-button:hover:not(:disabled) {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+.action-button:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+.action-button:active:not(:disabled) {
+    background-color: var(--color-control-surface-active);
+    transform: translateY(0.0625rem);
+    box-shadow: inset 0 0.125rem 0.25rem rgba(0, 0, 0, 0.55);
+}
+
+/*
+ * A disabled control keeps its black face - fading the whole button would let the texture show
+ * through it. The dimmed icon and the cursor carry the state instead.
+ */
+.action-button:disabled {
+    color: var(--color-text-disabled);
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+}
+
+/*
+ * Password rules - reusable list rendered from the common/password-rules fragment, shown next to the
+ * new-password field on every screen that sets a panel password. Its styles live in the global
+ * stylesheet because the fragment is embedded by several views and brings no <link> of its own.
+ */
+.password-rules {
+    padding: var(--space-sm) var(--space-md);
+    border-inline-start: 0.1875rem solid var(--color-accent);
+    border-radius: var(--field-radius);
+    background-color: var(--color-inset-surface);
+}
+
+.password-rules-heading {
+    margin: 0 0 var(--space-xs);
+    font-size: var(--font-size-label);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.password-rules-list {
+    margin: 0;
+    padding-inline-start: var(--space-md);
+    font-size: var(--font-size-lead);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+/*
+ * Phone widths. Between the full width and this breakpoint the groups only shrink, so the strip and
+ * its separators survive down to the width of their controls. Below it the groups have to wrap: the
+ * height cap is lifted and the separators - which would no longer sit between neighbours - are
+ * dropped. The tighter spacing keeps the four control buttons in one row at 320 px.
+ */
+@media (max-width: 33rem) {
+    .island-header {
+        padding: var(--space-sm) var(--space-xs) 0;
+    }
+
+    .island {
+        flex-wrap: wrap;
+        justify-content: center;
+        block-size: auto;
+        max-block-size: none;
+        padding-block: var(--space-xs);
+        border-radius: var(--surface-radius-compact);
+    }
+
+    .island-section {
+        inline-size: auto;
+        gap: var(--space-xs);
+        padding-block: var(--space-xs);
+        padding-inline: var(--space-sm);
+    }
+
+    .island-section + .island-section::before {
+        content: none;
+    }
+}
+
+/* Short viewports give back the decorative line spacing of the rules before anything has to scroll. */
+@media (max-height: 44rem) {
+    .password-rules-list {
+        line-height: 1.35;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .action-button {
+        transition: none;
+    }
+
+    .action-button:active:not(:disabled) {
+        transform: none;
+    }
+}

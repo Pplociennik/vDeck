@@ -1,0 +1,183 @@
+@import url("variables.css");
+
+/*
+ * Password screens: the mandatory initial replacement and the change requested from the island. Only
+ * styles specific to these views live here; the framed surface, icons, page centring and the password
+ * rules component come from base.css.
+ */
+
+/*
+ * The card never pushes the page into a scrollbar: it takes at most the height the shell leaves for
+ * it and scrolls its own content when a very short viewport cannot show the whole form.
+ */
+.auth-card {
+    inline-size: 100%;
+    max-inline-size: var(--card-max-inline-size);
+    max-block-size: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-xl) var(--space-lg);
+}
+
+/*
+ * The card of a view rendered below the island sits in the ordinary content area, which is already the
+ * region that scrolls. It only keeps its width and centring; a second scroll container inside it would
+ * split one form between two scrollbars.
+ */
+.auth-card--in-content {
+    max-block-size: none;
+    overflow-y: visible;
+    margin-inline: auto;
+}
+
+.auth-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-block-end: var(--space-sm);
+}
+
+.auth-title {
+    margin: 0;
+    font-size: var(--font-size-title);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.auth-lead {
+    margin: 0 0 var(--space-lg);
+    font-size: var(--font-size-lead);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+/* Single failure message of the form; the text carries the meaning, the colour only reinforces it. */
+.auth-alert {
+    margin: 0 0 var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-inline-start: 0.1875rem solid var(--color-danger);
+    border-radius: var(--field-radius);
+    background-color: var(--color-inset-surface);
+    color: var(--color-danger);
+    font-size: var(--font-size-lead);
+    line-height: 1.45;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+}
+
+.form-label {
+    font-size: var(--font-size-label);
+    color: var(--color-text-muted);
+}
+
+.form-input {
+    inline-size: 100%;
+    min-block-size: var(--control-touch-size);
+    padding: var(--space-sm) var(--space-md);
+    border: 0.0625rem solid var(--color-control-border);
+    border-radius: var(--field-radius);
+    background-color: var(--color-field-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--font-size-field);
+    box-shadow: inset 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.45);
+    transition: border-color var(--transition-fast);
+}
+
+.form-input:focus-visible {
+    border-color: var(--color-accent);
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+.form-submit {
+    min-block-size: var(--control-touch-size);
+    margin-block-start: var(--space-xs);
+    padding: var(--space-sm) var(--space-lg);
+    border: 0.0625rem solid var(--color-control-border);
+    border-radius: var(--field-radius);
+    background-color: var(--color-control-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--font-size-field);
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: inset 0 0.0625rem 0 var(--color-edge-highlight);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+    .form-submit:hover:not(:disabled) {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+.form-submit:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+.form-submit:active:not(:disabled) {
+    background-color: var(--color-control-surface-active);
+}
+
+.form-submit:disabled {
+    color: var(--color-text-disabled);
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+}
+
+/* Phone widths: the card uses the full width and gives back the decorative padding. */
+@media (max-width: 30rem) {
+    .auth-card {
+        padding: var(--space-lg) var(--space-md);
+        border-radius: var(--surface-radius-compact);
+    }
+}
+
+/*
+ * Short viewports, from a laptop screen down to a phone held in landscape: the decorative spacing is
+ * given back first, so the whole form keeps fitting without the card having to scroll.
+ */
+@media (max-height: 44rem) {
+    .auth-card {
+        padding-block: var(--space-lg);
+    }
+
+    .auth-lead {
+        margin-block-end: var(--space-md);
+    }
+
+    .auth-form {
+        gap: var(--space-sm);
+    }
+}
+
+@media (max-height: 32rem) {
+    .auth-card {
+        padding-block: var(--space-md);
+    }
+
+    .auth-lead {
+        margin-block-end: var(--space-sm);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .form-input,
+    .form-submit {
+        transition: none;
+    }
+}

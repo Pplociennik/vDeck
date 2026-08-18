@@ -1,4 +1,4 @@
-# Reguły dokumentowania zmian
+﻿# Reguły dokumentowania zmian
 
 > Status: obowiązujące dla całego repozytorium
 
@@ -31,7 +31,7 @@ Zmiana wymaga aktualizacji odpowiedniego pliku w `.docs`, gdy wpływa na:
 - założenie lub ograniczenie, na którym opiera się późniejsza implementacja.
 
 `.docs/architectural_decisions.md` jest nadrzędnym rejestrem krytycznych decyzji projektowych, a
-`.docs/first_design_ideas.md` zawiera ich szczegóły oraz pozostałe uzgodnione założenia. Nie należy
+`.docs/design.md` zawiera ich szczegóły oraz pozostałe uzgodnione założenia. Nie należy
 zmieniać decyzji w tych plikach bez akceptacji użytkownika. Plany realizacji poszczególnych feature’ów
 powstają osobno i nie są dopisywane do dokumentów z decyzjami i głównymi założeniami.
 

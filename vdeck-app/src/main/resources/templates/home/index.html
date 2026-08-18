@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="pl" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{home.title}">vDeck</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+</head>
+<body>
+<!--
+    Panel home page. It shows the page background and the action island only - the content area stays
+    empty until there is a feature to present in it.
+-->
+<div th:replace="~{common/island :: island}"></div>
+
+<main class="page-content"></main>
+</body>
+</html>

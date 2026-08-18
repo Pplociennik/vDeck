@@ -1,18 +1,20 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project state
 
-vDeck is an early-stage Maven reactor with two modules, matching `first_design_ideas.md` §2:
+vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2:
 
 - `vdeck-runtime` — pure Java, no Spring. **Currently empty and has no `src/` directory at all**, so
   the build prints a `JAR will be empty` warning for it. That is expected, not a defect.
 - `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, shared path/configuration
-  infrastructure and the first implemented feature: panel authentication with a persisted admin
-  account, forced initial password change and Spring Security's generated login page.
+  infrastructure and the first implemented features: panel authentication (persisted admin account,
+  Spring Security's generated login page, and two separate password screens — the forced
+  `/initial-password-change` that asks for no current password and the on-demand `/change-password`
+  that does) plus a `home` feature serving `/` with the action island only.
 
-Only packages holding real code exist; the rest of the `first_design_ideas.md` §3 tree is created when
+Only packages holding real code exist; the rest of the `design.md` §3 tree is created when
 its feature is implemented. Do not infer missing architecture from the incomplete package layout.
 
 Base package: `com.github.pplociennik.vdeck` (`vdeck-app/src/main/java`, mirrored in
@@ -54,6 +56,16 @@ Configuration is split by owner (see `AD-002`):
   `shared.service.SystemPropertiesService` (one instance per file). Created with defaults on first
   start; missing keys are restored on the next start.
 
+Interface texts are not a configuration channel (see `AD-009`): the panel is Polish-only and its
+texts live in `vdeck-app/src/main/resources/messages.properties`, read from the classpath by Spring
+Boot's default `MessageSource`. There is no external translations directory, no
+`vdeck.translations-directory` property and no `MessageSource` `@Configuration` class;
+`application.yaml` only sets `spring.messages.use-code-as-default-message` so a missing key renders
+as the key instead of failing the request. No text is hardcoded: templates use `#{key}` and Java
+passes keys, using enums implementing `shared.TranslationKeyIf` (for example
+`PasswordChangeMessage`) rather than string literals. Changing a text means changing the repository
+and shipping a new release.
+
 Every configured path goes through `PathService.getAbsolutePath(String)`: it must be relative, is
 normalized, and after resolution must stay inside the installation directory.
 
@@ -65,7 +77,7 @@ would be written into a directory devtools watches, causing a restart loop.
 
 Before reviewing, planning, or implementing any feature, first read
 `.docs/architectural_decisions.md`. It is the highest-priority repository document for critical
-architectural decisions. Then read `.docs/first_design_ideas.md`, which contains the detailed agreed
+architectural decisions. Then read `.docs/design.md`, which contains the detailed agreed
 architecture, module and package boundaries, process lifecycle, recovery, persistence, RCON, and
 data-safety rules. Feature-specific plans and implementations must remain consistent with both
 documents. If they conflict, `.docs/architectural_decisions.md` takes precedence.
@@ -87,7 +99,11 @@ maintainability, naming, design, modern-Java, public nullability annotation, and
 conventions. `.docs/rules/maven.md` defines the mandatory minimal POM structure, formatting,
 dependency and plugin version-property, inheritance, and Maven verification rules.
 `.docs/rules/security.md` defines mandatory secret handling, authentication, input validation,
-process and file safety, and application logging rules. `.docs/rules/formating.md` defines the
+process and file safety, and application logging rules. `.docs/ui.md` is mandatory before any
+interface change: it defines stylesheet organisation (all custom properties in `css/variables.css`,
+imported by every other sheet), reusable components as Thymeleaf fragments in `templates/common/`
+with their styles in the global sheet, the single SVG sprite, translations and the requirement that
+every view works on phones and tablets in both orientations. `.docs/rules/formating.md` defines the
 mandatory code layout — 4-space indents, the project's inner-space bracket style
 (`method( arg )`, `Map< K, V >`), import grouping, and the rule that public methods always come
 first in a class.

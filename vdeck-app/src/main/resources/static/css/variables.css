@@ -1,0 +1,99 @@
+/*
+ * Single source of the panel design tokens.
+ *
+ * Every other stylesheet imports this file and uses the tokens instead of literal values.
+ * The file declares custom properties only - it must not contain appearance rules.
+ * Texture paths are relative to this file, which lives next to the other stylesheets.
+ */
+
+:root {
+    /* Text and accents */
+    --color-text: #f2ede2;
+    --color-text-muted: #c3b9a6;
+    --color-text-disabled: rgba(242, 237, 226, 0.38);
+    --color-accent: #e8b45a;
+    --color-danger: #e88a78;
+
+    /* Frames, backgrounds and separators of the wooden panel surfaces */
+    --color-frame: #07080a;
+    --color-backdrop: #100e0c;
+    --color-divider: rgba(0, 0, 0, 0.72);
+    --color-divider-highlight: rgba(255, 255, 255, 0.09);
+    --color-edge-highlight: rgba(255, 255, 255, 0.12);
+
+    /*
+     * Interactive controls placed on a textured surface. Buttons and fields are solid black so they
+     * read as controls against the texture instead of letting it show through; the light rim keeps
+     * their edge visible on the darkest parts of the background.
+     */
+    --color-control-surface: #000000;
+    --color-control-surface-hover: #191a1d;
+    --color-control-surface-active: #000000;
+    --color-control-border: rgba(255, 255, 255, 0.1);
+    --color-field-surface: #000000;
+
+    /* Blocks inset into a panel, such as an alert or the password rules; the texture stays visible */
+    --color-inset-surface: rgba(8, 7, 6, 0.66);
+
+    /* Page and surface textures; framed surfaces use the panel texture, only the island differs */
+    --page-texture: url("../img/page-background.jpg");
+    --panel-texture: url("../img/panel-background.jpg");
+    --island-texture: url("../img/island-background.jpg");
+
+    /*
+     * Vignette darkening the page edges. It is sized to the nearer viewport edge, not to the corners,
+     * so the darkening reaches the sides of every aspect ratio instead of fading out on a wide screen;
+     * the texture stays clear in the middle of the page.
+     */
+    --page-vignette: radial-gradient(ellipse farthest-side at center,
+        rgba(0, 0, 0, 0) 40%,
+        rgba(0, 0, 0, 0.1) 62%,
+        rgba(0, 0, 0, 0.23) 80%,
+        rgba(0, 0, 0, 0.32) 91%,
+        rgba(0, 0, 0, 0.4) 100%);
+
+    /* Shared shape of every framed surface */
+    --surface-radius: 1.875rem;
+    --surface-radius-compact: 1.375rem;
+    --surface-border-width: 0.3125rem;
+    --surface-shadow: 0 0.875rem 1.75rem rgba(0, 0, 0, 0.55), 0 0.25rem 0.5rem rgba(0, 0, 0, 0.45);
+    --surface-inner-shadow: inset 0 0.0625rem 0 var(--color-edge-highlight),
+        inset 0 -0.75rem 1.5rem rgba(0, 0, 0, 0.42);
+
+    /* Island of the home page; the height cap keeps it a header strip, never a content block */
+    --island-block-size: 5.75rem;
+    --island-max-block-size: 6.25rem;
+    --island-divider-block-size: 80%;
+    --island-divider-inline-size: 0.125rem;
+    --island-section-inline-size-wide: 18rem;
+    --island-section-inline-size-medium: 15.5rem;
+    --island-section-inline-size-narrow: 10rem;
+
+    /* Controls; the touch size is the floor required for comfortable operation by finger */
+    --control-size: 3rem;
+    --control-touch-size: 2.75rem;
+    --control-radius: 0.875rem;
+    --icon-size: 1.5rem;
+    --icon-size-large: 2rem;
+    --field-radius: 0.625rem;
+    --focus-ring-width: 0.125rem;
+    --focus-ring-offset: 0.1875rem;
+
+    /* Single-column view content, for example the password change form */
+    --card-max-inline-size: 27rem;
+
+    --space-xs: 0.375rem;
+    --space-sm: 0.75rem;
+    --space-md: 1.25rem;
+    --space-lg: 2rem;
+    --space-xl: 2.75rem;
+
+    --font-family-base: "Segoe UI", Roboto, system-ui, sans-serif;
+    --font-size-title: 1.375rem;
+    --font-size-lead: 0.9375rem;
+    --font-size-label: 0.875rem;
+    /* Form controls stay at 1rem or more; smaller text makes mobile browsers zoom in on focus */
+    --font-size-field: 1rem;
+
+    --transition-fast: 120ms ease;
+}

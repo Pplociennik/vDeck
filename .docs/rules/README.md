@@ -1,17 +1,19 @@
-# Reguły pracy w repozytorium
+﻿# Reguły pracy w repozytorium
 
 > Status: obowiązujący indeks i zasady interpretacji
 
 Każda osoba i każdy agent pracujący w repozytorium czyta przed zmianą nadrzędne decyzje
 architektoniczne, główne założenia projektowe oraz wszystkie pliki Markdown z tego katalogu. Ten
 indeks ułatwia odnalezienie reguł, ale nie zastępuje przeczytania dokumentów źródłowych.
+Przed zmianą interfejsu użytkownika należy dodatkowo przeczytać `../ui.md`.
 
 ## 1. Indeks
 
 | Dokument | Zakres |
 |---|---|
 | [`../architectural_decisions.md`](../architectural_decisions.md) | Nadrzędny rejestr najbardziej krytycznych decyzji projektu. |
-| [`../first_design_ideas.md`](../first_design_ideas.md) | Uzgodniona architektura, granice modułów i feature'ów oraz zachowanie systemu. |
+| [`../design.md`](../design.md) | Uzgodniona architektura, granice modułów i feature'ów oraz zachowanie systemu. |
+| [`../ui.md`](../ui.md) | Zasady tworzenia interfejsu, stylowania i używania ikon SVG. |
 | [`clean-code.md`](clean-code.md) | Czytelność, projektowanie klas, nazewnictwo, nullability oraz frontend. |
 | [`documentation.md`](documentation.md) | Dokumentacja zmian, dokumentacja projektowa w `dokumentacja/` i obowiązkowy angielski Javadoc. |
 | [`formating.md`](formating.md) | Wygląd kodu: wcięcia, odstępy, importy i kolejność elementów w klasie. |
@@ -30,7 +32,7 @@ Reguły interpretujemy w następującej kolejności:
 
 1. aktualne, jawne polecenie użytkownika i zaakceptowana przez niego zmiana decyzji;
 2. krytyczne decyzje z `.docs/architectural_decisions.md`;
-3. szczegółowe uzgodnienia z `.docs/first_design_ideas.md`;
+3. szczegółowe uzgodnienia z `.docs/design.md`;
 4. wyspecjalizowana reguła z dokumentu dotyczącego danego obszaru;
 5. ogólna reguła czystego kodu;
 6. plan implementacji aktualnego feature'a;

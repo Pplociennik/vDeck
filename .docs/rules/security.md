@@ -13,6 +13,10 @@ jest traktowana jako granica zaufania.
 - Początkowe hasło `admin` podlega wymuszonej zmianie przy pierwszym logowaniu zgodnie z głównymi
   założeniami projektowymi. Do czasu zmiany użytkownik nie może wykonywać pozostałych operacji
   administracyjnych.
+- Hasło panelu ma od 12 do 128 znaków i zawiera co najmniej jedną cyfrę, jedną małą literę, jedną
+  wielką literę oraz jeden znak specjalny, czyli znak niebędący literą, cyfrą ani białym znakiem.
+  Reguła jest egzekwowana po stronie serwera; atrybuty formularza są wyłącznie ułatwieniem dla
+  użytkownika.
 - Nie wyłączamy CSRF dla wygody implementacji. Żądania zmieniające stan wymagają poprawnego tokenu.
 - Nie otwieramy panelu na zewnętrzny interfejs sieciowy bez jawnej konfiguracji użytkownika.
 - Błąd konfiguracji bezpieczeństwa powoduje bezpieczne przerwanie operacji lub startu, a nie

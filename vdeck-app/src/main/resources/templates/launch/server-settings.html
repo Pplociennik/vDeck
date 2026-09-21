@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pl" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{serverSettings.title}">Serwer · vDeck</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+</head>
+<body>
+<!--
+    "Serwer" part of the launch profile: server identity, access, world and saving, and automatic backups,
+    grouped into sections, each field explained together with the values it accepts. The stored server
+    password is never rendered - the screen only states whether one is set. Min, max and pattern
+    attributes are conveniences; the server side validates every value again.
+-->
+<div th:replace="~{common/island :: island}"></div>
+
+<main class="page-content">
+    <div class="panel-frame">
+        <div class="surface view-card view-card--wide">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-server}"></use>
+                </svg>
+                <h1 class="view-title" th:text="#{serverSettings.heading}">Serwer</h1>
+            </div>
+            <p class="view-lead" th:text="#{serverSettings.lead}"></p>
+            <p class="form-success settings-message" role="status" th:if="${param.saved != null and serverSettingsErrorKey == null}"
+               th:text="#{serverSettings.saved}"></p>
+            <p class="form-alert settings-message" role="alert"
+               th:if="${serverSettingsErrorKey}" th:text="#{${serverSettingsErrorKey}}"></p>
+
+            <form class="form-stack settings-form settings-form--columns" method="post" th:action="@{/server-settings}"
+                  th:with="form=${serverSettingsForm}">
+
+                <!--
+                    Sections are grouped into columns: stacked one under another on a narrow or portrait
+                    screen, placed side by side on a wide landscape screen. Each column stacks its own
+                    sections, so a short section never leaves a gap under itself.
+                -->
+                <div class="settings-column">
+                    <fieldset class="form-section">
+                        <legend class="form-section__title" th:text="#{launchProfile.section.server}"></legend>
+                        <div class="settings-fields">
+                            <div class="form-field">
+                                <label class="form-label" for="server-name" th:text="#{launchProfile.field.serverName}"></label>
+                                <input class="form-input" id="server-name" name="serverName" type="text" maxlength="64"
+                                       required aria-describedby="server-name-hint" th:value="${form.serverName()}">
+                                <p class="form-hint" id="server-name-hint" th:text="#{launchProfile.hint.serverName}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="port" th:text="#{launchProfile.field.port}"></label>
+                                <input class="form-input" id="port" name="port" type="number" inputmode="numeric"
+                                       min="1024" max="65534" step="1" required aria-describedby="port-hint"
+                                       th:value="${form.port()}">
+                                <p class="form-hint" id="port-hint" th:text="#{launchProfile.hint.port}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" name="publicServer" value="true" aria-describedby="public-server-hint"
+                                           th:checked="${form.publicServer()}">
+                                    <span th:text="#{launchProfile.field.publicServer}"></span>
+                                </label>
+                                <p class="form-hint" id="public-server-hint" th:text="#{launchProfile.hint.publicServer}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" name="crossplay" value="true" aria-describedby="crossplay-hint"
+                                           th:checked="${form.crossplay()}">
+                                    <span th:text="#{launchProfile.field.crossplay}"></span>
+                                </label>
+                                <p class="form-hint" id="crossplay-hint" th:text="#{launchProfile.hint.crossplay}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="instance-id" th:text="#{launchProfile.field.instanceId}"></label>
+                                <input class="form-input" id="instance-id" name="instanceId" type="text" maxlength="32"
+                                       pattern="[A-Za-z0-9_\-]*" aria-describedby="instance-id-hint"
+                                       th:value="${form.instanceId()}">
+                                <p class="form-hint" id="instance-id-hint" th:text="#{launchProfile.hint.instanceId}"></p>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
+                        <legend class="form-section__title" th:text="#{launchProfile.section.access}"></legend>
+                        <div class="settings-fields">
+                            <div class="form-field">
+                                <label class="form-label" for="server-password" th:text="#{launchProfile.field.password}"></label>
+                                <p class="form-status" id="server-password-status"
+                                   th:text="${passwordSet} ? #{launchProfile.password.set} : #{launchProfile.password.notSet}"></p>
+                                <input class="form-input" id="server-password" name="password" type="password"
+                                       autocomplete="new-password" minlength="5" maxlength="64"
+                                       aria-describedby="server-password-status server-password-hint">
+                                <p class="form-hint" id="server-password-hint" th:text="#{launchProfile.hint.password}"></p>
+                            </div>
+                            <div class="form-field" th:if="${passwordSet}">
+                                <label class="form-checkbox">
+                                    <input type="checkbox" name="clearPassword" value="true"
+                                           aria-describedby="clear-password-hint" th:checked="${form.clearPassword()}">
+                                    <span th:text="#{launchProfile.field.clearPassword}"></span>
+                                </label>
+                                <p class="form-hint" id="clear-password-hint" th:text="#{launchProfile.hint.clearPassword}"></p>
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <div class="settings-column">
+                    <fieldset class="form-section">
+                        <legend class="form-section__title" th:text="#{launchProfile.section.world}"></legend>
+                        <div class="settings-fields">
+                            <div class="form-field">
+                                <label class="form-label" for="world-name" th:text="#{launchProfile.field.worldName}"></label>
+                                <input class="form-input" id="world-name" name="worldName" type="text" maxlength="64"
+                                       required aria-describedby="world-name-hint" th:value="${form.worldName()}">
+                                <p class="form-hint" id="world-name-hint" th:text="#{launchProfile.hint.worldName}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="save-directory" th:text="#{launchProfile.field.saveDirectory}"></label>
+                                <input class="form-input" id="save-directory" name="saveDirectory" type="text" maxlength="255"
+                                       required aria-describedby="save-directory-hint" th:value="${form.saveDirectory()}">
+                                <p class="form-hint" id="save-directory-hint" th:text="#{launchProfile.hint.saveDirectory}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="save-interval" th:text="#{launchProfile.field.saveInterval}"></label>
+                                <input class="form-input" id="save-interval" name="saveInterval" type="number" inputmode="numeric"
+                                       min="60" max="86400" step="1" required aria-describedby="save-interval-hint"
+                                       th:value="${form.saveInterval()}">
+                                <p class="form-hint" id="save-interval-hint" th:text="#{launchProfile.hint.saveInterval}"></p>
+                            </div>
+                            <div class="form-field">
+                                <span class="form-label" th:text="#{launchProfile.field.logFile}"></span>
+                                <p class="form-hint" th:text="#{launchProfile.hint.logFile}"></p>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="form-section">
+                        <legend class="form-section__title" th:text="#{launchProfile.section.backups}"></legend>
+                        <p class="form-hint" th:text="#{launchProfile.hint.backups}"></p>
+                        <div class="settings-fields">
+                            <div class="form-field">
+                                <label class="form-label" for="backup-count" th:text="#{launchProfile.field.backupCount}"></label>
+                                <input class="form-input" id="backup-count" name="backupCount" type="number" inputmode="numeric"
+                                       min="1" max="100" step="1" required aria-describedby="backup-count-hint"
+                                       th:value="${form.backupCount()}">
+                                <p class="form-hint" id="backup-count-hint" th:text="#{launchProfile.hint.backupCount}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="backup-short" th:text="#{launchProfile.field.backupShort}"></label>
+                                <input class="form-input" id="backup-short" name="backupShort" type="number" inputmode="numeric"
+                                       min="60" max="604800" step="1" required aria-describedby="backup-short-hint"
+                                       th:value="${form.backupShort()}">
+                                <p class="form-hint" id="backup-short-hint" th:text="#{launchProfile.hint.backupShort}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="backup-long" th:text="#{launchProfile.field.backupLong}"></label>
+                                <input class="form-input" id="backup-long" name="backupLong" type="number" inputmode="numeric"
+                                       min="60" max="2592000" step="1" required aria-describedby="backup-long-hint"
+                                       th:value="${form.backupLong()}">
+                                <p class="form-hint" id="backup-long-hint" th:text="#{launchProfile.hint.backupLong}"></p>
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+
+                <div class="settings-footer">
+                    <p class="form-hint" th:text="#{launchProfile.appliesOnStart}"></p>
+                    <button class="form-submit" type="submit" th:text="#{launchProfile.action.submit}"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{common/side-menu :: sideMenu(activeEntry='serverSettings')}"></div>
+</body>
+</html>

@@ -123,3 +123,86 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
   pozostałe reguły tekstów interfejsu: szablony pobierają tekst wyłącznie przez `#{klucz}`, kod Javy
   przekazuje klucz, a zamknięte zbiory komunikatów opisują typy wyliczeniowe implementujące
   `TranslationKeyIf`. Zmiana tekstu wymaga nowego wydania panelu.
+
+## AD-010 — Katalog plików ustawień `.vDeck/config`
+
+- **Status:** obowiązująca (2026-09-21)
+- **Decyzja:** Wszystkie edytowalne przez użytkownika pliki `.properties` panelu — `vDeck.properties`,
+  `valheim-server.properties` i każdy przyszły plik ustawień — znajdują się w podkatalogu
+  `.vDeck/config` katalogu instalacji. Żaden plik ustawień nie leży bezpośrednio obok `vdeck.jar`.
+  Lokalizację pliku wyznacza wyłącznie `PathService.getConfigurationFile( nazwaPliku )`, które
+  przyjmuje samą nazwę pliku i rozwiązuje ją w `PathService.CONFIGURATION_DIRECTORY`.
+- **Powód:** Katalog instalacji dzieli pliki panelu z plikami serwera Valheim. Jeden wydzielony katalog
+  konfiguracji oddziela ustawienia od plików wykonywalnych i danych, upraszcza ich kopiowanie i
+  zapobiega rozproszeniu kolejnych plików ustawień w katalogu instalacji.
+- **Konsekwencja:** AD-002 pozostaje w mocy — pliki są nadal zewnętrzne i leżą w katalogu instalacji;
+  AD-010 ustala jedynie ich podkatalog. `SystemPropertiesServiceImpl` tworzy brakujący katalog razem
+  z plikiem. Plik `vDeck.properties` pozostawiony w katalogu instalacji przez wcześniejszą wersję
+  deweloperską nie jest migrowany ani czytany.
+
+## AD-011 — Profil uruchomieniowy w pliku ustawień
+
+- **Status:** obowiązująca (2026-09-21)
+- **Decyzja:** Profil uruchomieniowy serwera Valheim — opcje wiersza poleceń `valheim_server.exe`
+  opisane w instrukcji serwera dedykowanego — jest przechowywany w pliku
+  `.vDeck/config/valheim-server.properties`, obsługiwanym przez ten sam mechanizm co `vDeck.properties`
+  (AD-002, AD-007): enum `LaunchProperty` implementujący `SystemPropertyIf` i osobny bean
+  `SystemPropertiesService`. Feature `feature.launch` nie ma encji JPA ani repozytorium. Profil jest
+  edytowany na dwóch ekranach: „Serwer” (`/server-settings` — tożsamość serwera, dostęp, świat i zapis,
+  kopie automatyczne) oraz „Ustawienia gry” (`/game-settings` — zestaw ustawień świata, modyfikatory i
+  klucze świata); każdy ekran zapisuje wyłącznie własne ustawienia i nie zmienia ustawień drugiego.
+- **Powód:** Profil jest konfiguracją edytowalną przez użytkownika, a nie danymi domenowymi panelu;
+  plik tekstowy można przejrzeć, skopiować i poprawić ręcznie bez narzędzi bazodanowych.
+- **Konsekwencja:** Ustawienie może być obowiązkowe albo opcjonalne (`SystemPropertyIf.isMandatory()`);
+  pusta wartość opcjonalnego ustawienia oznacza, że opcja nie jest przekazywana serwerowi. Opcja
+  `-logFile` nie należy do profilu — panel wyznacza ją z `game.log.directory`. Hasło serwera jest
+  przechowywane jawnym tekstem, bo serwer wymaga go w wierszu poleceń; chronią je wyłącznie
+  uprawnienia konta systemowego do katalogu instalacji, a interfejs nigdy go nie wyświetla.
+
+## AD-012 — Wzorzec wyglądu i układu paneli
+
+- **Status:** obowiązująca (2026-09-21)
+- **Decyzja:** Każdy panel interfejsu stosuje wzorzec ustalony dla ekranów ustawień „Serwer” i
+  „Ustawienia gry”:
+  - **Rama o stałej wysokości.** Panel jest osadzony w ramie `.panel-frame` o wysokości
+    `--panel-frame-block-size` (obecnie `70dvh`), wyśrodkowanej w miejscu pod wyspą akcji, tak że nad
+    panelem i pod nim zostaje wolne miejsce. Karta wypełnia ramę i przewija treść wewnątrz, z cienkim
+    paskiem przewijania w kolorze akcentu; strona nigdy się nie przewija. Gdy widok jest niższy niż
+    rama, rama kurczy się do dostępnego miejsca.
+  - **Tekstura.** Domyślną teksturą panelu jest `config-background.jpg` (`--panel-texture`). Własną
+    teksturę zachowują wyłącznie ekrany hasła (`.surface--password`), wyspa i menu boczne.
+  - **Sekcje.** Pola są pogrupowane w tytułowane sekcje (`fieldset.form-section`); tytuł to
+    przygaszony tekst na środku poziomej linii, jak w menu bocznym, a sekcje dzieli większy odstęp niż
+    pola wewnątrz nich.
+  - **Opis każdego pola.** Pod każdym polem stoi opis powiązany przez `aria-describedby`: znaczenie
+    ustawienia, jego **dozwolone albo możliwe wartości** (zakres albo format) oraz wartość domyślna.
+    Wyjątkiem jest lista rozwijana: jej opis nie wymienia możliwych wartości, bo pokazuje je sama
+    lista, ani wartości domyślnej, gdy lista oznacza ją jako domyślną. Opis pola wyboru (checkbox) nie
+    podaje wartości ani wartości domyślnej — mówi tylko, co oznacza zaznaczenie. Opcje list wyboru pokazują nazwę polską i wartość techniczną, np. „Trudno (hard)”.
+  - **Układ responsywny.** Na telefonie i każdym ekranie pionowym sekcje układają się w jednej kolumnie.
+    Na ekranie poziomym karta się rozszerza: od 60 rem szerokości do 76 rem, od 96 rem do 118 rem.
+    Formularz z kolumnami sekcji (`.settings-form--columns`) stawia wtedy dwie kolumny obok siebie, a
+    każda kolumna układa swoje sekcje jedna pod drugą; pola każdej sekcji rozkładają się na tyle kolumn,
+    ile się zmieści, nie węższych niż czytelne minimum.
+  - **Sekcja zaawansowana.** Ustawienia rzadko zmieniane albo wymagające znajomości gry trafiają do
+    sekcji „Zaawansowane” pod ustawieniami podstawowymi. Sekcja jest domyślnie ukryta; pokazuje ją
+    wyśrodkowane pole wyboru „Konfiguracja zaawansowana” nad nią. Stan pola jest zapamiętywany w
+    `vDeck.properties` od razu po kliknięciu, osobnym żądaniem, niezależnie od zapisu formularza, więc
+    obowiązuje przy każdej kolejnej wizycie. Ukrycie sekcji niczego nie wyłącza: jej pola są nadal
+    wysyłane, a zapisane wartości nadal obowiązują.
+  - **Komunikat i akcja.** Komunikat wyniku (`role="status"` albo `role="alert"`) i przycisk
+    zapisu wraz z towarzyszącą mu notą są wyśrodkowane w poziomie; przycisk ma stałą, wygodną szerokość
+    zamiast rozciągać się na całą kartę. Zapis kończy się przekierowaniem z potwierdzeniem, a
+    odrzucenie zachowuje wpisane wartości — poza sekretami.
+- **Powód:** Wspólna wysokość i położenie sprawiają, że przechodzenie między panelami nie zmienia
+  układu strony. Opis z dozwolonymi wartościami przy każdym polu pozwala skonfigurować serwer bez
+  sięgania do instrukcji, a układ kolumnowy wykorzystuje szerokie ekrany zamiast wymuszać długie
+  przewijanie. Ukrycie ustawień zaawansowanych skraca panel dla administratora, który ich nie
+  potrzebuje, a zapamiętany wybór oszczędza mu powtarzania go przy każdej wizycie.
+- **Konsekwencja:** Nowy panel korzysta z `.panel-frame`, `.view-card` oraz klas formularza i ustawień
+  z `base.css` (`.view-card--wide`, `.settings-form`, `.settings-column`, `.settings-fields`,
+  `.settings-message`, `.settings-footer`, `.settings-advanced-toggle`) i nie wprowadza własnego
+  sposobu przewijania, wysokości ani stylu sekcji. Reguły te trafiły do `base.css`, gdy wzorzec
+  przejął drugi panel; nie są kopiowane do arkuszy widoków. Każda sekcja zaawansowana ma własne
+  ustawienie widoczności w `vDeck.properties`. Ekrany hasła stosują ramę, zachowują własną teksturę i
+  jako krótkie formularze jednokolumnowe nie wymagają układu kolumnowego.

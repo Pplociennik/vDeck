@@ -74,7 +74,172 @@ class SystemPropertiesServiceImplTest {
         assertThat( settingsFile ).exists();
         assertThat( storedProperties ).containsOnly(
                 Map.entry( TestProperty.FIRST.getName(), "first-default" ),
-                Map.entry( TestProperty.SECOND.getName(), "second-default" ) );
+                Map.entry( TestProperty.SECOND.getName(), "second-default" ),
+                Map.entry( TestProperty.OPTIONAL.getName(), "" ) );
+    }
+
+    /**
+     * Verifies that the missing parent directories of a new settings file are created together with it,
+     * which is how the configuration directory of a fresh installation comes into existence.
+     */
+    @Test
+    void shouldCreateParentDirectories_whenTheyDoNotExist() {
+        // GIVEN
+        settingsFile = directory.resolve( ".vDeck" ).resolve( "config" ).resolve( "test.properties" );
+
+        // WHEN
+        underTest = createUnderTest();
+
+        // THEN
+        assertThat( settingsFile ).isRegularFile();
+    }
+
+    /**
+     * Verifies that an empty value of an optional setting is a legitimate value and survives a reload
+     * instead of being replaced by the default.
+     */
+    @Test
+    void shouldKeepEmptyValue_whenOptionalPropertyIsEmptyInFile() throws IOException {
+        // GIVEN
+        writeSettingsFile( "optional.key=\nfirst.key=configured\nsecond.key=configured" );
+
+        // WHEN
+        underTest = createUnderTest();
+
+        // THEN
+        assertThat( underTest.getValue( TestProperty.OPTIONAL ) ).isEmpty();
+    }
+
+    /**
+     * Verifies that an optional setting whose key is missing from the file is restored with its default.
+     */
+    @Test
+    void shouldRestoreOptionalKey_whenItIsMissingInFile() throws IOException {
+        // GIVEN
+        writeSettingsFile( "first.key=configured\nsecond.key=configured" );
+
+        // WHEN
+        underTest = createUnderTest();
+
+        // THEN
+        assertThat( readSettingsFile() ).containsEntry( TestProperty.OPTIONAL.getName(), "" );
+    }
+
+    /**
+     * Verifies that an optional setting accepts a blank value, stored as empty.
+     */
+    @Test
+    void shouldPersistEmptyValue_whenOptionalPropertyIsCleared() throws IOException {
+        // GIVEN
+        underTest.setValue( TestProperty.OPTIONAL, "configured" );
+
+        // WHEN
+        underTest.setValue( TestProperty.OPTIONAL, "   " );
+
+        // THEN
+        assertThat( underTest.getValue( TestProperty.OPTIONAL ) ).isEmpty();
+        assertThat( readSettingsFile() ).containsEntry( TestProperty.OPTIONAL.getName(), "" );
+    }
+
+    /**
+     * Verifies that several values written together are all visible in memory and persisted.
+     */
+    @Test
+    void shouldPersistEveryValue_whenValuesAreWrittenTogether() throws IOException {
+        // GIVEN
+        Map< SystemPropertyIf, String > values = new LinkedHashMap<>();
+        values.put( TestProperty.FIRST, " first-changed " );
+        values.put( TestProperty.OPTIONAL, "optional-changed" );
+
+        // WHEN
+        underTest.setValues( values );
+
+        // THEN
+        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "first-changed" );
+        assertThat( readSettingsFile() )
+                .containsEntry( TestProperty.FIRST.getName(), "first-changed" )
+                .containsEntry( TestProperty.OPTIONAL.getName(), "optional-changed" )
+                .containsEntry( TestProperty.SECOND.getName(), "second-default" );
+    }
+
+    /**
+     * Verifies that a blank value of a mandatory setting rejects the whole batch before anything
+     * changes, including the valid entries of the same batch.
+     */
+    @Test
+    void shouldChangeNothing_whenBatchContainsBlankMandatoryValue() throws IOException {
+        // GIVEN
+        Map< SystemPropertyIf, String > values = new LinkedHashMap<>();
+        values.put( TestProperty.OPTIONAL, "optional-changed" );
+        values.put( TestProperty.FIRST, " " );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.setValues( values ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( IllegalArgumentException.class )
+                .hasMessageContaining( "value must not be blank" );
+        assertThat( underTest.getValue( TestProperty.OPTIONAL ) ).isEmpty();
+        assertThat( readSettingsFile() ).containsEntry( TestProperty.OPTIONAL.getName(), "" );
+    }
+
+    /**
+     * Verifies that a batch containing a setting of another file is rejected as a programming error.
+     */
+    @Test
+    void shouldThrowException_whenBatchContainsUnmanagedProperty() {
+        // GIVEN
+        Map< SystemPropertyIf, String > values = Map.of( UnmanagedProperty.UNMANAGED, "value" );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.setValues( values ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( IllegalArgumentException.class )
+                .hasMessageContaining( "is not managed by file" );
+    }
+
+    /**
+     * Verifies that a failed batch write restores every previous value in memory, so memory and disk
+     * cannot diverge.
+     */
+    @Test
+    void shouldKeepEveryPreviousValue_whenBatchWriteFails() throws IOException {
+        // GIVEN
+        Files.delete( settingsFile );
+        Files.delete( directory );
+        Map< SystemPropertyIf, String > values = new LinkedHashMap<>();
+        values.put( TestProperty.FIRST, "first-changed" );
+        values.put( TestProperty.OPTIONAL, "optional-changed" );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.setValues( values ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( UncheckedIOException.class )
+                .hasMessageContaining( "Failed to save vDeck settings" );
+        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "first-default" );
+        assertThat( underTest.getValue( TestProperty.OPTIONAL ) ).isEmpty();
+    }
+
+    /**
+     * Verifies that a null batch is rejected by the method contract.
+     */
+    @Test
+    void shouldThrowException_whenWrittenValuesAreNull() {
+        // GIVEN
+        // no values at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.setValues( null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "values must not be null" );
     }
 
     /**
@@ -262,7 +427,7 @@ class SystemPropertiesServiceImplTest {
     @Test
     void shouldThrowException_whenReadPropertyIsNotManaged() {
         // GIVEN
-        SystemPropertyIf unmanagedProperty = () -> "unmanaged.key";
+        SystemPropertyIf unmanagedProperty = UnmanagedProperty.UNMANAGED;
 
         // WHEN
         Throwable thrown = catchThrowable( () -> underTest.getValue( unmanagedProperty ) );
@@ -279,7 +444,7 @@ class SystemPropertiesServiceImplTest {
     @Test
     void shouldThrowException_whenWrittenPropertyIsNotManaged() {
         // GIVEN
-        SystemPropertyIf unmanagedProperty = () -> "unmanaged.key";
+        SystemPropertyIf unmanagedProperty = UnmanagedProperty.UNMANAGED;
 
         // WHEN
         Throwable thrown = catchThrowable( () -> underTest.setValue( unmanagedProperty, "value" ) );
@@ -327,8 +492,8 @@ class SystemPropertiesServiceImplTest {
     }
 
     /**
-     * Verifies that a blank default value is rejected, because it would break the guarantee that a
-     * read never returns a blank value.
+     * Verifies that a blank default value of a mandatory setting is rejected, because it would break the
+     * guarantee that a mandatory setting is never blank.
      */
     @Test
     void shouldThrowException_whenDefaultValueIsBlank() {
@@ -441,6 +606,7 @@ class SystemPropertiesServiceImplTest {
         Map< SystemPropertyIf, String > defaults = new LinkedHashMap<>();
         defaults.put( TestProperty.FIRST, "first-default" );
         defaults.put( TestProperty.SECOND, "second-default" );
+        defaults.put( TestProperty.OPTIONAL, "" );
         return defaults;
     }
 
@@ -461,18 +627,45 @@ class SystemPropertiesServiceImplTest {
      */
     private enum TestProperty implements SystemPropertyIf {
 
-        FIRST( "first.key" ),
-        SECOND( "second.key" );
+        FIRST( "first.key", true ),
+        SECOND( "second.key", true ),
+        OPTIONAL( "optional.key", false );
 
         private final String name;
 
-        TestProperty( String name ) {
+        private final boolean mandatory;
+
+        TestProperty( String name, boolean mandatory ) {
             this.name = name;
+            this.mandatory = mandatory;
         }
 
         @Override
         public @Nonnull String getName() {
             return name;
+        }
+
+        @Override
+        public boolean isMandatory() {
+            return mandatory;
+        }
+    }
+
+    /**
+     * Setting owned by another file, used to verify that the service rejects it.
+     */
+    private enum UnmanagedProperty implements SystemPropertyIf {
+
+        UNMANAGED;
+
+        @Override
+        public @Nonnull String getName() {
+            return "unmanaged.key";
+        }
+
+        @Override
+        public boolean isMandatory() {
+            return true;
         }
     }
 }

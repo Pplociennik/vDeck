@@ -15,6 +15,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Properties;
 
@@ -25,19 +27,22 @@ import static java.util.Objects.requireNonNull;
 /**
  * Reads and writes one external properties file holding user-editable vDeck settings.
  * One instance serves exactly one file; the file and the set of settings it owns are fixed at
- * construction time, which is how support for further properties files is added later.
+ * construction time, which is how support for further properties files is added.
  *
  * <p>The file is read once, during construction, and kept in memory afterwards. vDeck runs as a
  * single user in at most one session, so no locking or reload is needed: a file edited by hand while
  * the panel is running is picked up on the next start.
  *
- * <p>Construction has side effects on disk. A missing file is created with default values, and a file
- * that lost a managed key has that key restored. This is also the migration path — settings added in
- * a new release appear in an existing installation on first start. Entries not owned by this service
- * are kept untouched, but comments and key order are lost once the application saves the file.
+ * <p>Construction has side effects on disk. A missing file is created with default values, together
+ * with its missing parent directories, and a file that lost a managed key has that key restored. This
+ * is also the migration path — settings added in a new release appear in an existing installation on
+ * first start. Entries not owned by this service are kept untouched, but comments and key order are
+ * lost once the application saves the file.
  *
- * <p>After construction every managed setting is guaranteed to have a non-blank value both in memory
- * and in the file, so {@link #getValue} is a plain lookup that never returns {@code null} or blank.
+ * <p>A {@linkplain SystemPropertyIf#isMandatory() mandatory} setting has a non-blank value both in
+ * memory and in the file after construction: a blank stored value is replaced by the default. An
+ * optional setting may legitimately be empty, so only its missing key is restored. {@link #getValue} is
+ * therefore a plain lookup that never returns {@code null}.
  *
  * <p>Values are never written to the log, only key names, because a settings file may hold secrets.
  */
@@ -50,7 +55,7 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
 
     private final Path propertiesFile;
 
-    private final Properties defaults;
+    private final Map< SystemPropertyIf, String > defaults;
 
     private final Properties properties = new Properties();
 
@@ -59,11 +64,12 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
      * Reads and may write the file system.
      *
      * @param propertiesFile
-     *         absolute path of the properties file this instance owns
+     *         absolute path of the properties file this instance owns; missing parent directories
+     *         are created together with the file
      * @param defaultValues
      *         complete set of settings owned by the file, with their default values
      * @throws IllegalArgumentException
-     *         if the path is not absolute, or a setting has a blank name or
+     *         if the path is not absolute, or a setting has a blank name, or a mandatory setting has
      *         a blank default value
      * @throws UncheckedIOException
      *         if the file cannot be read or created
@@ -85,7 +91,8 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
      *
      * @param property
      *         setting to read
-     * @return the configured value, or the default when the file did not provide one; never blank
+     * @return the configured value, or the default when the file did not provide one; never
+     *         {@code null}, and never blank for a mandatory setting
      *
      * @throws IllegalArgumentException
      *         if the setting is not owned by this file
@@ -106,7 +113,7 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
      * @param value
      *         new value; surrounding whitespace is removed
      * @throws IllegalArgumentException
-     *         if the setting is not owned by this file, or the value is blank
+     *         if the setting is not owned by this file, or the value is blank for a mandatory setting
      * @throws UncheckedIOException
      *         if the file cannot be written
      */
@@ -114,25 +121,69 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
     public void setValue( @Nonnull SystemPropertyIf property, @Nonnull String value ) {
         String name = requireManaged( property );
         requireNonNull( value, "value must not be null" );
-        String strippedValue = value.strip();
-        if ( strippedValue.isEmpty() ) {
-            throw new IllegalArgumentException( "value must not be blank" );
+
+        applyAndSave( Map.of( name, normalize( property, value ) ) );
+        log.info( "Updated vDeck setting '{}' in file {}", name, propertiesFile );
+    }
+
+    /**
+     * Changes several settings and persists the whole file once.
+     * Every entry is validated before anything changes, and when persisting fails every previous value
+     * is restored in memory before the exception is propagated, so the file and memory always hold
+     * either all of the new values or none of them.
+     *
+     * @param values
+     *         new values keyed by setting; surrounding whitespace is removed
+     * @throws IllegalArgumentException
+     *         if a setting is not owned by this file, or a value is blank for a mandatory setting
+     * @throws UncheckedIOException
+     *         if the file cannot be written
+     */
+    @Override
+    public void setValues( @Nonnull Map< SystemPropertyIf, String > values ) {
+        requireNonNull( values, "values must not be null" );
+
+        Map< String, String > changes = new LinkedHashMap<>();
+        for ( Map.Entry< SystemPropertyIf, String > entry : values.entrySet() ) {
+            String name = requireManaged( entry.getKey() );
+            String value = requireNonNull( entry.getValue(), "values must not contain a null value" );
+            changes.put( name, normalize( entry.getKey(), value ) );
+        }
+        if ( changes.isEmpty() ) {
+            return;
         }
 
-        String previousValue = properties.getProperty( name );
-        properties.setProperty( name, strippedValue );
+        applyAndSave( changes );
+        log.info( "Updated {} vDeck settings in file {}", changes.size(), propertiesFile );
+    }
+
+    private void applyAndSave( @Nonnull Map< String, String > changes ) {
+        Map< String, String > previousValues = new LinkedHashMap<>();
+        for ( Map.Entry< String, String > change : changes.entrySet() ) {
+            previousValues.put( change.getKey(), properties.getProperty( change.getKey() ) );
+            properties.setProperty( change.getKey(), change.getValue() );
+        }
         try {
             save();
         } catch ( RuntimeException exception ) {
-            properties.setProperty( name, previousValue );
+            previousValues.forEach( properties::setProperty );
             throw exception;
         }
-        log.info( "Updated vDeck setting '{}' in file {}", name, propertiesFile );
+    }
+
+    private static @Nonnull String normalize( @Nonnull SystemPropertyIf property, @Nonnull String value ) {
+        String strippedValue = value.strip();
+        if ( strippedValue.isEmpty() && property.isMandatory() ) {
+            throw new IllegalArgumentException(
+                    "value must not be blank for mandatory property '%s'".formatted( property.getName() ) );
+        }
+        return strippedValue;
     }
 
     private void loadOrCreate() {
         if ( !Files.exists( propertiesFile ) ) {
-            properties.putAll( defaults );
+            createParentDirectories();
+            defaults.forEach( ( property, defaultValue ) -> properties.setProperty( property.getName(), defaultValue ) );
             save();
             log.info( "Created vDeck settings file {} with {} default values", propertiesFile, properties.size() );
             return;
@@ -145,6 +196,15 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
             return;
         }
         log.info( "Loaded vDeck settings from {}", propertiesFile );
+    }
+
+    private void createParentDirectories() {
+        Path directory = propertiesFile.getParent();
+        try {
+            Files.createDirectories( directory );
+        } catch ( IOException exception ) {
+            throw new UncheckedIOException( "Failed to create vDeck settings directory " + directory, exception );
+        }
     }
 
     private void read() {
@@ -161,11 +221,14 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
 
     private boolean restoreMissingValues() {
         boolean restored = false;
-        for ( String name : defaults.stringPropertyNames() ) {
-            String value = properties.getProperty( name );
-            if ( value == null || value.isEmpty() ) {
-                properties.setProperty( name, defaults.getProperty( name ) );
-                log.warn( "Restored default value of vDeck setting '{}' missing in file {}", name, propertiesFile );
+        for ( Map.Entry< SystemPropertyIf, String > entry : defaults.entrySet() ) {
+            SystemPropertyIf property = entry.getKey();
+            String value = properties.getProperty( property.getName() );
+            boolean missing = value == null || ( value.isEmpty() && property.isMandatory() );
+            if ( missing ) {
+                properties.setProperty( property.getName(), entry.getValue() );
+                log.warn( "Restored default value of vDeck setting '{}' missing in file {}",
+                        property.getName(), propertiesFile );
                 restored = true;
             }
         }
@@ -203,18 +266,18 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
         }
     }
 
-    private @Nonnull String requireManaged( @Nonnull SystemPropertyIf property ) {
+    private @Nonnull String requireManaged( @Nullable SystemPropertyIf property ) {
         requireNonNull( property, "property must not be null" );
-        String name = property.getName();
-        if ( !defaults.containsKey( name ) ) {
+        if ( !defaults.containsKey( property ) ) {
             throw new IllegalArgumentException(
-                    "Property '%s' is not managed by file %s".formatted( name, propertiesFile ) );
+                    "Property '%s' is not managed by file %s".formatted( property.getName(), propertiesFile ) );
         }
-        return name;
+        return property.getName();
     }
 
-    private static @Nonnull Properties toDefaults( @Nonnull Map< SystemPropertyIf, String > defaultValues ) {
-        Properties defaults = new Properties();
+    private static @Nonnull Map< SystemPropertyIf, String > toDefaults(
+            @Nonnull Map< SystemPropertyIf, String > defaultValues ) {
+        Map< SystemPropertyIf, String > defaults = new LinkedHashMap<>();
         defaultValues.forEach( ( property, defaultValue ) -> {
             requireNonNull( property, "defaultValues must not contain a null property" );
             requireNonNull( defaultValue, "defaultValues must not contain a null default value" );
@@ -222,12 +285,12 @@ public class SystemPropertiesServiceImpl implements SystemPropertiesService {
             if ( name == null || name.isBlank() ) {
                 throw new IllegalArgumentException( "defaultValues must not contain a property with a blank name" );
             }
-            if ( defaultValue.isBlank() ) {
+            if ( property.isMandatory() && defaultValue.isBlank() ) {
                 throw new IllegalArgumentException(
-                        "Default value of property '%s' must not be blank".formatted( name ) );
+                        "Default value of mandatory property '%s' must not be blank".formatted( name ) );
             }
-            defaults.setProperty( name, defaultValue.strip() );
+            defaults.put( property, defaultValue.strip() );
         } );
-        return defaults;
+        return Collections.unmodifiableMap( defaults );
     }
 }

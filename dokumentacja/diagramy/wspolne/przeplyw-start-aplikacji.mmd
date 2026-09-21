@@ -6,11 +6,11 @@ flowchart TD
     configured --> real[PathServiceImpl: toRealPath i sprawdzenie,<br/>czy to katalog]
     appHome --> real
     real -- nie jest katalogiem --> fail([PathResolutionException:<br/>start przerwany])
-    real -- ok --> props[SystemPropertiesConfiguration:<br/>PathService.getAbsolutePath vDeck.properties]
-    props --> exists{Plik vDeck.properties<br/>istnieje?}
-    exists -- nie --> create[Zapis pliku z wartościami domyślnymi<br/>z VdeckProperty.defaults]
+    real -- ok --> props[SystemPropertiesConfiguration: dla każdego pliku ustawień<br/>vDeck.properties, valheim-server.properties<br/>PathService.getConfigurationFile → .vDeck/config/plik]
+    props --> exists{Plik ustawień<br/>istnieje?}
+    exists -- nie --> create[Utworzenie katalogu .vDeck/config<br/>i zapis pliku z wartościami domyślnymi enuma]
     exists -- tak --> read[Wczytanie pliku i przycięcie wartości]
-    read --> missing{Brakuje kluczy<br/>zarządzanych?}
+    read --> missing{Brakuje klucza albo ustawienie<br/>obowiązkowe jest puste?}
     missing -- tak --> restore[Przywrócenie wartości domyślnych<br/>i zapis pliku]
     missing -- nie --> ready[Ustawienia gotowe w pamięci]
     create --> ready

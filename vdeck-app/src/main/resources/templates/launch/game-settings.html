@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pl" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{gameSettings.title}">Ustawienia gry · vDeck</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/game-settings.css}">
+</head>
+<body>
+<!--
+    "Ustawienia gry" part of the launch profile: the world preset at the top and, in the "Zaawansowane"
+    section, the world modifiers and world keys. The advanced section starts hidden unless the
+    administrator chose to show it; the checkbox above it toggles the section, and game-settings.js
+    remembers the choice at once. Hiding the section only hides it - its fields are still submitted and
+    their stored values still apply.
+-->
+<div th:replace="~{common/island :: island}"></div>
+
+<main class="page-content">
+    <div class="panel-frame">
+        <div class="surface view-card view-card--wide game-settings-card">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-sliders}"></use>
+                </svg>
+                <h1 class="view-title" th:text="#{gameSettings.heading}">Ustawienia gry</h1>
+            </div>
+            <p class="view-lead" th:text="#{gameSettings.lead}"></p>
+            <p class="form-success settings-message" role="status" th:if="${param.saved != null and gameSettingsErrorKey == null}"
+               th:text="#{gameSettings.saved}"></p>
+            <p class="form-alert settings-message" role="alert"
+               th:if="${gameSettingsErrorKey}" th:text="#{${gameSettingsErrorKey}}"></p>
+
+            <form class="form-stack settings-form" method="post" th:action="@{/game-settings}"
+                  th:with="form=${gameSettingsForm}" data-game-settings>
+
+                <fieldset class="form-section">
+                    <legend class="form-section__title" th:text="#{gameSettings.section.preset}"></legend>
+                    <div class="form-field">
+                        <label class="form-label" for="preset" th:text="#{launchProfile.field.preset}"></label>
+                        <select class="form-input form-select" id="preset" name="preset" aria-describedby="preset-hint">
+                            <option value="" th:text="#{launchProfile.option.noPreset}"
+                                    th:selected="${#strings.isEmpty(form.preset())}"></option>
+                            <option th:each="preset : ${worldPresets}" th:value="${preset.cliValue}"
+                                    th:text="#{${'launchProfile.preset.' + preset.cliValue}}"
+                                    th:selected="${preset.cliValue == form.preset()}"></option>
+                        </select>
+                        <p class="form-hint" id="preset-hint" th:text="#{launchProfile.hint.preset}"></p>
+                    </div>
+                </fieldset>
+
+                <!--
+                    Display preference, not a game setting: the checkbox has no name, so saving the form
+                    never submits it. Its state is stored through its own request.
+                -->
+                <div class="form-field settings-advanced-toggle">
+                    <label class="form-checkbox">
+                        <input type="checkbox" aria-controls="game-settings-advanced"
+                               aria-describedby="advanced-toggle-hint" data-advanced-toggle
+                               th:attr="data-advanced-url=@{/game-settings/advanced}" th:checked="${advancedShown}">
+                        <span th:text="#{gameSettings.field.advanced}"></span>
+                    </label>
+                    <p class="form-hint" id="advanced-toggle-hint" th:text="#{gameSettings.hint.advanced}"></p>
+                </div>
+
+                <fieldset class="form-section" id="game-settings-advanced" data-advanced-section
+                          th:hidden="${!advancedShown}">
+                    <legend class="form-section__title" th:text="#{gameSettings.section.advanced}"></legend>
+                    <div class="settings-fields">
+                        <div class="form-field" th:each="modifier : ${worldModifiers}"
+                             th:with="fieldId=${'modifier-' + modifier.key}">
+                            <label class="form-label" th:for="${fieldId}"
+                                   th:text="#{${'launchProfile.field.modifier.' + modifier.key}}"></label>
+                            <select class="form-input form-select" th:id="${fieldId}" th:name="${modifier.key + 'Modifier'}"
+                                    th:attr="aria-describedby=${fieldId + '-hint'}">
+                                <option value="" th:text="#{launchProfile.option.gameDefault}"
+                                        th:selected="${#strings.isEmpty(form.modifierValue(modifier))}"></option>
+                                <option th:each="value : ${modifier.allowedValues}" th:value="${value}"
+                                        th:text="#{${'launchProfile.modifierValue.' + value}}"
+                                        th:selected="${value == form.modifierValue(modifier)}"></option>
+                            </select>
+                            <p class="form-hint" th:id="${fieldId + '-hint'}"
+                               th:text="#{${'launchProfile.hint.modifier.' + modifier.key}}"></p>
+                        </div>
+                        <div class="form-field" th:each="worldKey : ${worldKeys}"
+                             th:with="hintId=${'world-key-' + worldKey.key + '-hint'}">
+                            <label class="form-checkbox">
+                                <input type="checkbox" th:name="${worldKey.key}" value="true"
+                                       th:attr="aria-describedby=${hintId}" th:checked="${form.isKeyEnabled(worldKey)}">
+                                <span th:text="#{${'launchProfile.field.key.' + worldKey.key}}"></span>
+                            </label>
+                            <p class="form-hint" th:id="${hintId}"
+                               th:text="#{${'launchProfile.hint.key.' + worldKey.key}}"></p>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div class="settings-footer">
+                    <p class="form-hint" th:text="#{launchProfile.appliesOnStart}"></p>
+                    <button class="form-submit" type="submit" th:text="#{launchProfile.action.submit}"></button>
+                </div>
+            </form>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{common/side-menu :: sideMenu(activeEntry='gameSettings')}"></div>
+<script type="module" th:src="@{/js/game-settings.js}"></script>
+</body>
+</html>

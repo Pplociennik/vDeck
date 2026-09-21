@@ -311,4 +311,82 @@ class PathServiceImplTest {
                 .isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "relativePath must not be null" );
     }
+
+    /**
+     * Verifies that a properties file is resolved inside the configuration directory of the installation
+     * and that neither the directory nor the file is created.
+     */
+    @Test
+    void shouldResolveFileInsideConfigurationDirectory_whenNameIsBare() {
+        // GIVEN
+        String fileName = "vDeck.properties";
+
+        // WHEN
+        Path result = underTest.getConfigurationFile( fileName );
+
+        // THEN
+        assertThat( result ).isEqualTo( realBaseDirectory.resolve( ".vDeck" ).resolve( "config" )
+                .resolve( "vDeck.properties" ) );
+        assertThat( result.getParent() ).doesNotExist();
+    }
+
+    /**
+     * Verifies that a configuration file name carrying a directory part or a relative segment is
+     * rejected, so no properties file can be placed outside the configuration directory.
+     *
+     * @param fileName
+     *         rejected configuration file name
+     */
+    @ParameterizedTest( name = "[{index}] fileName=\"{0}\"" )
+    @ValueSource( strings = { "a/b.properties", "a\\b.properties", "../vDeck.properties", ".", ".." } )
+    void shouldThrowException_whenConfigurationFileNameIsNotBare( String fileName ) {
+        // GIVEN
+        // a name that is not a bare file name
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.getConfigurationFile( fileName ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( PathResolutionException.class )
+                .hasMessageContaining( "must be a bare file name" );
+    }
+
+    /**
+     * Verifies that a blank configuration file name is rejected before any resolution happens.
+     *
+     * @param fileName
+     *         blank configuration file name
+     */
+    @ParameterizedTest( name = "[{index}] fileName=\"{0}\"" )
+    @ValueSource( strings = { "", "   " } )
+    void shouldThrowException_whenConfigurationFileNameIsBlank( String fileName ) {
+        // GIVEN
+        // a name carrying no file name at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.getConfigurationFile( fileName ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( IllegalArgumentException.class )
+                .hasMessageContaining( "fileName must not be blank" );
+    }
+
+    /**
+     * Verifies that a null configuration file name is rejected before any resolution happens.
+     */
+    @Test
+    void shouldThrowException_whenConfigurationFileNameIsNull() {
+        // GIVEN
+        // no file name at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.getConfigurationFile( null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "fileName must not be null" );
+    }
 }

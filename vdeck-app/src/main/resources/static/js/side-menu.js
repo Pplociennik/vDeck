@@ -97,7 +97,7 @@ function initSideMenu(root) {
         panel.dataset.state = 'open';
         toggle.setAttribute('aria-expanded', 'true');
 
-        const firstEntry = panel.querySelector('button');
+        const firstEntry = panel.querySelector('a[href], button');
 
         if (firstEntry !== null) {
             firstEntry.focus();

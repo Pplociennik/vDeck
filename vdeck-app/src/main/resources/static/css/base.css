@@ -16,6 +16,14 @@ html {
 }
 
 /*
+ * The hidden attribute always hides, even on elements whose component rule sets a display value -
+ * a form section is a flex container, yet the advanced section of the game settings must disappear.
+ */
+[hidden] {
+    display: none !important;
+}
+
+/*
  * Application shell: the page fills exactly one viewport and never scrolls, in either direction.
  * A region that cannot fit scrolls inside itself instead, so nothing becomes unreachable on a short
  * viewport - a phone held in landscape in particular.
@@ -81,21 +89,65 @@ body::before {
     box-shadow: var(--surface-shadow), var(--surface-inner-shadow);
 }
 
-/* The island is the one surface that keeps its own texture. */
+/* The island keeps its own texture. */
 .surface--island {
     --surface-texture: var(--island-texture);
 }
 
+/* Both password screens keep their own texture instead of the default panel one. */
+.surface--password {
+    --surface-texture: var(--password-panel-texture);
+}
+
 /*
- * Content area of a view, rendered below the island. It is the region that gives way when a view has
- * more content than the viewport: the page stays fixed and this area scrolls.
+ * Content area of a view, rendered below the island. It centres the view's panel frame in the space
+ * left under the island; the frame, not this area, is what scrolls. overflow: auto only remains as a
+ * safety net for content that is not placed in a frame.
  */
 .page-content {
+    display: flex;
     flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    justify-content: safe center;
     min-block-size: 0;
     overflow: auto;
     overscroll-behavior: contain;
     padding: var(--space-md);
+}
+
+/*
+ * Fixed-height frame wrapping every panel of the interface. All panels share the same height, so
+ * moving between views never changes the size of the panel, and the frame leaves free space above and
+ * below it. When the space left under the island is smaller than the frame height - a phone held in
+ * landscape, for example - the frame shrinks to that space instead of pushing the page into a
+ * scrollbar. The panel inside fills the frame and scrolls its own content.
+ */
+.panel-frame {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    inline-size: 100%;
+    block-size: var(--panel-frame-block-size);
+    min-block-size: 0;
+    max-block-size: 100%;
+}
+
+.panel-frame > .view-card {
+    flex: 1 1 auto;
+    align-self: center;
+    min-block-size: 0;
+    max-block-size: none;
+}
+
+/*
+ * The side menu toggle floats over the bottom-left corner of the page and can cover the lower edge of a
+ * wide panel. The extra end padding lets the last element of the panel - usually a form's submit
+ * button - scroll clear of it.
+ */
+.page-content .panel-frame > .view-card {
+    padding-block-end: calc(var(--side-menu-toggle-size) + var(--space-lg));
 }
 
 /* Contract for every sprite symbol rendered through <use>: sized and coloured by its component. */
@@ -263,6 +315,328 @@ body::before {
     font-size: var(--font-size-lead);
     line-height: 1.5;
     color: var(--color-text-muted);
+}
+
+/*
+ * View card and forms - the framed card holding a view, such as a password screen or a settings panel,
+ * together with its heading and form controls. They are shared by several views, so
+ * they live in the global stylesheet; a view sheet only adds what is specific to that view.
+ */
+
+/*
+ * The card never pushes the page into a scrollbar: it scrolls its own content, so a long form stays
+ * inside the panel frame. The thin themed scrollbar keeps the scroll position visible without a wide
+ * native bar cutting into the rounded frame.
+ */
+.view-card {
+    inline-size: 100%;
+    max-inline-size: var(--card-max-inline-size);
+    max-block-size: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--space-xl) var(--space-lg);
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-color);
+}
+
+.view-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-block-end: var(--space-sm);
+}
+
+.view-title {
+    margin: 0;
+    font-size: var(--font-size-title);
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.view-lead {
+    margin: 0 0 var(--space-lg);
+    font-size: var(--font-size-lead);
+    line-height: 1.5;
+    color: var(--color-text-muted);
+}
+
+/*
+ * Single outcome message of a form. The text carries the meaning; the colour of the edge only
+ * reinforces whether it reports a failure or a success.
+ */
+.form-alert,
+.form-success {
+    margin: 0 0 var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-inline-start: 0.1875rem solid var(--color-danger);
+    border-radius: var(--field-radius);
+    background-color: var(--color-inset-surface);
+    color: var(--color-danger);
+    font-size: var(--font-size-lead);
+    line-height: 1.45;
+}
+
+.form-success {
+    border-inline-start-color: var(--color-success);
+    color: var(--color-success);
+}
+
+.form-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+}
+
+/*
+ * Titled group of related fields. The legend is styled like the side menu section titles - muted text
+ * centred on a horizontal line - so a group reads as a section of the view, not as a boxed control.
+ */
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.form-section__title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    inline-size: 100%;
+    margin-block-end: var(--space-sm);
+    padding: 0;
+    font-size: var(--font-size-label);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.form-section__title::before,
+.form-section__title::after {
+    content: "";
+    flex: 1;
+    border-block-start: var(--side-menu-section-line-width) solid var(--side-menu-section-line-color);
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-inline-size: 0;
+}
+
+.form-label {
+    font-size: var(--font-size-label);
+    color: var(--color-text-muted);
+}
+
+/* Explanation of a field below its control, linked to it through aria-describedby. */
+.form-hint {
+    margin: 0;
+    font-size: var(--font-size-label);
+    line-height: 1.45;
+    color: var(--color-text-muted);
+    opacity: var(--form-hint-opacity);
+}
+
+/* Read-only state line, for example whether a secret is configured; it is never the secret itself. */
+.form-status {
+    margin: 0;
+    font-size: var(--font-size-lead);
+    color: var(--color-text);
+}
+
+.form-input {
+    inline-size: 100%;
+    min-block-size: var(--control-touch-size);
+    padding: var(--space-sm) var(--space-md);
+    border: 0.0625rem solid var(--color-control-border);
+    border-radius: var(--field-radius);
+    background-color: var(--color-field-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--font-size-field);
+    box-shadow: inset 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.45);
+    transition: border-color var(--transition-fast);
+}
+
+.form-input:focus-visible {
+    border-color: var(--color-accent);
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+/* A select keeps the native arrow, which stays readable on the black field in every browser. */
+.form-select {
+    cursor: pointer;
+}
+
+.form-select option {
+    background-color: var(--color-field-surface);
+    color: var(--color-text);
+}
+
+/* The whole label is the touch target of a checkbox, so it keeps the comfortable touch height. */
+.form-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-block-size: var(--control-touch-size);
+    font-size: var(--font-size-field);
+    color: var(--color-text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.form-checkbox input {
+    flex: 0 0 auto;
+    inline-size: var(--checkbox-size);
+    block-size: var(--checkbox-size);
+    margin: 0;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+
+.form-checkbox input:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+.form-submit {
+    min-block-size: var(--control-touch-size);
+    margin-block-start: var(--space-xs);
+    padding: var(--space-sm) var(--space-lg);
+    border: 0.0625rem solid var(--color-control-border);
+    border-radius: var(--field-radius);
+    background-color: var(--color-control-surface);
+    color: var(--color-text);
+    font-family: inherit;
+    font-size: var(--font-size-field);
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: inset 0 0.0625rem 0 var(--color-edge-highlight);
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+    -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: hover) {
+    .form-submit:hover:not(:disabled) {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+.form-submit:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+.form-submit:active:not(:disabled) {
+    background-color: var(--color-control-surface-active);
+}
+
+.form-submit:disabled {
+    color: var(--color-text-disabled);
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+}
+
+/*
+ * Settings panel (AD-012): a long form of titled sections, used by the "Serwer" and "Ustawienia gry"
+ * screens. The layout is built from the narrowest screen up. On a phone, and on any portrait screen, the
+ * sections run in one column. A landscape screen with room to spare widens the card: a form with section
+ * columns places them side by side, and the fields of every section flow into as many columns as fit, so
+ * the form is read across the screen instead of scrolled through.
+ */
+
+/* The form is long, so even on a narrow screen its card is wider than the single-column password card. */
+.view-card--wide {
+    max-inline-size: var(--card-max-inline-size-wide);
+}
+
+/* Sections are set further apart than the fields inside them, so each group reads as one unit. */
+.settings-form {
+    gap: var(--space-xl);
+}
+
+/* A column stacks its sections with the same spacing the form uses between columns stacked vertically. */
+.settings-column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xl);
+    min-inline-size: 0;
+}
+
+/*
+ * Fields of a section flow into as many columns as fit, never narrower than a readable column; a phone
+ * - or a phone held in landscape - therefore always falls back to a single column.
+ */
+.settings-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--form-column-min-inline-size)), 1fr));
+    gap: var(--space-md) var(--space-lg);
+    align-items: start;
+}
+
+/*
+ * The checkbox revealing an advanced section sits between the basic settings and the section it
+ * controls, centred like the save action, because it belongs to the whole form rather than to one field.
+ */
+.settings-advanced-toggle {
+    align-items: center;
+    text-align: center;
+}
+
+/*
+ * The outcome message above the form and the save action below it are centred, so they read as
+ * belonging to the whole form rather than to its first column.
+ */
+.settings-message {
+    inline-size: fit-content;
+    max-inline-size: 100%;
+    margin-inline: auto;
+    text-align: center;
+}
+
+.settings-footer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    text-align: center;
+}
+
+.settings-footer .form-submit {
+    min-inline-size: min(100%, var(--settings-submit-min-inline-size));
+}
+
+/* Landscape tablets and small laptops: the section columns of a settings form sit side by side. */
+@media (min-width: 60rem) and (orientation: landscape) {
+    .view-card--wide {
+        max-inline-size: var(--card-max-inline-size-landscape);
+    }
+
+    .settings-form--columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+        column-gap: var(--space-xl);
+    }
+
+    .settings-form--columns .settings-footer {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Desktop monitors: the card widens further, and the fields of each section spread across it. */
+@media (min-width: 96rem) and (orientation: landscape) {
+    .view-card--wide {
+        max-inline-size: var(--card-max-inline-size-landscape-wide);
+    }
 }
 
 /*
@@ -485,6 +859,7 @@ body::before {
     font: inherit;
     font-size: var(--font-size-lead);
     text-align: start;
+    text-decoration: none;
     color: var(--color-text);
     background-color: var(--side-menu-entry-surface);
     cursor: pointer;
@@ -505,6 +880,12 @@ body::before {
 }
 
 .side-menu-entry--branch[aria-expanded="true"] {
+    color: var(--color-accent);
+}
+
+/* Entry of the view currently shown; the accent rim adds a cue that does not rely on the text colour. */
+.side-menu-entry[aria-current="page"] {
+    border-color: var(--color-accent);
     color: var(--color-accent);
 }
 
@@ -554,15 +935,55 @@ body::before {
     }
 }
 
-/* Short viewports give back the decorative line spacing of the rules before anything has to scroll. */
+/* Phone widths: the card uses the full width and gives back the decorative padding. */
+@media (max-width: 30rem) {
+    .view-card {
+        padding: var(--space-lg) var(--space-md);
+        border-radius: var(--surface-radius-compact);
+    }
+}
+
+/*
+ * Short viewports, from a laptop screen down to a phone held in landscape: the decorative spacing is
+ * given back first, so a form keeps fitting before anything has to scroll.
+ */
 @media (max-height: 44rem) {
     .password-rules-list {
         line-height: 1.35;
     }
+
+    .view-card {
+        padding-block: var(--space-lg);
+    }
+
+    .view-lead {
+        margin-block-end: var(--space-md);
+    }
+
+    .form-stack {
+        gap: var(--space-sm);
+    }
+
+    .settings-form,
+    .settings-column {
+        gap: var(--space-lg);
+    }
+}
+
+@media (max-height: 32rem) {
+    .view-card {
+        padding-block: var(--space-md);
+    }
+
+    .view-lead {
+        margin-block-end: var(--space-sm);
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .action-button {
+    .action-button,
+    .form-input,
+    .form-submit {
         transition: none;
     }
 

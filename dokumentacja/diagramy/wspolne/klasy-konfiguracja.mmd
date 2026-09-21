@@ -5,14 +5,29 @@ classDiagram
     class SystemPropertyIf {
         <<interface>>
         +getName() String
+        +isMandatory() boolean
     }
 
     class VdeckProperty {
         <<enumeration>>
         GAME_LOG_DIRECTORY
+        GAME_SETTINGS_ADVANCED
         +FILE_NAME String
+        +SERVICE_QUALIFIER String
         +defaults() Map
         +getName() String
+        +isMandatory() boolean
+        +getDefaultValue() String
+    }
+
+    class LaunchProperty {
+        <<enumeration>>
+        SERVER_NAME … WORLD_KEY_NO_MAP
+        +FILE_NAME String
+        +SERVICE_QUALIFIER String
+        +defaults() Map
+        +getName() String
+        +isMandatory() boolean
         +getDefaultValue() String
     }
 
@@ -20,22 +35,27 @@ classDiagram
         <<interface>>
         +getValue(SystemPropertyIf) String
         +setValue(SystemPropertyIf, String) void
+        +setValues(Map) void
     }
 
     class SystemPropertiesServiceImpl {
         -Path propertiesFile
-        -Properties defaults
+        -Map defaults
         -Properties properties
         -loadOrCreate() void
+        -createParentDirectories() void
         -read() void
         -restoreMissingValues() boolean
+        -applyAndSave(Map) void
         -save() void
     }
 
     class PathService {
         <<interface>>
+        +CONFIGURATION_DIRECTORY String
         +getBaseDirectory() Path
         +getAbsolutePath(String) Path
+        +getConfigurationFile(String) Path
     }
 
     class PathServiceImpl {
@@ -55,14 +75,17 @@ classDiagram
 
     class SystemPropertiesConfiguration {
         +vdeckProperties(PathService) SystemPropertiesService
+        +launchProperties(PathService) SystemPropertiesService
     }
 
     SystemPropertyIf <|.. VdeckProperty
+    SystemPropertyIf <|.. LaunchProperty
     SystemPropertiesService <|.. SystemPropertiesServiceImpl
-    SystemPropertiesServiceImpl ..> SystemPropertyIf : klucze ustawień
+    SystemPropertiesServiceImpl ..> SystemPropertyIf : klucze i obowiązkowość ustawień
     PathService <|.. PathServiceImpl
     PathServiceImpl ..> PathResolutionException : zgłasza
     PathConfiguration ..> PathServiceImpl : tworzy
-    SystemPropertiesConfiguration ..> SystemPropertiesServiceImpl : tworzy
-    SystemPropertiesConfiguration --> PathService : rozwiązuje plik ustawień
+    SystemPropertiesConfiguration ..> SystemPropertiesServiceImpl : tworzy po jednym na plik
+    SystemPropertiesConfiguration --> PathService : plik w .vDeck/config
     SystemPropertiesConfiguration ..> VdeckProperty : wartości domyślne
+    SystemPropertiesConfiguration ..> LaunchProperty : wartości domyślne

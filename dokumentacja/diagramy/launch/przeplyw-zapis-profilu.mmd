@@ -1,0 +1,40 @@
+%% Diagram sekwencji: zapis profilu uruchomieniowego z ekranów „Serwer” i „Ustawienia gry”
+sequenceDiagram
+    autonumber
+    actor A as Administrator
+    participant C as ServerSettingsController<br/>/ GameSettingsController
+    participant S as LaunchProfileServiceImpl
+    participant P as PathService
+    participant F as SystemPropertiesService<br/>(valheim-server.properties)
+
+    A->>C: POST /server-settings albo /game-settings<br/>(formularz + CSRF)
+    C->>C: walidacja adnotacji formularza
+    alt błąd formatu lub zakresu
+        C-->>A: ekran z komunikatem invalidInput,<br/>wartości bez hasła
+    else pola poprawne
+        alt ekran „Serwer”
+            C->>S: updateServerSettings(form)
+            S->>P: getAbsolutePath(katalog zapisu)
+            P-->>S: ścieżka w katalogu instalacji<br/>albo PathResolutionException
+            S->>F: getValue(server.password)<br/>gdy pole hasła jest puste
+            S->>S: hasło nie może być fragmentem nazwy
+        else ekran „Ustawienia gry”
+            C->>S: updateGameSettings(form)
+            S->>S: preset i modyfikatory z listy<br/>dozwolonych wartości
+        end
+        alt dowolna reguła odrzuca ustawienia
+            S-->>C: rejected(klucz komunikatu)
+            C-->>A: ekran z komunikatem, wartości bez hasła
+        else ustawienia poprawne
+            S->>F: setValues(wyłącznie ustawienia tego ekranu)
+            F->>F: plik tymczasowy, force, ATOMIC_MOVE
+            alt zapis nieudany
+                F-->>S: UncheckedIOException<br/>(pamięć przywrócona)
+                S-->>C: rejected(saveFailed)
+                C-->>A: ekran z komunikatem
+            else zapis udany
+                S-->>C: success
+                C-->>A: redirect na ten sam ekran z ?saved
+            end
+        end
+    end

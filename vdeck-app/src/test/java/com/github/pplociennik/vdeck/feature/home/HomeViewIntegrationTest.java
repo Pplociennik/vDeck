@@ -81,8 +81,9 @@ class HomeViewIntegrationTest {
 
     /**
      * Verifies that the panel root embeds the side menu closed: its texts resolved, its entries grouped
-     * into titled sections, the toggle collapsed,
-     * the panel inert, the menu icon referenced from the sprite and its behaviour module loaded.
+     * into titled sections, the toggle collapsed, the panel inert, the menu icon referenced from the
+     * sprite, the server and game settings entries linked but not marked as the current page, and its behaviour
+     * module loaded.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request
@@ -105,6 +106,9 @@ class HomeViewIntegrationTest {
                 .andExpect( content().string( containsString(
                         "class=\"side-menu-panel\" data-state=\"closed\" data-side-menu-panel inert" ) ) )
                 .andExpect( content().string( containsString( "/icons/icons.svg#icon-menu" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/game-settings\"" ) ) )
+                .andExpect( content().string( not( containsString( "aria-current" ) ) ) )
                 .andExpect( content().string( containsString(
                         "<script type=\"module\" src=\"/js/side-menu.js\"></script>" ) ) );
     }

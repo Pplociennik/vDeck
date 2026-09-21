@@ -110,6 +110,37 @@ public class PathServiceImpl implements PathService {
         return realPath;
     }
 
+    /**
+     * Resolves a properties file inside the configuration directory of the installation.
+     * Reads file system metadata but never creates the directory or the file.
+     *
+     * @param fileName
+     *         bare file name, without any directory part
+     * @return absolute path of the file inside the configuration directory
+     *
+     * @throws IllegalArgumentException
+     *         if the name is blank
+     * @throws PathResolutionException
+     *         if the name contains a directory part, is {@code .} or {@code ..}, or the resolved path
+     *         leaves the installation directory
+     * @throws UncheckedIOException
+     *         if the real form of an existing target cannot be read
+     */
+    @Override
+    public @Nonnull Path getConfigurationFile( @Nonnull String fileName ) {
+        requireNonNull( fileName, "fileName must not be null" );
+        String strippedName = fileName.strip();
+        if ( strippedName.isEmpty() ) {
+            throw new IllegalArgumentException( "fileName must not be blank" );
+        }
+        if ( strippedName.contains( "/" ) || strippedName.contains( "\\" )
+                || strippedName.equals( "." ) || strippedName.equals( ".." ) ) {
+            throw new PathResolutionException(
+                    "Configuration file name '%s' must be a bare file name".formatted( strippedName ) );
+        }
+        return getAbsolutePath( CONFIGURATION_DIRECTORY + "/" + strippedName );
+    }
+
     private @Nonnull Path resolveBaseDirectory( @Nullable String configuredDirectory ) {
         boolean overridden = configuredDirectory != null && !configuredDirectory.isBlank();
         Path configured = overridden

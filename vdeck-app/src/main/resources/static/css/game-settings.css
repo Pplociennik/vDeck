@@ -1,0 +1,15 @@
+@import url("variables.css");
+
+/* Fill spare panel space while keeping long forms in the card's existing scroll area. */
+.game-settings-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.game-settings-card .settings-form {
+    flex: 1 0 auto;
+}
+
+.game-settings-card .settings-footer {
+    margin-block-start: auto;
+}

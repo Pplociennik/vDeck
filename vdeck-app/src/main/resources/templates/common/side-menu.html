@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Side menu component</title>
+</head>
+<body>
+<!--
+    Reusable side menu of the panel: a round toggle in the bottom-left corner and a navigation panel that
+    rises above it. The toggle is set deep into the panel's bottom-left corner, which is cut out around
+    it, so the open menu wraps the button with an arc-shaped gap edged by an accent ring.
+
+    Entries are grouped into titled sections; inside a section they form a tree of up to three levels,
+    where a branch expands its children in place and collapses its open siblings.
+
+    Embedded by every view that offers navigation; the file is a Thymeleaf fragment and is never
+    rendered as a standalone page. The panel starts closed and inert, and side-menu.js drives it.
+-->
+<div class="side-menu" th:fragment="sideMenu" data-side-menu>
+    <button class="side-menu-toggle" type="button" aria-expanded="false" aria-controls="side-menu-panel"
+            data-side-menu-toggle
+            th:attr="aria-label=#{sideMenu.action.toggle},title=#{sideMenu.action.toggle}">
+        <svg class="icon icon--large" aria-hidden="true" focusable="false">
+            <use th:href="@{/icons/icons.svg#icon-menu}"></use>
+        </svg>
+    </button>
+
+    <nav id="side-menu-panel" class="side-menu-panel" data-state="closed" data-side-menu-panel inert
+         th:attr="aria-label=#{sideMenu.label}">
+        <div class="side-menu-surface surface surface--side-menu">
+            <!-- Placeholder entries showing the sections and three levels; they are replaced by real panels. -->
+            <div class="side-menu-sections">
+                <section class="side-menu-section" aria-labelledby="side-menu-section-title-configuration">
+                    <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.configuration', 'side-menu-section-title-configuration')}"></h2>
+                    <ul class="side-menu-list side-menu-list--level-1">
+                        <li class="side-menu-item">
+                            <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.section1', 'icon-server-backup', 'side-menu-section-1')}"></button>
+                            <div class="side-menu-children" id="side-menu-section-1" inert>
+                                <ul class="side-menu-list side-menu-list--level-2">
+                                    <li class="side-menu-item">
+                                        <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.section1.group1', null, 'side-menu-section-1-group-1')}"></button>
+                                        <div class="side-menu-children" id="side-menu-section-1-group-1" inert>
+                                            <ul class="side-menu-list side-menu-list--level-3">
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section1.group1.panel1', null)}"></button>
+                                                </li>
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section1.group1.panel2', null)}"></button>
+                                                </li>
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section1.group1.panel3', null)}"></button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section1.panel2', null)}"></button>
+                                    </li>
+                                </ul>
+                            </div>
+                        </li>
+
+                        <li class="side-menu-item">
+                            <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.section2', 'icon-world-backup', 'side-menu-section-2')}"></button>
+                            <div class="side-menu-children" id="side-menu-section-2" inert>
+                                <ul class="side-menu-list side-menu-list--level-2">
+                                    <li class="side-menu-item">
+                                        <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.section2.group1', null, 'side-menu-section-2-group-1')}"></button>
+                                        <div class="side-menu-children" id="side-menu-section-2-group-1" inert>
+                                            <ul class="side-menu-list side-menu-list--level-3">
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section2.group1.panel1', null)}"></button>
+                                                </li>
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section2.group1.panel2', null)}"></button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.section2.group2', null, 'side-menu-section-2-group-2')}"></button>
+                                        <div class="side-menu-children" id="side-menu-section-2-group-2" inert>
+                                            <ul class="side-menu-list side-menu-list--level-3">
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section2.group2.panel1', null)}"></button>
+                                                </li>
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section2.group2.panel2', null)}"></button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="side-menu-section" aria-labelledby="side-menu-section-title-operation">
+                    <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.operation', 'side-menu-section-title-operation')}"></h2>
+                    <ul class="side-menu-list side-menu-list--level-1">
+                        <li class="side-menu-item">
+                            <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.section3', 'icon-key', 'side-menu-section-3')}"></button>
+                            <div class="side-menu-children" id="side-menu-section-3" inert>
+                                <ul class="side-menu-list side-menu-list--level-2">
+                                    <li class="side-menu-item">
+                                        <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section3.panel1', null)}"></button>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.section3.group2', null, 'side-menu-section-3-group-2')}"></button>
+                                        <div class="side-menu-children" id="side-menu-section-3-group-2" inert>
+                                            <ul class="side-menu-list side-menu-list--level-3">
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section3.group2.panel1', null)}"></button>
+                                                </li>
+                                                <li class="side-menu-item">
+                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.section3.group2.panel2', null)}"></button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </li>
+                    </ul>
+                </section>
+
+                <section class="side-menu-section" aria-labelledby="side-menu-section-title-backup">
+                    <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.backup', 'side-menu-section-title-backup')}"></h2>
+                    <ul class="side-menu-list side-menu-list--level-1">
+                        <li class="side-menu-item">
+                            <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.panel4', 'icon-play')}"></button>
+                        </li>
+                    </ul>
+                </section>
+            </div>
+        </div>
+        <span class="side-menu-notch-frame" aria-hidden="true"></span>
+    </nav>
+
+    <script type="module" th:src="@{/js/side-menu.js}"></script>
+</div>
+
+<!--
+    Title of a menu section: muted text centred on a horizontal line. titleId labels the enclosing
+    section element.
+-->
+<h2 class="side-menu-section__title" th:fragment="sectionTitle(labelKey, titleId)" th:id="${titleId}"
+    th:text="#{${labelKey}}"></h2>
+
+<!--
+    Entry expanding a branch. It controls the children wrapper that must directly follow it inside the
+    same list item; iconId may be null for entries below the first level.
+-->
+<button class="side-menu-entry side-menu-entry--branch" type="button" aria-expanded="false"
+        th:fragment="branchToggle(labelKey, iconId, childrenId)"
+        th:attr="aria-controls=${childrenId}" data-side-menu-branch>
+    <svg class="icon" th:if="${iconId}" aria-hidden="true" focusable="false">
+        <use th:href="@{'/icons/icons.svg#' + ${iconId}}"></use>
+    </svg>
+    <span class="side-menu-entry__label" th:text="#{${labelKey}}"></span>
+    <svg class="icon side-menu-entry__chevron" aria-hidden="true" focusable="false">
+        <use th:href="@{/icons/icons.svg#icon-chevron}"></use>
+    </svg>
+</button>
+
+<!--
+    Entry opening a panel. It has no behaviour yet; when a panel exists it becomes a link or an action.
+-->
+<button class="side-menu-entry" type="button" th:fragment="leaf(labelKey, iconId)">
+    <svg class="icon" th:if="${iconId}" aria-hidden="true" focusable="false">
+        <use th:href="@{'/icons/icons.svg#' + ${iconId}}"></use>
+    </svg>
+    <span class="side-menu-entry__label" th:text="#{${labelKey}}"></span>
+</button>
+</body>
+</html>

@@ -40,6 +40,11 @@ class HomeViewIntegrationTest {
      */
     private static final String ISLAND_TRANSLATION_KEY_PREFIX = "island.";
 
+    /**
+     * Prefix of every translation key of the side menu, checked the same way as the island keys.
+     */
+    private static final String SIDE_MENU_TRANSLATION_KEY_PREFIX = "sideMenu.";
+
     @TempDir
     private static Path directory;
 
@@ -72,6 +77,36 @@ class HomeViewIntegrationTest {
                 .andExpect( content().string( containsString( "class=\"island surface surface--island\"" ) ) )
                 .andExpect( content().string( containsString( "href=\"/change-password\"" ) ) )
                 .andExpect( content().string( containsString( "action=\"/logout\"" ) ) );
+    }
+
+    /**
+     * Verifies that the panel root embeds the side menu closed: its texts resolved, its entries grouped
+     * into titled sections, the toggle collapsed,
+     * the panel inert, the menu icon referenced from the sprite and its behaviour module loaded.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the request
+     */
+    @Test
+    void shouldRenderClosedSideMenu_whenAdministratorOpensPanelRoot() throws Exception {
+        // GIVEN
+        // an authenticated administrator opening the panel root
+
+        // WHEN
+        var result = underTest.perform( get( "/" ).with( user( "admin" ).roles( "ADMIN" ) ) );
+
+        // THEN
+        result.andExpect( status().isOk() )
+                .andExpect( content().string( not( containsString( SIDE_MENU_TRANSLATION_KEY_PREFIX ) ) ) )
+                .andExpect( content().string( containsString( "data-side-menu-toggle" ) ) )
+                .andExpect( content().string( containsString( "aria-controls=\"side-menu-panel\"" ) ) )
+                .andExpect( content().string( containsString(
+                        "<h2 class=\"side-menu-section__title\" id=\"side-menu-section-title-configuration\">" ) ) )
+                .andExpect( content().string( containsString(
+                        "class=\"side-menu-panel\" data-state=\"closed\" data-side-menu-panel inert" ) ) )
+                .andExpect( content().string( containsString( "/icons/icons.svg#icon-menu" ) ) )
+                .andExpect( content().string( containsString(
+                        "<script type=\"module\" src=\"/js/side-menu.js\"></script>" ) ) );
     }
 
     /**

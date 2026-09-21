@@ -1,0 +1,24 @@
+%% Diagram przepływu: otwieranie i zamykanie menu bocznego oraz rozwijanie gałęzi drzewa
+stateDiagram-v2
+    state "Zamknięte: panel inert, przycisk w spoczynku" as Zamkniete
+    state "Otwarte: przycisk wciśnięty, fokus na pierwszej pozycji" as Otwarte {
+        state "Wszystkie gałęzie zwinięte" as Zwiniete
+        state "Rozwinięta najwyżej jedna gałąź na każdym poziomie" as Rozwinieta
+
+        [*] --> Zwiniete
+        Zwiniete --> Rozwinieta: kliknięcie gałęzi
+        Rozwinieta --> Rozwinieta: kliknięcie innej gałęzi zwija rodzeństwo z potomkami
+        Rozwinieta --> Zwiniete: kliknięcie ostatniej rozwiniętej gałęzi
+    }
+
+    [*] --> Zamkniete
+    Zamkniete --> Otwarte: kliknięcie przycisku menu
+    Otwarte --> Zamkniete: ponowne kliknięcie przycisku
+    Otwarte --> Zamkniete: Escape
+    Otwarte --> Zamkniete: wciśnięcie poza menu i przyciskiem
+
+    note right of Zamkniete
+        Zamknięcie zwija wszystkie gałęzie,
+        a fokus z wnętrza menu wraca na przycisk.
+        Pozycje-liście nie wykonują jeszcze akcji.
+    end note

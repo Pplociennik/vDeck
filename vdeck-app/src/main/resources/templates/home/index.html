@@ -8,11 +8,13 @@
 </head>
 <body>
 <!--
-    Panel home page. It shows the page background and the action island only - the content area stays
-    empty until there is a feature to present in it.
+    Panel home page. It shows the page background, the action island and the side menu only - the
+    content area stays empty until there is a feature to present in it.
 -->
 <div th:replace="~{common/island :: island}"></div>
 
 <main class="page-content"></main>
+
+<div th:replace="~{common/side-menu :: sideMenu}"></div>
 </body>
 </html>

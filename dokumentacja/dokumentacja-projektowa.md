@@ -1,6 +1,6 @@
 ﻿# vDeck — dokumentacja projektowa
 
-> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-08-19
+> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-09-21
 
 Dokument opisuje, **co system robi i jak to realizuje**. Uzasadnienia decyzji projektowych znajdują się
 w [`.docs/architectural_decisions.md`](../.docs/architectural_decisions.md) oraz
@@ -40,6 +40,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.2 Wyspa akcji](#52-wyspa-akcji)
   - [5.3 Ikony](#53-ikony)
   - [5.4 Ekrany panelu](#54-ekrany-panelu)
+  - [5.5 Menu boczne](#55-menu-boczne)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -248,6 +249,7 @@ Widoczne zachowanie:
 | `/` | GET | rola `ADMIN` | Strona główna panelu |
 | `/logout` | POST | uwierzytelniony | Domyślne wylogowanie Spring Security |
 | `/css/**`, `/icons/**`, `/img/**` | GET | rola `ADMIN` | Zasoby statyczne interfejsu; osiągalne także przed zmianą hasła początkowego |
+| `/js/**` | GET | rola `ADMIN` | Moduły JavaScript interfejsu; nieosiągalne przed zmianą hasła początkowego, bo ekran wymuszonej zmiany nie używa skryptów |
 | pozostałe | dowolna | rola `ADMIN` | Dostęp do panelu |
 
 Zmiana hasła ma **dwa osobne ekrany**, bo są to dwie różne operacje. Wymuszona zmiana hasła
@@ -410,8 +412,10 @@ serwis nigdy nie zwraca. Rekord wyniku wiąże je, nie znając zbioru komunikat�
 ## 5. Warstwa interfejsu użytkownika
 
 Reguły obowiązujące przy budowie interfejsu opisuje [`.docs/ui.md`](../.docs/ui.md); ta sekcja opisuje
-wyłącznie stan zaimplementowany. Interfejs jest budowany z szablonów Thymeleaf i arkuszy CSS, bez
-JavaScriptu i bez zależności od CDN — panel wyświetla się w całości z zasobów wbudowanych w aplikację.
+wyłącznie stan zaimplementowany. Interfejs jest budowany z szablonów Thymeleaf i arkuszy CSS oraz
+natywnych modułów ES bez procesu budowania frontendu i bez zależności od CDN — panel wyświetla się
+w całości z zasobów wbudowanych w aplikację. Jedynym modułem jest obecnie `side-menu.js`, sterujący
+menu bocznym.
 
 ### 5.1 Zasoby statyczne i arkusze stylów
 
@@ -423,11 +427,13 @@ vdeck-app/src/main/resources/
 │   │   ├── base.css             ← baza dokumentu, layout, komponenty wspólne
 │   │   └── authentication.css   ← styl ekranów hasła
 │   ├── icons/icons.svg          ← jeden sprite ze wszystkimi ikonami
-│   └── img/                     ← page-background.jpg, panel-background.jpg, island-background.jpg
+│   ├── img/                     ← page-, panel-, island- i side-menu-background.jpg
+│   └── js/side-menu.js          ← zachowanie menu bocznego
 ├── messages.properties          ← polski zestaw tekstów interfejsu
 └── templates/
     ├── common/island.html          ← komponent wspólny: wyspa akcji
     ├── common/password-rules.html  ← komponent wspólny: wymagania dla nowego hasła
+    ├── common/side-menu.html       ← komponent wspólny: menu boczne
     ├── home/index.html             ← strona główna panelu
     ├── authentication/change-password.html
     └── authentication/initial-password-change.html
@@ -437,10 +443,11 @@ vdeck-app/src/main/resources/
   od `@import url("variables.css")` i nie definiuje własnych tokenów.
 - `base.css` zawiera bazę dokumentu, wyśrodkowanie widoku (`.page-center`), wspólną powierzchnię
   z ramą i teksturą (`.surface`), kontrakt ikony (`.icon`) oraz style komponentów wspólnych.
-- Interfejs używa trzech tekstur: `page-background.jpg` na tle strony, `panel-background.jpg` na
-  panelach oraz `island-background.jpg` na wyspie akcji. Panel jest przypadkiem domyślnym: `.surface`
-  ustawia teksturę panelu, a powierzchnia o innej teksturze nadpisuje wyłącznie lokalną właściwość
-  `--surface-texture` — robi to jedynie modyfikator `.surface--island`.
+- Interfejs używa czterech tekstur: `page-background.jpg` na tle strony, `panel-background.jpg` na
+  panelach, `island-background.jpg` na wyspie akcji oraz `side-menu-background.jpg` w menu bocznym.
+  Panel jest przypadkiem domyślnym: `.surface` ustawia teksturę panelu, a powierzchnia o innej
+  teksturze nadpisuje wyłącznie lokalną właściwość `--surface-texture` — robią to modyfikatory
+  `.surface--island` i `.surface--side-menu`.
 - Kontrolki — przyciski i pola formularza — mają jednolicie czarne tło, więc odcinają się od tekstury
   zamiast jej prześwitywać. Stan wyróżnia jasność tła (`hover`), obramowanie akcentem (`focus`) oraz
   przygaszona ikona lub etykieta (`disabled`); wyłączona kontrolka nie jest wygaszana przezroczystością,
@@ -483,7 +490,7 @@ początkowego — konto przed zmianą hasła nie może wykonać żadnej z jej ak
 Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są osadzane przez `<use>`.
 Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
 `icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
-`icon-key` i `icon-logout`. Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
+`icon-key`, `icon-logout`, `icon-menu` (przycisk menu bocznego) i `icon-chevron` (stan gałęzi menu). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
 przyciski tworzą kopię, a nie pobierają pliku.
 
 Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlatego
@@ -492,14 +499,15 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
 ### 5.4 Ekrany panelu
 
 - **Strona główna** (`home/index.html`, `HomeController`, adres `/`) osadza wyspę akcji nad pustym
-  obszarem treści. Na tym etapie pokazuje wyłącznie tło panelu i wyspę — treść pojawi się razem
-  z funkcjonalnościami, które ma prezentować.
+  obszarem treści oraz menu boczne. Na tym etapie pokazuje wyłącznie tło panelu, wyspę i menu —
+  treść pojawi się razem z funkcjonalnościami, które ma prezentować.
 - **Wymuszona zmiana hasła początkowego** (`authentication/initial-password-change.html`) to
-  wyśrodkowana karta na wspólnej powierzchni `.surface`, **bez wyspy i bez jakiejkolwiek innej
-  akcji**: nagłówek z ikoną klucza, opis, opcjonalny komunikat błędu z `role="alert"` oraz formularz
+  wyśrodkowana karta na wspólnej powierzchni `.surface`, **bez wyspy, bez menu bocznego i bez
+  jakiejkolwiek innej akcji**: nagłówek z ikoną klucza, opis, opcjonalny komunikat błędu z `role="alert"` oraz formularz
   dwóch pól hasła — nowego i potwierdzenia — z przyciskiem wysłania.
 - **Zmiana hasła na życzenie** (`authentication/change-password.html`) to ta sama karta osadzona pod
-  wyspą akcji, w zwykłym obszarze treści, uzupełniona o pole aktualnego hasła.
+  wyspą akcji, w zwykłym obszarze treści, uzupełniona o pole aktualnego hasła; ekran ma też menu
+  boczne.
 - Oba ekrany hasła osadzają komponent wspólny `common/password-rules.html` z wymaganiami
   egzekwowanymi przez serwer — długość 12–128 znaków, cyfra, mała litera, wielka litera, znak
   specjalny, różnica względem aktualnego hasła i zgodność obu pól — powiązany z polem nowego hasła
@@ -510,6 +518,58 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
 
 Żaden szablon nie zawiera tekstu wpisanego na stałe: teksty, tytuły stron oraz atrybuty `aria-label`
 i `title` pochodzą z tłumaczeń opisanych w [3.5](#35-tłumaczenia-interfejsu).
+
+### 5.5 Menu boczne
+
+Menu boczne jest komponentem wspólnym — plik `templates/common/side-menu.html` z fragmentem
+`sideMenu`, osadzanym przez `th:replace="~{common/side-menu :: sideMenu}"` na stronie głównej i na
+ekranie zmiany hasła na życzenie. Fragment dołącza własny moduł `/js/side-menu.js`, więc widok nie
+musi o nim pamiętać; style leżą w `base.css`.
+
+Widoczne zachowanie:
+
+- Menu jest domyślnie ukryte. W pobliżu lewego dolnego rogu stale widoczny jest okrągły przycisk
+  z obramowaniem i ikoną `icon-menu`, odsunięty od krawędzi o 2,75 rem; na telefonie w dowolnej
+  orientacji odsunięcie maleje do 1,25 rem, aby niski widok zostawił wysokość na pozycje menu.
+- Kliknięcie przycisku otwiera menu: pionowy prostokąt o lekko zaokrąglonych rogach, z teksturą
+  `side-menu-background.jpg` i czarną ramą. Menu nie wysuwa się zza krawędzi ekranu — wyłania się
+  w miejscu, narastając z przezroczystości, lekko pomniejszone i obniżone w stronę przycisku. Otwarcie
+  i zamknięcie trwają po 280 ms; przy `prefers-reduced-motion` zmiana jest natychmiastowa.
+- Przycisk jest głęboko wpisany w lewy dolny róg otwartego menu: róg leży 1,5 rem za środkiem
+  przycisku, w stronę narożnika ekranu, więc większa część przycisku znajduje się w obrysie menu.
+  Z menu wycięte jest koło nieco większe od przycisku, dzięki czemu między przyciskiem a menu zostaje
+  szczelina w kształcie łuku, obwiedziona od strony menu wyraźnym pierścieniem w kolorze akcentu.
+- Otwarte menu nie zmienia ikony przycisku — przycisk wygląda na wciśnięty: ma wklęsły cień i obramowanie
+  oraz ikonę w kolorze akcentu.
+- Menu zamyka ponowne kliknięcie przycisku, klawisz Escape albo wciśnięcie w dowolnym miejscu poza
+  menu i przyciskiem. Zamknięcie zwija wszystkie gałęzie, a fokus z wnętrza menu wraca na przycisk.
+- Pozycje są pogrupowane w sekcje. Sekcja nie ma własnej ramy — wyróżnia ją jedynie tytuł: przygaszony
+  tekst na środku poziomej linii. Sekcje dzielą większe odstępy niż pozycje wewnątrz nich. Przykładowe
+  sekcje to „Konfiguracja”, „Operacje” i „Kopie bezpieczeństwa”.
+- W obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach, działające jak akordeon:
+  gałąź rozwija swoje dzieci w miejscu, z wcięciem, a rozwinięcie gałęzi zwija rozwinięte rodzeństwo
+  z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron.
+- Rozmiar menu jest ograniczony do widoku, więc strona nie przewija się także na telefonie w poziomie;
+  gdy pozycje się nie mieszczą, przewija się lista wewnątrz menu.
+
+![Diagram przepływu: otwieranie i zamykanie menu bocznego oraz rozwijanie gałęzi drzewa](diagramy/wspolne/img/przeplyw-menu-boczne.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-menu-boczne.mmd`](diagramy/wspolne/przeplyw-menu-boczne.mmd)
+
+Budowa komponentu:
+
+| Element | Rola |
+|---|---|
+| `sideMenu` | Korzeń: przycisk `[data-side-menu-toggle]` z `aria-expanded` i `aria-controls`, panel `nav[data-side-menu-panel]` oraz moduł skryptu |
+| `section.side-menu-section` | Sekcja: tytuł `sectionTitle( labelKey, titleId )`, który nazywa sekcję przez `aria-labelledby`, oraz lista pierwszego poziomu |
+| `branchToggle( labelKey, iconId, childrenId )` | Pozycja rozwijająca gałąź; bezpośrednio po niej w tym samym elemencie listy leży opakowanie dzieci `.side-menu-children` o identyfikatorze `childrenId` |
+| `leaf( labelKey, iconId )` | Pozycja otwierająca panel; `iconId` może być `null` |
+| `side-menu.js` | Przełącza atrybuty `data-state`, `aria-expanded` i `inert`; animacje należą wyłącznie do arkusza stylów |
+
+Drzewo jest zapisane bezpośrednio w znacznikach fragmentu — nie ma modelu w Javie. Dodanie panelu
+polega na dodaniu elementu listy z wywołaniem `leaf(...)` w odpowiedniej sekcji lub gałęzi. Zamknięte menu
+i zwinięte gałęzie mają atrybut `inert`, więc ich pozycje nie są osiągalne klawiaturą ani przez
+technologie asystujące. Stan otwarcia nie jest zapamiętywany między stronami.
 
 ## 6. Bezpieczeństwo
 
@@ -566,8 +626,8 @@ zawiera wyłącznie nazwę statusu, a nie wprowadzone wartości ani nazwę konta
 
 Zaimplementowane: infrastruktura konfiguracji (`shared`), rozwiązywanie ścieżek, uwierzytelnianie
 panelu wraz z oboma wariantami zmiany hasła, teksty interfejsu w resource bundle oraz warstwa
-interfejsu — arkusze stylów, sprite ikon, komponenty wspólne wyspy akcji i wymagań dla hasła,
-strona główna panelu oraz oba ostylowane ekrany hasła.
+interfejsu — arkusze stylów, sprite ikon, komponenty wspólne wyspy akcji, wymagań dla hasła i menu
+bocznego, strona główna panelu oraz oba ostylowane ekrany hasła.
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
 sterowanie cyklem życia serwera Valheim, moduł `vdeck-runtime` (nie ma katalogu `src`), profile
@@ -581,6 +641,8 @@ Znane ograniczenia stanu bieżącego:
   danych ani stanu serwera;
 - przyciski sterowania serwerem i kopii bezpieczeństwa na wyspie są elementami interfejsu bez
   akcji — odpowiadające funkcjonalności nie są zaimplementowane;
+- menu boczne zawiera wyłącznie przykładowe sekcje i pozycje (numerowane sekcje, grupy i panele)
+  pokazujące podział na sekcje i trzy poziomy drzewa; żadna pozycja nie otwiera jeszcze panelu;
 - panel jest jednojęzyczny i nie ma mechanizmu zmiany języka; zmiana brzmienia tekstu wymaga nowego
   wydania, a strona logowania generowana przez Spring Security pozostaje angielska niezależnie od
   tekstów panelu;
@@ -616,3 +678,4 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Logowanie do panelu | przepływ | [`img/przeplyw-logowanie.svg`](diagramy/authentication/img/przeplyw-logowanie.svg) | [`diagramy/authentication/przeplyw-logowanie.mmd`](diagramy/authentication/przeplyw-logowanie.mmd) | [4.4](#44-logowanie) |
 | Zmiana hasła w obu wariantach | przepływ | [`img/przeplyw-zmiana-hasla.svg`](diagramy/authentication/img/przeplyw-zmiana-hasla.svg) | [`diagramy/authentication/przeplyw-zmiana-hasla.mmd`](diagramy/authentication/przeplyw-zmiana-hasla.mmd) | [4.5](#45-zmiana-hasła) |
 | Feature authentication | klasy | [`img/klasy-komponenty.svg`](diagramy/authentication/img/klasy-komponenty.svg) | [`diagramy/authentication/klasy-komponenty.mmd`](diagramy/authentication/klasy-komponenty.mmd) | [4.7](#47-komponenty-featurea) |
+| Menu boczne | przepływ | [`img/przeplyw-menu-boczne.svg`](diagramy/wspolne/img/przeplyw-menu-boczne.svg) | [`diagramy/wspolne/przeplyw-menu-boczne.mmd`](diagramy/wspolne/przeplyw-menu-boczne.mmd) | [5.5](#55-menu-boczne) |

@@ -581,6 +581,7 @@ auto-restartem, ponieważ ponowny start gry może nadpisać pliki `.old`.
 | Próby logowania | Na obecnym etapie brak blokady konta i trwałego licznika prób; koszt weryfikacji zapewnia adaptacyjny `PasswordEncoder`. |
 | Sesje | Maksymalnie jedna aktywna sesja; nowsze logowanie unieważnia wcześniejszą sesję. |
 | Widoki | Thymeleaf, fragmenty HTMX i natywne moduły ES bez obowiązkowego procesu budowania frontendu. |
+| Nawigacja | Menu boczne jako wspólny fragment `common/side-menu.html`: domyślnie ukryte, otwierane okrągłym przyciskiem w lewym dolnym rogu, z pozycjami pogrupowanymi w tytułowane sekcje; w obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach działające jak akordeon. Drzewo jest zapisane w znacznikach fragmentu, bez modelu w Javie. Menu nie jest osadzane na ekranie wymuszonej zmiany hasła początkowego. |
 | Logi | Aktualizowane w przeglądarce przez SSE. |
 | Bezpieczeństwo żądań | Włączone CSRF; token jest dodawany do `hx-post` przez `htmx:configRequest`. |
 

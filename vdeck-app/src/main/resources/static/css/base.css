@@ -266,6 +266,263 @@ body::before {
 }
 
 /*
+ * Side menu - reusable navigation rendered from the common/side-menu fragment. Its styles live in the
+ * global stylesheet because the fragment is embedded by several views and brings no <link> of its own.
+ *
+ * The geometry uses physical left/bottom on purpose: the corner cut-out is a mask anchored to the
+ * panel's bottom-left corner, and the toggle, the panel and the cut-out must share that corner.
+ */
+
+/* Round toggle floating in the bottom-left corner, always above the panel it opens. */
+.side-menu-toggle {
+    position: fixed;
+    left: var(--side-menu-toggle-inset-inline);
+    bottom: var(--side-menu-toggle-inset-block);
+    z-index: var(--z-side-menu-toggle);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--side-menu-toggle-size);
+    block-size: var(--side-menu-toggle-size);
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    border: var(--side-menu-toggle-rim-width) solid var(--color-control-border);
+    border-radius: 50%;
+    color: var(--color-text);
+    background-color: var(--color-control-surface);
+    box-shadow: var(--side-menu-toggle-shadow);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast),
+        border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .side-menu-toggle:hover {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+/* The ring fits inside the arc-shaped gap, so it stays visible while the menu is open. */
+.side-menu-toggle:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * While the menu is open the toggle keeps its icon and stays pressed in. It does not sink the way a
+ * pressed action button does, so it stays concentric with the arc cut out around it.
+ */
+.side-menu-toggle:active,
+.side-menu-toggle[aria-expanded="true"] {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background-color: var(--color-control-surface-active);
+    box-shadow: var(--side-menu-toggle-pressed-shadow);
+}
+
+/*
+ * Positioned wrapper of the menu. Its bottom-left corner lies the toggle depth beyond the toggle's
+ * centre, so the button is set deep into the corner. It carries the shadow as a drop-shadow filter,
+ * which follows the cut-out outline where a box-shadow would be masked away. A closed menu is faded,
+ * lowered and slightly shrunk towards the toggle; opening lets it rise in place.
+ */
+.side-menu-panel {
+    position: fixed;
+    left: calc(var(--side-menu-toggle-inset-inline) + var(--side-menu-corner-inset));
+    bottom: calc(var(--side-menu-toggle-inset-block) + var(--side-menu-corner-inset));
+    z-index: var(--z-side-menu);
+    inline-size: min(var(--side-menu-inline-size),
+        100vw - var(--side-menu-toggle-inset-inline) - var(--side-menu-corner-inset) - var(--side-menu-offset));
+    block-size: min(var(--side-menu-block-size),
+        100dvh - var(--side-menu-toggle-inset-block) - var(--side-menu-corner-inset) - var(--side-menu-offset));
+    filter: var(--side-menu-shadow);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(0.75rem) scale(0.94);
+    transform-origin: left bottom;
+    transition: opacity var(--transition-panel), transform var(--transition-panel),
+        visibility 0s linear var(--transition-panel-duration);
+}
+
+.side-menu-panel[data-state="open"] {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+    transition: opacity var(--transition-panel), transform var(--transition-panel), visibility 0s;
+}
+
+.surface--side-menu {
+    --surface-texture: var(--side-menu-texture);
+}
+
+/*
+ * Textured body of the menu. Its corners are only slightly rounded, and a circle centred on the
+ * toggle - the toggle depth in from the bottom-left corner - is masked out, leaving an even gap
+ * around the button.
+ */
+.side-menu-surface {
+    block-size: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--side-menu-scrollbar-color);
+    border-radius: var(--side-menu-radius);
+    box-shadow: var(--surface-inner-shadow);
+    -webkit-mask-image: radial-gradient(
+        circle at var(--side-menu-toggle-depth) calc(100% - var(--side-menu-toggle-depth)),
+        transparent var(--side-menu-notch-radius), #000 calc(var(--side-menu-notch-radius) + 0.5px));
+    mask-image: radial-gradient(
+        circle at var(--side-menu-toggle-depth) calc(100% - var(--side-menu-toggle-depth)),
+        transparent var(--side-menu-notch-radius), #000 calc(var(--side-menu-notch-radius) + 0.5px));
+}
+
+/*
+ * The mask cuts the surface frame away along the arc as well. This ring restores it and edges the gap
+ * with the accent colour, so the gap reads as a distinct ring around the button: its outer edge matches
+ * the edge of the mask, the accent line lies next to the gap with the black frame behind it, and the
+ * part of the ring outside the menu is clipped away.
+ */
+.side-menu-notch-frame {
+    position: absolute;
+    left: calc(var(--side-menu-toggle-depth) - var(--side-menu-notch-radius));
+    bottom: calc(var(--side-menu-toggle-depth) - var(--side-menu-notch-radius));
+    inline-size: calc(2 * var(--side-menu-notch-radius));
+    block-size: calc(2 * var(--side-menu-notch-radius));
+    border: var(--side-menu-notch-ring-width) solid var(--color-accent);
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 var(--surface-border-width) var(--color-frame);
+    clip-path: inset(0 0 calc(var(--side-menu-notch-radius) - var(--side-menu-toggle-depth))
+        calc(var(--side-menu-notch-radius) - var(--side-menu-toggle-depth)));
+    pointer-events: none;
+}
+
+.side-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/*
+ * Sections grouping the entries, kept further apart than the entries inside them. The bottom padding
+ * keeps the last entry clear of the cut-out corner and the toggle inside it.
+ */
+.side-menu-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-sm);
+    padding-block-end: calc(var(--side-menu-notch-radius) + var(--side-menu-toggle-depth) + var(--space-xs));
+}
+
+/* A section has no frame of its own; only its title, centred on a horizontal line, sets it apart. */
+.side-menu-section__title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin: 0 0 var(--space-xs);
+    font-size: var(--font-size-label);
+    font-weight: 600;
+    color: var(--color-text-muted);
+    opacity: var(--side-menu-section-title-opacity);
+}
+
+.side-menu-section__title::before,
+.side-menu-section__title::after {
+    content: "";
+    flex: 1;
+    block-size: var(--side-menu-section-line-width);
+    background-color: var(--side-menu-section-line-color);
+}
+
+.side-menu-list--level-2,
+.side-menu-list--level-3 {
+    padding-inline-start: var(--side-menu-indent);
+}
+
+/*
+ * Children of a branch. The wrapper animates its single grid row between zero and the content height;
+ * the list clips while it collapses, and its first entry keeps the spacing inside that clip, so a
+ * collapsed branch takes no space at all.
+ */
+.side-menu-children {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows var(--transition-medium),
+        visibility 0s linear var(--transition-medium-duration);
+}
+
+.side-menu-children > .side-menu-list {
+    min-block-size: 0;
+    overflow: hidden;
+}
+
+.side-menu-children > .side-menu-list > .side-menu-item:first-child {
+    margin-block-start: var(--space-xs);
+}
+
+.side-menu-entry--branch[aria-expanded="true"] + .side-menu-children {
+    grid-template-rows: 1fr;
+    visibility: visible;
+    transition: grid-template-rows var(--transition-medium), visibility 0s;
+}
+
+/* Menu row: optional icon, label and, for a branch, a chevron showing whether it is expanded. */
+.side-menu-entry {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    inline-size: 100%;
+    min-block-size: var(--control-touch-size);
+    padding: var(--space-xs) var(--space-sm);
+    -webkit-tap-highlight-color: transparent;
+    border: 0.0625rem solid var(--color-control-border);
+    border-radius: var(--field-radius);
+    font: inherit;
+    font-size: var(--font-size-lead);
+    text-align: start;
+    color: var(--color-text);
+    background-color: var(--side-menu-entry-surface);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .side-menu-entry:hover {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+/* Drawn inside the entry, because the collapsing lists clip anything outside it. */
+.side-menu-entry:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.side-menu-entry--branch[aria-expanded="true"] {
+    color: var(--color-accent);
+}
+
+.side-menu-entry__label {
+    flex: 1;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+
+.side-menu-entry__chevron {
+    transition: transform var(--transition-medium);
+}
+
+.side-menu-entry--branch[aria-expanded="true"] .side-menu-entry__chevron {
+    transform: rotate(90deg);
+}
+
+/*
  * Phone widths. Between the full width and this breakpoint the groups only shrink, so the strip and
  * its separators survive down to the width of their controls. Below it the groups have to wrap: the
  * height cap is lifted and the separators - which would no longer sit between neighbours - are
@@ -310,6 +567,20 @@ body::before {
     }
 
     .action-button:active:not(:disabled) {
+        transform: none;
+    }
+
+    .side-menu-toggle,
+    .side-menu-panel,
+    .side-menu-panel[data-state="open"],
+    .side-menu-children,
+    .side-menu-entry--branch[aria-expanded="true"] + .side-menu-children,
+    .side-menu-entry,
+    .side-menu-entry__chevron {
+        transition: none;
+    }
+
+    .side-menu-panel {
         transform: none;
     }
 }

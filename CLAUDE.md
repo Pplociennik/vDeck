@@ -12,7 +12,9 @@ vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2
   infrastructure and the first implemented features: panel authentication (persisted admin account,
   Spring Security's generated login page, and two separate password screens — the forced
   `/initial-password-change` that asks for no current password and the on-demand `/change-password`
-  that does) plus a `home` feature serving `/` with the action island only.
+  that does) plus a `home` feature serving `/` with the action island only. Views with navigation
+  also embed the markup-only side menu (`templates/common/side-menu.html` + `static/js/side-menu.js`,
+  the app's only ES module so far).
 
 Only packages holding real code exist; the rest of the `design.md` §3 tree is created when
 its feature is implemented. Do not infer missing architecture from the incomplete package layout.

@@ -27,7 +27,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Verifies that both password screens are rendered by the real Thymeleaf engine together with the
  * configured message source, so a broken template or an unresolved translation key is caught by the
  * build instead of by the running panel. The screens differ in exactly two visible ways, both asserted
- * here: only the ordinary change asks for the current password, and only it keeps the action island.
+ * here: only the ordinary change asks for the current password, and only it keeps the panel navigation -
+ * the action island and the side menu.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -49,6 +50,11 @@ class PasswordChangeViewIntegrationTest {
      */
     private static final String ISLAND_TRANSLATION_KEY_PREFIX = "island.";
 
+    /**
+     * Prefix of every translation key of the side menu, embedded by the ordinary change screen.
+     */
+    private static final String SIDE_MENU_TRANSLATION_KEY_PREFIX = "sideMenu.";
+
     @TempDir
     private static Path directory;
 
@@ -61,7 +67,8 @@ class PasswordChangeViewIntegrationTest {
 
     /**
      * Verifies that the ordinary change screen renders with its texts resolved, asks for the current
-     * password and keeps the action island, so the user can leave the screen without changing anything.
+     * password and keeps the action island and the side menu, so the user can leave the screen without
+     * changing anything.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request
@@ -81,12 +88,15 @@ class PasswordChangeViewIntegrationTest {
                 .andExpect( content().string( not( containsString( ISLAND_TRANSLATION_KEY_PREFIX ) ) ) )
                 .andExpect( content().string( containsString( "name=\"currentPassword\"" ) ) )
                 .andExpect( content().string( containsString( "class=\"island surface surface--island\"" ) ) )
+                .andExpect( content().string( not( containsString( SIDE_MENU_TRANSLATION_KEY_PREFIX ) ) ) )
+                .andExpect( content().string( containsString( "data-side-menu-toggle" ) ) )
                 .andExpect( content().string( containsString( "aria-describedby=\"password-rules\"" ) ) );
     }
 
     /**
      * Verifies that the mandatory screen renders with its texts resolved, asks for no current password
-     * and offers no island, so a first-login account cannot reach any other panel action from it.
+     * and offers neither the island nor the side menu, so a first-login account cannot reach any other
+     * panel action from it.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request
@@ -106,6 +116,7 @@ class PasswordChangeViewIntegrationTest {
                 .andExpect( content().string( not( containsString( TRANSLATION_KEY_PREFIX ) ) ) )
                 .andExpect( content().string( not( containsString( "name=\"currentPassword\"" ) ) ) )
                 .andExpect( content().string( not( containsString( "class=\"island" ) ) ) )
+                .andExpect( content().string( not( containsString( "data-side-menu" ) ) ) )
                 .andExpect( content().string( containsString( "aria-describedby=\"password-rules\"" ) ) );
     }
 

@@ -1,10 +1,10 @@
-# Krytyczne decyzje architektoniczne
+﻿# Krytyczne decyzje architektoniczne
 
 > Status: nadrzędny rejestr decyzji projektu vDeck
 
 Rejestr zawiera wyłącznie decyzje krytyczne i trwałe. Wpisy są niezmienne — decyzję zmienia się
 przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury opisuje
-`.docs/first_design_ideas.md`, reguły pracy — `.docs/rules/`.
+`.docs/design.md`, reguły pracy — `.docs/rules/`.
 
 ## AD-001 — Priorytet wydajności i zużycia RAM
 
@@ -35,7 +35,7 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
   niejednoznaczność między podpakietem feature'a a pakietem głównym.
 - **Konsekwencja:** Encje JPA nie muszą znajdować się w podpakiecie `persistence`; dla feature'ów z
   jawnym modelem domenowym umieszczamy je w `domain`, natomiast interfejsy Spring Data pozostają w
-  `persistence`. Ta decyzja zastępuje sprzeczne wskazania z `.docs/first_design_ideas.md`.
+  `persistence`. Ta decyzja zastępuje sprzeczne wskazania z `.docs/design.md`.
 
 ## AD-004 — Minimalna widoczność i kontrakty serwisów
 
@@ -96,3 +96,30 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Konsekwencja:** Pakiet `config` składa beany i inicjalizuje aplikację, ale nie jest właścicielem
   modeli ani serwisów właściwości systemowych. Konsumenci wstrzykują `SystemPropertiesService` przez
   interfejs z `shared.service`.
+
+## AD-008 — Zewnętrzny katalog tłumaczeń
+
+- **Status:** wycofana przez AD-009 (2026-08-19)
+- **Decyzja:** Teksty interfejsu, domyślnie polskie, pochodzą z plików `messages*.properties`
+  ładowanych przez `MessageSource` z katalogu z właściwości `vdeck.translations-directory`, domyślnie
+  `lang` w katalogu uruchomienia.
+- **Powód:** Tłumaczeń zamkniętych w jarze nie da się poprawić bez nowej wersji.
+- **Konsekwencja:** Szablony i kod nie zawierają tekstów wpisanych na stałe.
+
+## AD-009 — Tłumaczenia jako resource bundle w aplikacji
+
+- **Status:** obowiązująca (2026-08-19)
+- **Decyzja:** Panel ma jeden język — polski — i nie przewiduje jego zmiany. Teksty interfejsu
+  pochodzą z pojedynczego pliku `messages.properties` w `vdeck-app/src/main/resources`, czytanego
+  przez domyślny `MessageSource` Spring Boota. Nie istnieje zewnętrzny katalog tłumaczeń, właściwość
+  `vdeck.translations-directory`, własna klasa `@Configuration` dla `MessageSource` ani inicjalizator
+  kopiujący plik przy starcie. `application.yaml` ustawia jedynie
+  `spring.messages.use-code-as-default-message`, dzięki czemu brak klucza renderuje się jako sam
+  klucz zamiast przerywać żądanie.
+- **Powód:** Zewnętrzny katalog, kopiowanie pliku przy starcie i łączenie dwóch źródeł tekstu to
+  koszt utrzymania i ryzyko rozjazdu kluczy, ponoszone wyłącznie dla nieplanowanej wielojęzyczności
+  i ręcznej edycji tekstów. Zgodnie z YAGNI i KISS ta możliwość nie jest dziś potrzebna.
+- **Konsekwencja:** AD-009 zastępuje AD-008 w całości w zakresie źródła tekstów. Utrzymane zostają
+  pozostałe reguły tekstów interfejsu: szablony pobierają tekst wyłącznie przez `#{klucz}`, kod Javy
+  przekazuje klucz, a zamknięte zbiory komunikatów opisują typy wyliczeniowe implementujące
+  `TranslationKeyIf`. Zmiana tekstu wymaga nowego wydania panelu.

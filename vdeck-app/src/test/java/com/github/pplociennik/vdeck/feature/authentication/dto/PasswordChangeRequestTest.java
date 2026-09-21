@@ -38,7 +38,7 @@ class PasswordChangeRequestTest {
     void setUp() {
         validatorFactory = Validation.buildDefaultValidatorFactory();
         validator = validatorFactory.getValidator();
-        underTest = new PasswordChangeRequest( "admin", "replacement-password", "replacement-password" );
+        underTest = new PasswordChangeRequest( "admin", "Replacement-1", "Replacement-1" );
     }
 
     // =================================================================================================

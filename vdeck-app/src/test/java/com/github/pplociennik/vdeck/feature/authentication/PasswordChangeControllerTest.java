@@ -1,6 +1,7 @@
 package com.github.pplociennik.vdeck.feature.authentication;
 
 import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
+import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeStatus;
 import com.github.pplociennik.vdeck.feature.authentication.dto.PasswordChangeRequest;
 import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,10 +73,11 @@ class PasswordChangeControllerTest {
     }
 
     /**
-     * Verifies that annotation validation failures are rendered without calling password persistence.
+     * Verifies that annotation validation failures are reported as a translation key without calling
+     * password persistence.
      */
     @Test
-    void shouldReturnValidationMessage_whenBindingHasErrors() {
+    void shouldReturnValidationErrorKey_whenBindingHasErrors() {
         // GIVEN
         PasswordChangeRequest passwordRequest = new PasswordChangeRequest( "admin", "short", "short" );
         BindingResult bindingResult = bindingResult( passwordRequest );
@@ -93,7 +95,8 @@ class PasswordChangeControllerTest {
 
         // THEN
         assertThat( result ).isEqualTo( "authentication/change-password" );
-        assertThat( model.get( "passwordChangeError" ).toString() ).contains( "12 and 128" );
+        assertThat( model.get( "passwordChangeErrorKey" ) )
+                .isEqualTo( PasswordChangeMessage.INVALID_INPUT.getKey() );
         assertThat( model.get( "passwordChangeRequest" ) )
                 .isEqualTo( new PasswordChangeRequest( null, null, null ) );
         verify( panelUserService, never() ).changePassword(
@@ -113,7 +116,7 @@ class PasswordChangeControllerTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         Authentication authentication = authentication();
         given( panelUserService.changePassword( "admin", passwordRequest ) )
-                .willReturn( PasswordChangeResult.SUCCESS );
+                .willReturn( PasswordChangeResult.success() );
 
         // WHEN
         String result = underTest.changePassword(
@@ -125,15 +128,17 @@ class PasswordChangeControllerTest {
     }
 
     /**
-     * Verifies that a domain validation failure returns a safe message and an empty form.
+     * Verifies that the message carried by a rejected result is published to the view unchanged,
+     * together with an empty form.
      */
     @Test
-    void shouldReturnSafeErrorAndEmptyForm_whenPasswordChangeIsRejected() {
+    void shouldReturnSafeErrorKeyAndEmptyForm_whenPasswordChangeIsRejected() {
         // GIVEN
         PasswordChangeRequest passwordRequest = validRequest();
         ExtendedModelMap model = new ExtendedModelMap();
         given( panelUserService.changePassword( "admin", passwordRequest ) )
-                .willReturn( PasswordChangeResult.CURRENT_PASSWORD_INCORRECT );
+                .willReturn( PasswordChangeResult.rejected( PasswordChangeStatus.CURRENT_PASSWORD_INCORRECT,
+                        PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT ) );
 
         // WHEN
         String result = underTest.changePassword(
@@ -146,7 +151,8 @@ class PasswordChangeControllerTest {
 
         // THEN
         assertThat( result ).isEqualTo( "authentication/change-password" );
-        assertThat( model.get( "passwordChangeError" ) ).isEqualTo( "The current password is incorrect." );
+        assertThat( model.get( "passwordChangeErrorKey" ) )
+                .isEqualTo( PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT.getKey() );
         assertThat( model.get( "passwordChangeRequest" ) )
                 .isEqualTo( new PasswordChangeRequest( null, null, null ) );
     }
@@ -173,7 +179,7 @@ class PasswordChangeControllerTest {
     // =================================================================================================
 
     private PasswordChangeRequest validRequest() {
-        return new PasswordChangeRequest( "admin", "replacement-password", "replacement-password" );
+        return new PasswordChangeRequest( "admin", "Replacement-1", "Replacement-1" );
     }
 
     private BindingResult bindingResult( PasswordChangeRequest passwordRequest ) {

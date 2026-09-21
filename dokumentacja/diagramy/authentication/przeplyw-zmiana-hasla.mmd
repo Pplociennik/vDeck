@@ -1,23 +1,38 @@
-%% Diagram przepływu: wymuszona zmiana hasła panelu vDeck
+%% Diagram przepływu: zmiana hasła panelu vDeck w obu wariantach
 flowchart TD
-    start([GET /change-password]) --> form[PasswordChangeController.showPasswordChange:<br/>pusty formularz PasswordChangeRequest]
-    form --> submit([POST /change-password])
-    submit --> bean{Walidacja adnotacji<br/>NotBlank i Size 12-128?}
-    bean -- błędy --> generic[Komunikat: wszystkie pola wymagane,<br/>nowe hasło 12-128 znaków]
-    bean -- ok --> load[PanelUserServiceImpl.changePassword<br/>dla nazwy z Authentication]
+    initialStart([GET /initial-password-change]) --> initialForm[InitialPasswordChangeController:<br/>pusty InitialPasswordChangeRequest]
+    initialForm --> initialSubmit([POST /initial-password-change])
+    ordinaryStart([GET /change-password]) --> ordinaryForm[PasswordChangeController:<br/>pusty PasswordChangeRequest]
+    ordinaryForm --> ordinarySubmit([POST /change-password])
+
+    initialSubmit --> bean
+    ordinarySubmit --> bean
+    bean{Walidacja adnotacji<br/>NotBlank i Size 12-128?}
+    bean -- błędy --> generic[INVALID_INPUT: wszystkie pola wymagane,<br/>nowe hasło 12-128 znaków]
+    bean -- ok --> load[PanelUserServiceImpl:<br/>wyszukanie konta z Authentication]
     load --> found{Konto nadal<br/>istnieje?}
     found -- nie --> missing([UsernameNotFoundException])
-    found -- tak --> current{PasswordEncoder.matches<br/>aktualne hasło?}
+    found -- tak --> variant{Wariant<br/>żądania}
+
+    variant -- wymuszony --> pending{passwordChangeRequired<br/>nadal ustawione?}
+    pending -- nie --> illegal([IllegalStateException])
+    pending -- tak --> equal
+    variant -- na życzenie --> current{PasswordEncoder.matches<br/>aktualne hasło?}
     current -- nie --> incorrect[CURRENT_PASSWORD_INCORRECT]
+
     current -- tak --> equal{Nowe hasło<br/>= potwierdzenie?}
     equal -- nie --> mismatch[NEW_PASSWORD_MISMATCH]
     equal -- tak --> same{Nowe hasło różne<br/>od aktualnego?}
     same -- nie --> unchanged[NEW_PASSWORD_UNCHANGED]
-    same -- tak --> apply[PanelUser.changePassword:<br/>nowy hash i passwordChangeRequired = false]
+    same -- tak --> kinds{Cyfra, mała litera,<br/>wielka litera i znak specjalny?}
+    kinds -- nie --> weak[NEW_PASSWORD_TOO_WEAK]
+    kinds -- tak --> apply[PanelUser.changePassword:<br/>nowy hash i passwordChangeRequired = false]
     apply --> commit[Zapis w transakcji przez dirty checking]
     commit --> logout[SecurityContextLogoutHandler:<br/>wyczyszczenie kontekstu i unieważnienie sesji]
     logout --> done([Przekierowanie na /login])
+
     incorrect --> render
     mismatch --> render
     unchanged --> render
-    generic --> render[Ponowne wyświetlenie formularza<br/>z komunikatem i pustymi polami]
+    weak --> render
+    generic --> render[Ponowne wyświetlenie formularza z komunikatem<br/>z PasswordChangeResult.messageKey i pustymi polami]

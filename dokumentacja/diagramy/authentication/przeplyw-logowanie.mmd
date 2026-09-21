@@ -26,11 +26,12 @@ sequenceDiagram
             Chain->>Chain: Zmiana identyfikatora sesji (session fixation)
             Chain->>Handler: onAuthenticationSuccess
             alt Uprawnienie PASSWORD_CHANGE_REQUIRED obecne
-                Handler-->>Uzytkownik: Przekierowanie na /change-password
-                Uzytkownik->>Filter: Próba wejścia na inny adres
-                Filter-->>Uzytkownik: Przekierowanie na /change-password
+                Handler-->>Uzytkownik: Przekierowanie na /initial-password-change
+                Uzytkownik->>Filter: Żądanie adresu spoza dozwolonych
+                Note over Filter: Dozwolone: /initial-password-change, /logout<br/>oraz zasoby /css/, /icons/, /img/<br/>Ekran /change-password nie jest dozwolony
+                Filter-->>Uzytkownik: Przekierowanie na /initial-password-change
             else Zwykłe logowanie
-                Handler-->>Uzytkownik: Przekierowanie na zapamiętane żądanie lub stronę główną
+                Handler-->>Uzytkownik: Przekierowanie na zapamiętane żądanie lub stronę główną /
             end
         end
     end

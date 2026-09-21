@@ -3,6 +3,7 @@ package com.github.pplociennik.vdeck.feature.authentication;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
 import com.github.pplociennik.vdeck.feature.authentication.dto.PasswordChangeRequest;
 import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
+import com.github.pplociennik.vdeck.shared.TranslationKeyIf;
 import jakarta.annotation.Nonnull;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,12 +20,27 @@ import org.springframework.web.bind.annotation.PostMapping;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Renders and processes the mandatory first-login password replacement.
+ * Renders and processes a password change requested by a user already working with the panel.
+ * The screen is opened from the action island at any time and asks for the current password, because
+ * the account is not known to be using credentials it never chose. Replacement of the initial password
+ * is a separate flow owned by {@link InitialPasswordChangeController}.
  */
 @Controller
 class PasswordChangeController {
 
     private static final String CHANGE_PASSWORD_VIEW = "authentication/change-password";
+
+    /**
+     * Model attribute holding the form backing object. The controller publishes an empty instance both
+     * when opening the screen and after a failure, so a submitted password is never sent back.
+     */
+    private static final String FORM_ATTRIBUTE = "passwordChangeRequest";
+
+    /**
+     * Model attribute carrying the translation key of the failure message. The controller publishes a
+     * key, not a text, so every user-facing wording stays in the translation files.
+     */
+    private static final String ERROR_KEY_ATTRIBUTE = "passwordChangeErrorKey";
 
     private final PanelUserService panelUserService;
 
@@ -50,7 +66,7 @@ class PasswordChangeController {
     @GetMapping( "/change-password" )
     @Nonnull
     String showPasswordChange( @Nonnull Model model ) {
-        model.addAttribute( "passwordChangeRequest", emptyRequest() );
+        model.addAttribute( FORM_ATTRIBUTE, emptyRequest() );
         return CHANGE_PASSWORD_VIEW;
     }
 
@@ -68,13 +84,13 @@ class PasswordChangeController {
      * @param response
      *         servlet response updated by the logout handler
      * @param model
-     *         MVC model receiving a safe validation message after failure
+     *         MVC model receiving the translation key of a safe validation message after failure
      * @return redirect to login after success, otherwise the password-change template name
      */
     @PostMapping( "/change-password" )
     @Nonnull
     String changePassword(
-            @Valid @ModelAttribute( "passwordChangeRequest" )
+            @Valid @ModelAttribute( FORM_ATTRIBUTE )
             @Nonnull PasswordChangeRequest passwordChangeRequest,
             @Nonnull BindingResult bindingResult,
             @Nonnull Authentication authentication,
@@ -89,32 +105,33 @@ class PasswordChangeController {
         requireNonNull( model, "model must not be null" );
 
         if ( bindingResult.hasErrors() ) {
-            model.addAttribute( "passwordChangeRequest", emptyRequest() );
-            model.addAttribute(
-                    "passwordChangeError", "Every field is required and the new password must contain "
-                            + "between 12 and 128 characters." );
-            return CHANGE_PASSWORD_VIEW;
+            return renderFailure( model, PasswordChangeMessage.INVALID_INPUT );
         }
 
         PasswordChangeResult result = panelUserService.changePassword(
                 authentication.getName(), passwordChangeRequest );
-        if ( result == PasswordChangeResult.SUCCESS ) {
+        if ( result.isSuccessful() ) {
             logoutHandler.logout( request, response, authentication );
             return "redirect:/login";
         }
 
-        model.addAttribute( "passwordChangeRequest", emptyRequest() );
-        model.addAttribute( "passwordChangeError", errorMessage( result ) );
-        return CHANGE_PASSWORD_VIEW;
+        return renderFailure( model, result.messageKey() );
     }
 
-    private @Nonnull String errorMessage( @Nonnull PasswordChangeResult result ) {
-        return switch ( result ) {
-            case CURRENT_PASSWORD_INCORRECT -> "The current password is incorrect.";
-            case NEW_PASSWORD_MISMATCH -> "The new password and confirmation do not match.";
-            case NEW_PASSWORD_UNCHANGED -> "The new password must differ from the current password.";
-            case SUCCESS -> throw new IllegalArgumentException( "A successful result has no error message" );
-        };
+    /**
+     * Redisplays the form with a single failure message and cleared fields, so a submitted password is
+     * never written back into the response.
+     *
+     * @param model
+     *         MVC model receiving the empty form and the message key
+     * @param messageKey
+     *         key of the message to show; a rejected {@link PasswordChangeResult} always carries one
+     * @return password-change template name
+     */
+    private @Nonnull String renderFailure( @Nonnull Model model, @Nonnull TranslationKeyIf messageKey ) {
+        model.addAttribute( FORM_ATTRIBUTE, emptyRequest() );
+        model.addAttribute( ERROR_KEY_ATTRIBUTE, messageKey.getKey() );
+        return CHANGE_PASSWORD_VIEW;
     }
 
     private @Nonnull PasswordChangeRequest emptyRequest() {

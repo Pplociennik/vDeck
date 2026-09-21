@@ -65,13 +65,13 @@ class SecurityFlowIntegrationTest {
 
     /**
      * Verifies that the initialized administrator can authenticate and is routed directly to mandatory
-     * password replacement while using the initial password.
+     * replacement of the initial password while still using it.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request
      */
     @Test
-    void shouldRedirectToPasswordChange_whenInitialAdministratorLogsIn() throws Exception {
+    void shouldRedirectToInitialPasswordChange_whenInitialAdministratorLogsIn() throws Exception {
         // GIVEN
         // the admin/admin account created by DataInitializer
 
@@ -80,7 +80,7 @@ class SecurityFlowIntegrationTest {
 
         // THEN
         result.andExpect( status().is3xxRedirection() )
-                .andExpect( redirectedUrl( "/change-password" ) );
+                .andExpect( redirectedUrl( "/initial-password-change" ) );
     }
 
     /**
@@ -99,50 +99,89 @@ class SecurityFlowIntegrationTest {
 
         // THEN
         result.andExpect( status().is3xxRedirection() )
-                .andExpect( redirectedUrl( "/change-password" ) );
+                .andExpect( redirectedUrl( "/initial-password-change" ) );
     }
 
     /**
-     * Verifies that password replacement requires CSRF protection even for an authenticated first-login session.
+     * Verifies that a first-login session cannot reach the ordinary change screen either, so the
+     * account is never asked for a current password it has never chosen.
      *
      * @throws Exception
      *         if MockMvc cannot execute the requests
      */
     @Test
-    void shouldRejectPasswordChange_whenCsrfTokenIsMissing() throws Exception {
+    void shouldBlockOrdinaryPasswordChange_whenInitialPasswordWasNotReplaced() throws Exception {
         // GIVEN
         MockHttpSession session = loginWithInitialPassword();
 
         // WHEN
-        var result = underTest.perform( post( "/change-password" )
-                .session( session )
-                .param( "currentPassword", "admin" )
-                .param( "newPassword", "replacement-password" )
-                .param( "confirmation", "replacement-password" ) );
+        var result = underTest.perform( get( "/change-password" ).session( session ) );
+
+        // THEN
+        result.andExpect( status().is3xxRedirection() )
+                .andExpect( redirectedUrl( "/initial-password-change" ) );
+    }
+
+    /**
+     * Verifies that an administrator with a password of their own choosing can no longer reach the
+     * screen that replaces a password without verifying the current one.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the requests
+     */
+    @Test
+    void shouldRejectInitialPasswordChange_whenPasswordWasAlreadyReplaced() throws Exception {
+        // GIVEN
+        replaceInitialPassword();
+        MockHttpSession session = loginWithPassword( "Replacement-1" );
+
+        // WHEN
+        var result = underTest.perform( get( "/initial-password-change" ).session( session ) );
 
         // THEN
         result.andExpect( status().isForbidden() );
     }
 
     /**
-     * Verifies that a successful replacement invalidates the first-login session, rejects the initial
-     * password and accepts the new password using normal saved-request routing.
+     * Verifies that initial password replacement requires CSRF protection even for an authenticated
+     * first-login session.
      *
      * @throws Exception
      *         if MockMvc cannot execute the requests
      */
     @Test
-    void shouldRequireNewLoginWithReplacementPassword_whenPasswordChanges() throws Exception {
+    void shouldRejectInitialPasswordChange_whenCsrfTokenIsMissing() throws Exception {
         // GIVEN
         MockHttpSession session = loginWithInitialPassword();
 
         // WHEN
-        var changeResult = underTest.perform( post( "/change-password" )
+        var result = underTest.perform( post( "/initial-password-change" )
+                .session( session )
+                .param( "newPassword", "Replacement-1" )
+                .param( "confirmation", "Replacement-1" ) );
+
+        // THEN
+        result.andExpect( status().isForbidden() );
+    }
+
+    /**
+     * Verifies that a successful initial replacement invalidates the first-login session, rejects the
+     * initial password and accepts the new password using normal saved-request routing.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the requests
+     */
+    @Test
+    void shouldRequireNewLoginWithReplacementPassword_whenInitialPasswordChanges() throws Exception {
+        // GIVEN
+        MockHttpSession session = loginWithInitialPassword();
+
+        // WHEN
+        var changeResult = underTest.perform( post( "/initial-password-change" )
                 .session( session )
                 .with( csrf() )
-                .param( "currentPassword", "admin" )
-                .param( "newPassword", "replacement-password" )
-                .param( "confirmation", "replacement-password" ) );
+                .param( "newPassword", "Replacement-1" )
+                .param( "confirmation", "Replacement-1" ) );
 
         // THEN
         changeResult.andExpect( status().is3xxRedirection() )
@@ -150,9 +189,69 @@ class SecurityFlowIntegrationTest {
         underTest.perform( formLogin().user( "admin" ).password( "admin" ) )
                 .andExpect( status().is3xxRedirection() )
                 .andExpect( redirectedUrl( "/login?error" ) );
-        underTest.perform( formLogin().user( "admin" ).password( "replacement-password" ) )
+        underTest.perform( formLogin().user( "admin" ).password( "Replacement-1" ) )
                 .andExpect( status().is3xxRedirection() )
                 .andExpect( redirectedUrl( "/" ) );
+    }
+
+    /**
+     * Verifies that an administrator who already works with the panel can change the password from the
+     * island, has to prove the current one and is logged out afterwards.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the requests
+     */
+    @Test
+    void shouldRequireCurrentPassword_whenPasswordIsChangedFromTheIsland() throws Exception {
+        // GIVEN
+        replaceInitialPassword();
+        MockHttpSession session = loginWithPassword( "Replacement-1" );
+
+        // WHEN
+        var rejectedResult = underTest.perform( post( "/change-password" )
+                .session( session )
+                .with( csrf() )
+                .param( "currentPassword", "wrong-password" )
+                .param( "newPassword", "Replacement-2" )
+                .param( "confirmation", "Replacement-2" ) );
+
+        // THEN
+        rejectedResult.andExpect( status().isOk() );
+        underTest.perform( post( "/change-password" )
+                        .session( session )
+                        .with( csrf() )
+                        .param( "currentPassword", "Replacement-1" )
+                        .param( "newPassword", "Replacement-2" )
+                        .param( "confirmation", "Replacement-2" ) )
+                .andExpect( status().is3xxRedirection() )
+                .andExpect( redirectedUrl( "/login" ) );
+        underTest.perform( formLogin().user( "admin" ).password( "Replacement-2" ) )
+                .andExpect( status().is3xxRedirection() )
+                .andExpect( redirectedUrl( "/" ) );
+    }
+
+    /**
+     * Verifies that the island logout button reaches Spring Security's default logout, which ends the
+     * server-side session instead of only clearing the browser view.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the requests
+     */
+    @Test
+    void shouldEndSession_whenLogoutIsSubmitted() throws Exception {
+        // GIVEN
+        replaceInitialPassword();
+        MockHttpSession session = loginWithPassword( "Replacement-1" );
+
+        // WHEN
+        var result = underTest.perform( post( "/logout" ).session( session ).with( csrf() ) );
+
+        // THEN
+        result.andExpect( status().is3xxRedirection() )
+                .andExpect( redirectedUrl( "/login?logout" ) );
+        underTest.perform( get( "/" ).session( session ) )
+                .andExpect( status().is3xxRedirection() )
+                .andExpect( redirectedUrl( "/login" ) );
     }
 
     /**
@@ -165,10 +264,10 @@ class SecurityFlowIntegrationTest {
     void shouldExpirePreviousSession_whenAdministratorLogsInAgain() throws Exception {
         // GIVEN
         replaceInitialPassword();
-        MockHttpSession firstSession = loginWithPassword( "replacement-password" );
+        MockHttpSession firstSession = loginWithPassword( "Replacement-1" );
 
         // WHEN
-        MockHttpSession secondSession = loginWithPassword( "replacement-password" );
+        MockHttpSession secondSession = loginWithPassword( "Replacement-1" );
 
         // THEN
         underTest.perform( get( "/servers" ).session( firstSession ) )
@@ -208,12 +307,11 @@ class SecurityFlowIntegrationTest {
 
     private void replaceInitialPassword() throws Exception {
         MockHttpSession initialSession = loginWithInitialPassword();
-        underTest.perform( post( "/change-password" )
+        underTest.perform( post( "/initial-password-change" )
                         .session( initialSession )
                         .with( csrf() )
-                        .param( "currentPassword", "admin" )
-                        .param( "newPassword", "replacement-password" )
-                        .param( "confirmation", "replacement-password" ) )
+                        .param( "newPassword", "Replacement-1" )
+                        .param( "confirmation", "Replacement-1" ) )
                 .andExpect( status().is3xxRedirection() )
                 .andExpect( redirectedUrl( "/login" ) );
     }

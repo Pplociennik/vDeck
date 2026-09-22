@@ -19,6 +19,18 @@ pierwszeństwa opisana w [`rules/README.md`](rules/README.md).
   przewija się **wskazany obszar wewnętrzny**, a nie strona; obszar ten jest jawnie wyznaczony w CSS
   i nigdy nie chowa akcji poza zasięgiem użytkownika. Wyśrodkowanie w pionie nie może obcinać
   początku treści.
+- Wygląd i układ panelu — rama, tekstura, sekcje, opisy pól z dozwolonymi wartościami, układ
+  kolumnowy na ekranach poziomych, domyślnie ukryta sekcja „Zaawansowane” z zapamiętywaną
+  widocznością oraz wyśrodkowany komunikat i przycisk zapisu — ustala
+  [`AD-012`](architectural_decisions.md); poniższe reguły go uzupełniają.
+- **Każdy panel jest osadzony w ramie `.panel-frame` o stałej wysokości** (token
+  `--panel-frame-block-size`, obecnie 70 % wysokości widoku), wyśrodkowanej w miejscu pod wyspą, tak
+  aby nad panelem i pod nim zostało wolne miejsce. Wszystkie panele mają więc tę samą wysokość,
+  niezależnie od ilości treści. Karta panelu wypełnia ramę i przewija swoją treść wewnątrz; gdy
+  widok jest niższy niż rama, rama kurczy się do dostępnego miejsca zamiast przewijać stronę.
+- W panelu „Ustawienia gry” stopka z przyciskiem zapisu zajmuje dół karty także po ukryciu sekcji
+  zaawansowanej. Gdy formularz przekracza wysokość karty, stopka pozostaje za polami i jest dostępna
+  przez przewijanie wewnątrz panelu.
 - **Każda zmiana UI musi wyglądać i działać dobrze na smartfonie i tablecie.** Obowiązuje w
   szczególności:
   - projektujemy od najwęższego ekranu w górę; punkty przełamania dodajemy tam, gdzie układ

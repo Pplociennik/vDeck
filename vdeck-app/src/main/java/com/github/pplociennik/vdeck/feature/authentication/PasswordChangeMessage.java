@@ -9,7 +9,8 @@ import static java.util.Objects.requireNonNull;
  * Closed set of messages a password replacement screen can show to the user.
  * Every constant carries only the translation key, so the wording stays in the translation files and
  * no component builds a user-facing text itself. A rejected password change carries the matching
- * constant inside its result, so both password-change screens describe the same outcome identically.
+ * constant inside its {@code PasswordChangeException}, so both password-change screens describe the same
+ * outcome identically.
  */
 public enum PasswordChangeMessage implements TranslationKeyIf {
 

@@ -1,0 +1,27 @@
+%% Diagram sekwencji: pokazywanie i ukrywanie sekcji „Zaawansowane” na ekranie „Ustawienia gry”
+sequenceDiagram
+    autonumber
+    actor A as Administrator
+    participant B as Przeglądarka<br/>(game-settings.js)
+    participant C as GameSettingsController
+    participant D as GameSettingsDisplayServiceImpl
+    participant F as SystemPropertiesService<br/>(vDeck.properties)
+    participant H as DefaultExceptionHandler
+
+    A->>C: GET /game-settings
+    C->>D: isAdvancedShown()
+    D->>F: getValue(FILE_NAME, panel.game.settings.advanced)
+    F-->>D: true albo false
+    D-->>C: widoczność sekcji
+    C-->>A: ekran z polem wyboru zaznaczonym<br/>albo nie i sekcją widoczną albo hidden
+    A->>B: kliknięcie „Konfiguracja zaawansowana”
+    B->>B: section.hidden = !checked
+    B->>C: POST /game-settings/advanced<br/>(shown + CSRF z formularza)
+    C->>D: setAdvancedShown(shown)
+    D->>F: setValue(FILE_NAME, panel.game.settings.advanced)
+    alt zapis udany
+        C-->>B: 204 No Content
+    else zapis nieudany
+        F-)H: UncheckedIOException<br/>(nieprzechwycony w serwisie i kontrolerze)
+        H-->>B: WARN ze stack trace, 500 — sekcja zostaje<br/>przełączona, kolejna wizyta pokaże stan zapisany
+    end

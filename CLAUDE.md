@@ -12,9 +12,13 @@ vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2
   infrastructure and the first implemented features: panel authentication (persisted admin account,
   Spring Security's generated login page, and two separate password screens — the forced
   `/initial-password-change` that asks for no current password and the on-demand `/change-password`
-  that does) plus a `home` feature serving `/` with the action island only. Views with navigation
-  also embed the markup-only side menu (`templates/common/side-menu.html` + `static/js/side-menu.js`,
-  the app's only ES module so far).
+  that does) plus a `home` feature serving `/` with the action island only, and a `launch` feature
+  whose two screens — `/server-settings` ("Serwer") and `/game-settings` ("Ustawienia gry", with a
+  hidden-by-default "Zaawansowane" section whose visibility is remembered in `vDeck.properties`) —
+  edit the Valheim launch profile stored in `valheim-server.properties`; it only stores the profile,
+  nothing launches the server yet. Views with navigation also embed the markup-only side menu
+  (`templates/common/side-menu.html` + `static/js/side-menu.js`); `static/js/game-settings.js` is the
+  only other ES module.
 
 Only packages holding real code exist; the rest of the `design.md` §3 tree is created when
 its feature is implemented. Do not infer missing architecture from the incomplete package layout.
@@ -53,10 +57,19 @@ Configuration is split by owner (see `AD-002`):
 
 - `application.yaml` inside the jar — Spring Boot infrastructure only (datasource, ports, log levels).
   Not user-editable.
-- `vDeck.properties` next to `vdeck.jar` — the panel's own user-editable settings, described by an
-  enum implementing `shared.SystemPropertyIf` and served by
-  `shared.service.SystemPropertiesService` (one instance per file). Created with defaults on first
-  start; missing keys are restored on the next start.
+- User-editable `.properties` files, **all** in `<installation>/.vDeck/config/` (`AD-010`), never
+  directly next to `vdeck.jar`: `vDeck.properties` (the panel's own settings) and
+  `valheim-server.properties` (the Valheim launch profile, `AD-011`). Each file is described by an
+  enum implementing `shared.SystemPropertyIf` (key + `isMandatory()`, set through the enum
+  constructor). A single `shared.service.SystemPropertiesService` bean serves every file (`AD-013`):
+  each call takes the file name (the enum's `FILE_NAME`), and `config.SystemPropertiesInitializer`
+  loads every file with `loadFile(fileName, defaults)` at startup, so a new file is registered there.
+  Sets of values (defaults, batch writes) are passed as `shared.SystemPropertyValues`, built per call
+  with `SystemPropertyValues.create().with(property, value)`, never as a raw `Map`. Typed values are
+  read through the static `shared.PropertyReader` (`read`, `readInt`, `readBoolean`, `readOptional`),
+  which takes the service, file name, setting and fallback, instead of per-service read helpers.
+  Resolve a file only through `PathService.getConfigurationFile(fileName)`. Created with defaults (and the directory) on first
+  start; missing keys are restored on the next start; an optional setting may be empty.
 
 Interface texts are not a configuration channel (see `AD-009`): the panel is Polish-only and its
 texts live in `vdeck-app/src/main/resources/messages.properties`, read from the classpath by Spring
@@ -74,6 +87,21 @@ normalized, and after resolution must stay inside the installation directory.
 **Running from an IDE or via `spring-boot:run` requires `-Dvdeck.server-directory=<dir>`.**
 Without it `ApplicationHome.getDir()` resolves to `vdeck-app/target/classes`, so the settings file
 would be written into a directory devtools watches, causing a restart loop.
+
+## Exception handling
+
+Web-layer errors follow `AD-014`. Every main process of a feature ends a rejection **and** a failure with
+one process exception in the feature's `exc` package (`LaunchProfileUpdateException`,
+`PasswordChangeException`) carrying a `TranslationKeyIf` enum constant and, for a failure, the cause.
+Services return no result objects and controllers do not catch; an annotation-validation failure is
+thrown as the same process exception. The feature's `@ControllerAdvice` (in the feature root, limited
+by `assignableTypes`, `@Order( Ordered.HIGHEST_PRECEDENCE )`) logs once and redirects back to the
+submitted screen with the message key (and the form without secrets) as flash attributes; the GET
+handler adds the stored form only when the model holds no flashed one. Every other exception goes to
+`shared.web.DefaultExceptionHandler`, which logs every `RuntimeException` at `WARN` and sends `500`.
+A `catch` is only allowed where it changes the
+meaning of the error (translation to a process exception, checked-to-unchecked, rollback, cleanup,
+documented fallback value).
 
 ## Required design context
 

@@ -2,10 +2,9 @@ package com.github.pplociennik.vdeck.feature.authentication.service.impl;
 
 import com.github.pplociennik.vdeck.feature.authentication.PasswordChangeMessage;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelUser;
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeStatus;
 import com.github.pplociennik.vdeck.feature.authentication.dto.InitialPasswordChangeRequest;
 import com.github.pplociennik.vdeck.feature.authentication.dto.PasswordChangeRequest;
+import com.github.pplociennik.vdeck.feature.authentication.exc.PasswordChangeException;
 import com.github.pplociennik.vdeck.feature.authentication.persistence.UserRepository;
 import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
 import jakarta.annotation.Nonnull;
@@ -78,13 +77,14 @@ class PanelUserServiceImpl implements PanelUserService {
      *         authenticated login name whose password is being changed
      * @param passwordChangeRequest
      *         validated current password, requested replacement and confirmation
-     * @return expected result of validation and password replacement
+     * @throws PasswordChangeException
+     *         if a check rejects the replacement; the stored password is unchanged
      * @throws UsernameNotFoundException
      *         if the authenticated account no longer exists
      */
     @Override
     @Transactional
-    public @Nonnull PasswordChangeResult changePassword(
+    public void changePassword(
             @Nonnull String username, @Nonnull PasswordChangeRequest passwordChangeRequest ) {
         requireNonNull( username, "username must not be null" );
         requireNonNull( passwordChangeRequest, "passwordChangeRequest must not be null" );
@@ -92,16 +92,11 @@ class PanelUserServiceImpl implements PanelUserService {
 
         String currentPassword = passwordChangeRequest.currentPassword();
         if ( currentPassword == null || !passwordEncoder.matches( currentPassword, panelUser.getPasswordHash() ) ) {
-            return rejected( PasswordChangeStatus.CURRENT_PASSWORD_INCORRECT,
-                    PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT );
+            throw new PasswordChangeException( PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT );
         }
 
-        PasswordChangeResult result = applyNewPassword(
-                panelUser, passwordChangeRequest.newPassword(), passwordChangeRequest.confirmation() );
-        if ( result.isSuccessful() ) {
-            log.info( "Panel user password was changed on the user's request" );
-        }
-        return result;
+        applyNewPassword( panelUser, passwordChangeRequest.newPassword(), passwordChangeRequest.confirmation() );
+        log.info( "Panel user password was changed on the user's request" );
     }
 
     /**
@@ -114,8 +109,9 @@ class PanelUserServiceImpl implements PanelUserService {
      *         authenticated login name whose initial password is being replaced
      * @param initialPasswordChangeRequest
      *         validated requested replacement and its confirmation
-     * @return expected result of validation and password replacement, never
-     *         {@link PasswordChangeResult#CURRENT_PASSWORD_INCORRECT}
+     * @throws PasswordChangeException
+     *         if a check rejects the replacement, never with
+     *         {@link PasswordChangeMessage#CURRENT_PASSWORD_INCORRECT}; the stored password is unchanged
      * @throws UsernameNotFoundException
      *         if the authenticated account no longer exists
      * @throws IllegalStateException
@@ -125,7 +121,7 @@ class PanelUserServiceImpl implements PanelUserService {
      */
     @Override
     @Transactional
-    public @Nonnull PasswordChangeResult changeInitialPassword(
+    public void changeInitialPassword(
             @Nonnull String username, @Nonnull InitialPasswordChangeRequest initialPasswordChangeRequest ) {
         requireNonNull( username, "username must not be null" );
         requireNonNull( initialPasswordChangeRequest, "initialPasswordChangeRequest must not be null" );
@@ -134,12 +130,9 @@ class PanelUserServiceImpl implements PanelUserService {
             throw new IllegalStateException( "Initial password replacement is not pending for this account" );
         }
 
-        PasswordChangeResult result = applyNewPassword(
+        applyNewPassword(
                 panelUser, initialPasswordChangeRequest.newPassword(), initialPasswordChangeRequest.confirmation() );
-        if ( result.isSuccessful() ) {
-            log.info( "Initial panel user password was replaced and the first-login restriction was removed" );
-        }
-        return result;
+        log.info( "Initial panel user password was replaced and the first-login restriction was removed" );
     }
 
     /**
@@ -152,40 +145,22 @@ class PanelUserServiceImpl implements PanelUserService {
      *         requested plaintext replacement, possibly {@code null} when the form was incomplete
      * @param confirmation
      *         repeated plaintext replacement, possibly {@code null} when the form was incomplete
-     * @return first failed check, or {@link PasswordChangeResult#SUCCESS} when the password was replaced
+     * @throws PasswordChangeException
+     *         carrying the first failed check; nothing was persisted
      */
-    private @Nonnull PasswordChangeResult applyNewPassword( @Nonnull PanelUser panelUser,
-                                                            @Nullable String newPassword,
-                                                            @Nullable String confirmation ) {
+    private void applyNewPassword( @Nonnull PanelUser panelUser, @Nullable String newPassword,
+                                   @Nullable String confirmation ) {
         if ( newPassword == null || !newPassword.equals( confirmation ) ) {
-            return rejected( PasswordChangeStatus.NEW_PASSWORD_MISMATCH, PasswordChangeMessage.NEW_PASSWORD_MISMATCH );
+            throw new PasswordChangeException( PasswordChangeMessage.NEW_PASSWORD_MISMATCH );
         }
         if ( passwordEncoder.matches( newPassword, panelUser.getPasswordHash() ) ) {
-            return rejected( PasswordChangeStatus.NEW_PASSWORD_UNCHANGED,
-                    PasswordChangeMessage.NEW_PASSWORD_UNCHANGED );
+            throw new PasswordChangeException( PasswordChangeMessage.NEW_PASSWORD_UNCHANGED );
         }
         if ( !containsRequiredCharacterKinds( newPassword ) ) {
-            return rejected( PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK, PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK );
+            throw new PasswordChangeException( PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK );
         }
 
         panelUser.changePassword( passwordEncoder.encode( newPassword ) );
-        return PasswordChangeResult.success();
-    }
-
-    /**
-     * Builds a rejected result and records the decision at {@code DEBUG}, so a refused change can be
-     * traced without exposing any password value.
-     *
-     * @param status
-     *         check that failed
-     * @param messageKey
-     *         translation key of the message explaining the rejection to the user
-     * @return rejected result carrying its own message key
-     */
-    private @Nonnull PasswordChangeResult rejected( @Nonnull PasswordChangeStatus status,
-                                                    @Nonnull PasswordChangeMessage messageKey ) {
-        log.debug( "Panel user password change was rejected: {}", status );
-        return PasswordChangeResult.rejected( status, messageKey );
     }
 
     /**

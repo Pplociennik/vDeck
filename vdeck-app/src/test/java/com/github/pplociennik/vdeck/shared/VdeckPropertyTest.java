@@ -53,6 +53,25 @@ class VdeckPropertyTest {
         // THEN
         assertThat( name ).isEqualTo( "game.log.directory" );
         assertThat( underTest.getDefaultValue() ).isEqualTo( "vdeck-logs" );
+        assertThat( underTest.isMandatory() ).isTrue();
+    }
+
+    /**
+     * Verifies that the remembered visibility of the advanced game settings starts hidden and is always
+     * present in the file.
+     */
+    @Test
+    void shouldExposeHiddenDefault_whenGameSettingsAdvancedIsDeclared() {
+        // GIVEN
+        VdeckProperty property = VdeckProperty.GAME_SETTINGS_ADVANCED;
+
+        // WHEN
+        String name = property.getName();
+
+        // THEN
+        assertThat( name ).isEqualTo( "panel.game.settings.advanced" );
+        assertThat( property.getDefaultValue() ).isEqualTo( "false" );
+        assertThat( property.isMandatory() ).isTrue();
     }
 
     /**
@@ -71,11 +90,15 @@ class VdeckPropertyTest {
     }
 
     /**
-     * Verifies that every declared setting carries a usable key and default value.
+     * Verifies that every declared setting carries a usable key, and that a mandatory setting also
+     * carries a usable default value.
+     *
+     * @param property
+     *         declared setting
      */
     @ParameterizedTest( name = "[{index}] property={0}" )
     @EnumSource( VdeckProperty.class )
-    void shouldExposeNonBlankNameAndDefault_whenPropertyIsDeclared( VdeckProperty property ) {
+    void shouldExposeNonBlankNameAndMandatoryDefault_whenPropertyIsDeclared( VdeckProperty property ) {
         // GIVEN
         // a declared setting
 
@@ -84,7 +107,9 @@ class VdeckPropertyTest {
 
         // THEN
         assertThat( name ).isNotBlank();
-        assertThat( property.getDefaultValue() ).isNotBlank();
+        if ( property.isMandatory() ) {
+            assertThat( property.getDefaultValue() ).isNotBlank();
+        }
     }
 
     /**
@@ -97,7 +122,7 @@ class VdeckPropertyTest {
         // the declared settings
 
         // WHEN
-        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults();
+        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults().asMap();
 
         // THEN
         assertThat( defaults ).containsOnlyKeys( VdeckProperty.values() );
@@ -105,12 +130,12 @@ class VdeckPropertyTest {
     }
 
     /**
-     * Verifies that the default value set cannot be modified by a caller.
+     * Verifies that the entries of the default value set cannot be modified through their map view.
      */
     @Test
     void shouldRejectModification_whenDefaultsAreCreated() {
         // GIVEN
-        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults();
+        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults().asMap();
 
         // WHEN
         Throwable thrown = catchThrowable( () -> defaults.put( underTest, "other" ) );

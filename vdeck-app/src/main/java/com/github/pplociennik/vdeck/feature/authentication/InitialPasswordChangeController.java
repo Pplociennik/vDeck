@@ -1,9 +1,8 @@
 package com.github.pplociennik.vdeck.feature.authentication;
 
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
 import com.github.pplociennik.vdeck.feature.authentication.dto.InitialPasswordChangeRequest;
+import com.github.pplociennik.vdeck.feature.authentication.exc.PasswordChangeException;
 import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
-import com.github.pplociennik.vdeck.shared.TranslationKeyIf;
 import jakarta.annotation.Nonnull;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -37,12 +36,6 @@ class InitialPasswordChangeController {
      * when opening the screen and after a failure, so a submitted password is never sent back.
      */
     private static final String FORM_ATTRIBUTE = "initialPasswordChangeRequest";
-
-    /**
-     * Model attribute carrying the translation key of the failure message. The controller publishes a
-     * key, not a text, so every user-facing wording stays in the translation files.
-     */
-    private static final String ERROR_KEY_ATTRIBUTE = "passwordChangeErrorKey";
 
     private final PanelUserService panelUserService;
 
@@ -86,9 +79,10 @@ class InitialPasswordChangeController {
      *         servlet request whose session is invalidated after success
      * @param response
      *         servlet response updated by the logout handler
-     * @param model
-     *         MVC model receiving the translation key of a safe validation message after failure
-     * @return redirect to login after success, otherwise the initial-password replacement template name
+     * @return redirect to login after success
+     * @throws PasswordChangeException
+     *         if the fields fail annotation validation or a check rejects the replacement; the advice
+     *         answers it by redirecting back to this screen with the message
      */
     @PostMapping( "/initial-password-change" )
     @Nonnull
@@ -98,43 +92,20 @@ class InitialPasswordChangeController {
             @Nonnull BindingResult bindingResult,
             @Nonnull Authentication authentication,
             @Nonnull HttpServletRequest request,
-            @Nonnull HttpServletResponse response,
-            @Nonnull Model model ) {
+            @Nonnull HttpServletResponse response ) {
         requireNonNull( initialPasswordChangeRequest, "initialPasswordChangeRequest must not be null" );
         requireNonNull( bindingResult, "bindingResult must not be null" );
         requireNonNull( authentication, "authentication must not be null" );
         requireNonNull( request, "request must not be null" );
         requireNonNull( response, "response must not be null" );
-        requireNonNull( model, "model must not be null" );
 
         if ( bindingResult.hasErrors() ) {
-            return renderFailure( model, PasswordChangeMessage.INVALID_INPUT );
+            throw new PasswordChangeException( PasswordChangeMessage.INVALID_INPUT );
         }
 
-        PasswordChangeResult result = panelUserService.changeInitialPassword(
-                authentication.getName(), initialPasswordChangeRequest );
-        if ( result.isSuccessful() ) {
-            logoutHandler.logout( request, response, authentication );
-            return "redirect:/login";
-        }
-
-        return renderFailure( model, result.messageKey() );
-    }
-
-    /**
-     * Redisplays the form with a single failure message and cleared fields, so a submitted password is
-     * never written back into the response.
-     *
-     * @param model
-     *         MVC model receiving the empty form and the message key
-     * @param messageKey
-     *         key of the message to show; a rejected {@link PasswordChangeResult} always carries one
-     * @return initial-password replacement template name
-     */
-    private @Nonnull String renderFailure( @Nonnull Model model, @Nonnull TranslationKeyIf messageKey ) {
-        model.addAttribute( FORM_ATTRIBUTE, emptyRequest() );
-        model.addAttribute( ERROR_KEY_ATTRIBUTE, messageKey.getKey() );
-        return INITIAL_PASSWORD_CHANGE_VIEW;
+        panelUserService.changeInitialPassword( authentication.getName(), initialPasswordChangeRequest );
+        logoutHandler.logout( request, response, authentication );
+        return "redirect:/login";
     }
 
     private @Nonnull InitialPasswordChangeRequest emptyRequest() {

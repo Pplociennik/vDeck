@@ -3,10 +3,9 @@ package com.github.pplociennik.vdeck.feature.authentication.service.impl;
 import com.github.pplociennik.vdeck.feature.authentication.PasswordChangeMessage;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelRole;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelUser;
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeStatus;
 import com.github.pplociennik.vdeck.feature.authentication.dto.InitialPasswordChangeRequest;
 import com.github.pplociennik.vdeck.feature.authentication.dto.PasswordChangeRequest;
+import com.github.pplociennik.vdeck.feature.authentication.exc.PasswordChangeException;
 import com.github.pplociennik.vdeck.feature.authentication.persistence.UserRepository;
 import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
 import org.junit.jupiter.api.BeforeEach;
@@ -133,10 +132,9 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.encode( request.newPassword() ) ).willReturn( "{bcrypt}replacement" );
 
         // WHEN
-        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+        underTest.changePassword( USERNAME, request );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.success() );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( "{bcrypt}replacement" );
         assertThat( panelUser.isPasswordChangeRequired() ).isFalse();
     }
@@ -153,11 +151,12 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.matches( request.currentPassword(), CURRENT_HASH ) ).willReturn( false );
 
         // WHEN
-        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changePassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.CURRENT_PASSWORD_INCORRECT, PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
     }
 
@@ -174,11 +173,12 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.matches( request.currentPassword(), CURRENT_HASH ) ).willReturn( true );
 
         // WHEN
-        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changePassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.NEW_PASSWORD_MISMATCH, PasswordChangeMessage.NEW_PASSWORD_MISMATCH ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_MISMATCH ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
     }
 
@@ -196,11 +196,12 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.matches( request.newPassword(), CURRENT_HASH ) ).willReturn( true );
 
         // WHEN
-        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changePassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.NEW_PASSWORD_UNCHANGED, PasswordChangeMessage.NEW_PASSWORD_UNCHANGED ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_UNCHANGED ) );
         assertThat( panelUser.isPasswordChangeRequired() ).isTrue();
     }
 
@@ -222,11 +223,12 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.matches( weakPassword, CURRENT_HASH ) ).willReturn( false );
 
         // WHEN
-        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changePassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK, PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
         assertThat( panelUser.isPasswordChangeRequired() ).isTrue();
     }
@@ -246,11 +248,12 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.matches( spacedPassword, CURRENT_HASH ) ).willReturn( false );
 
         // WHEN
-        PasswordChangeResult result = underTest.changePassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changePassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK, PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
     }
 
@@ -268,10 +271,9 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.encode( request.newPassword() ) ).willReturn( "{bcrypt}replacement" );
 
         // WHEN
-        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+        underTest.changeInitialPassword( USERNAME, request );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.success() );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( "{bcrypt}replacement" );
         assertThat( panelUser.isPasswordChangeRequired() ).isFalse();
     }
@@ -288,11 +290,12 @@ class PanelUserServiceImplTest {
         given( userRepository.findById( USERNAME ) ).willReturn( Optional.of( panelUser ) );
 
         // WHEN
-        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changeInitialPassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.NEW_PASSWORD_MISMATCH, PasswordChangeMessage.NEW_PASSWORD_MISMATCH ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_MISMATCH ) );
         assertThat( panelUser.isPasswordChangeRequired() ).isTrue();
     }
 
@@ -308,11 +311,12 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.matches( request.newPassword(), CURRENT_HASH ) ).willReturn( true );
 
         // WHEN
-        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changeInitialPassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.NEW_PASSWORD_UNCHANGED, PasswordChangeMessage.NEW_PASSWORD_UNCHANGED ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_UNCHANGED ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
     }
 
@@ -329,11 +333,12 @@ class PanelUserServiceImplTest {
         given( passwordEncoder.matches( weakPassword, CURRENT_HASH ) ).willReturn( false );
 
         // WHEN
-        PasswordChangeResult result = underTest.changeInitialPassword( USERNAME, request );
+        Throwable thrown = catchThrowable( () -> underTest.changeInitialPassword( USERNAME, request ) );
 
         // THEN
-        assertThat( result ).isEqualTo( PasswordChangeResult.rejected(
-                PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK, PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
         assertThat( panelUser.getPasswordHash() ).isEqualTo( CURRENT_HASH );
     }
 

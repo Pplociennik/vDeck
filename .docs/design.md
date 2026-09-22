@@ -1,6 +1,6 @@
 ﻿# vDeck — główne założenia projektowe
 
-> Data: 2026-08-17 · Aktualizacja: 2026-08-19 · Status: żywy opis uzgodnionej architektury
+> Data: 2026-08-17 · Aktualizacja: 2026-09-21 · Status: żywy opis uzgodnionej architektury
 
 vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim. Aplikacja jest
 dystrybuowana razem z instalacją serwera, uruchamiana lokalnie, a następnie obsługiwana z poziomu
@@ -166,20 +166,21 @@ vdeck/                                           ← parent i agregator Maven
         │   │   ├── DataInitializer
         │   │   ├── PathConfiguration
         │   │   ├── SecurityConfiguration
-        │   │   └── SystemPropertiesConfiguration
+        │   │   └── SystemPropertiesInitializer
         │   ├── feature/                         ← pionowe funkcjonalności aplikacji
         │   │   ├── authentication/              ← konta panelu i zmiana hasła
         │   │   │   ├── PasswordChangeController
         │   │   │   ├── InitialPasswordChangeController
+        │   │   │   ├── PasswordChangeExceptionHandler ← @ControllerAdvice obu ekranów hasła
         │   │   │   ├── PasswordChangeMessage
         │   │   │   ├── domain/
         │   │   │   │   ├── PanelUser
-        │   │   │   │   ├── PanelRole
-        │   │   │   │   ├── PasswordChangeStatus
-        │   │   │   │   └── PasswordChangeResult
+        │   │   │   │   └── PanelRole
         │   │   │   ├── dto/
         │   │   │   │   ├── PasswordChangeRequest
         │   │   │   │   └── InitialPasswordChangeRequest
+        │   │   │   ├── exc/
+        │   │   │   │   └── PasswordChangeException
         │   │   │   ├── persistence/
         │   │   │   │   └── UserRepository
         │   │   │   └── service/
@@ -195,15 +196,28 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │       ├── ServerService
         │   │   │       └── impl/
         │   │   │           └── ServerServiceImpl
-        │   │   ├── launch/                      ← profil uruchomieniowy
-        │   │   │   ├── LaunchProfileController
+        │   │   ├── launch/                      ← profil uruchomieniowy (plik, AD-011)
+        │   │   │   ├── ServerSettingsController ← ekran „Serwer”
+        │   │   │   ├── GameSettingsController   ← ekran „Ustawienia gry”
+        │   │   │   ├── LaunchProfileExceptionHandler ← @ControllerAdvice obu ekranów
+        │   │   │   ├── LaunchProfileMessage
         │   │   │   ├── domain/
-        │   │   │   │   └── LaunchProfile
-        │   │   │   ├── persistence/
+        │   │   │   │   ├── LaunchProperty
+        │   │   │   │   ├── LaunchProfile
+        │   │   │   │   ├── WorldPreset
+        │   │   │   │   ├── WorldModifier
+        │   │   │   │   └── WorldKey
+        │   │   │   ├── dto/
+        │   │   │   │   ├── ServerSettingsForm
+        │   │   │   │   └── GameSettingsForm
+        │   │   │   ├── exc/
+        │   │   │   │   └── LaunchProfileUpdateException
         │   │   │   └── service/
         │   │   │       ├── LaunchProfileService
+        │   │   │       ├── GameSettingsDisplayService
         │   │   │       └── impl/
-        │   │   │           └── LaunchProfileServiceImpl
+        │   │   │           ├── LaunchProfileServiceImpl
+        │   │   │           └── GameSettingsDisplayServiceImpl
         │   │   ├── world/                       ← światy, wybór, import i eksport
         │   │   │   ├── WorldController
         │   │   │   ├── domain/
@@ -248,27 +262,36 @@ vdeck/                                           ← parent i agregator Maven
         │   │   └── PasswordChangeAuthenticationSuccessHandler
         │   ├── persistence/                    ← wspólna konfiguracja JPA i SQLite
         │   └── shared/                          ← wyłącznie elementy faktycznie współdzielone
+        │       ├── PropertyReader               ← statyczny odczyt wartości typowanych
         │       ├── SystemPropertyIf
+        │       ├── SystemPropertyValues
         │       ├── VdeckProperty
         │       ├── exc/
+        │       ├── web/
+        │       │   └── DefaultExceptionHandler  ← domyślna obsługa wyjątków (AD-014)
         │       └── service/
         │           ├── PathService
         │           ├── SystemPropertiesService
         │           └── impl/
         │               ├── PathServiceImpl
+        │               ├── PropertiesFile
         │               └── SystemPropertiesServiceImpl
         ├── main/resources/
         │   ├── application.yaml
         │   ├── messages.properties              ← polski zestaw tekstów interfejsu
         │   ├── templates/
-        │   │   ├── common/                      ← reużywalne komponenty: island.html, password-rules.html
+        │   │   ├── common/                      ← reużywalne komponenty: island, password-rules, side-menu
         │   │   ├── home/
         │   │   │   └── index.html
+        │   │   ├── launch/
+        │   │   │   ├── server-settings.html
+        │   │   │   └── game-settings.html
         │   │   └── authentication/
         │   │       ├── change-password.html
         │   │       └── initial-password-change.html
         │   └── static/
         │       ├── css/                         ← variables.css + arkusze
+        │       ├── js/                          ← moduły ES: side-menu.js, game-settings.js
         │       ├── icons/                       ← icons.svg (jeden sprite)
         │       └── img/                         ← tekstury interfejsu
         └── test/java/…                          ← testy funkcji i granic ArchUnit
@@ -296,9 +319,9 @@ między feature’ami nadal są pilnowane przez ArchUnit i komunikację przez se
 
 Główny pakiet `config` jest composition rootem Springa oraz właścicielem przekrojowej inicjalizacji
 danych podczas startu aplikacji. Wszystkie klasy `@Configuration`, w tym
-`SecurityConfiguration`, `PathConfiguration` i `SystemPropertiesConfiguration`, znajdują się właśnie
-w `config`. `DataInitializer` również pozostaje w `config`, nawet gdy korzysta z repozytorium
-`feature.authentication`. Konfigurowane filtry i handlery nadal należą do głównego `security`, a
+`SecurityConfiguration` i `PathConfiguration`, znajdują się właśnie w `config`. `DataInitializer` i
+`SystemPropertiesInitializer` również pozostają w `config`, nawet gdy korzystają z repozytorium albo
+typów feature'a. Konfigurowane filtry i handlery nadal należą do głównego `security`, a
 implementacje serwisów do `service.impl` swojego właściciela. Mechanizm właściwości systemowych,
 podobnie jak rozwiązywanie ścieżek względem katalogu instalacji, należy do `shared`; jego serwisy są
 udostępniane przez interfejsy w `shared.service` i nie są powielane w feature’ach.
@@ -306,6 +329,14 @@ udostępniane przez interfejsy w `shared.service` i nie są powielane w feature�
 Własne typy wyjątków umieszczamy w podpakiecie `exc` pakietu, który jest ich właścicielem, np.
 `shared/exc`. Nie tworzymy jednego globalnego pakietu wyjątków dla całej aplikacji, ponieważ
 przecinałby granice feature’ów.
+
+Obsługę wyjątków warstwy webowej określa `AD-014`. Każdy główny proces feature'a kończy się przy
+odrzuceniu i przy niepowodzeniu jednym „dużym” wyjątkiem procesu z `exc` tego feature'a, niosącym
+klucz komunikatu oraz — przy niepowodzeniu — przyczynę. Serwisy nie zwracają obiektów wyniku, a
+kontrolery nie przechwytują wyjątków. Wyjątek procesu obsługuje `@ControllerAdvice` w korzeniu
+feature'a, ograniczony do jego kontrolerów i mający pierwszeństwo; przekierowuje na wysłany ekran z
+komunikatem i formularzem bez sekretów w atrybutach flash. Pozostałe wyjątki obsługuje
+`shared.web.DefaultExceptionHandler`: loguje każdy `RuntimeException` na `WARN` i odpowiada `500`.
 
 ---
 
@@ -353,7 +384,8 @@ i pozostawia czytelny komunikat w konsoli.
 
 Katalog danych Valheim jest zawsze wskazywany jawnie przez opcję `-savedir`. Dzięki temu panel nie
 zależy od domyślnych ścieżek profilu użytkownika i jednoznacznie wie, gdzie znajdują się światy oraz
-listy graczy.
+listy graczy. Katalog jest ustawieniem profilu uruchomieniowego (`server.save.directory`, domyślnie
+`valheim-data`): ścieżką względną wewnątrz katalogu instalacji, innej niż sam katalog instalacji.
 
 ### Kanały konfiguracji
 
@@ -362,16 +394,30 @@ Konfiguracja vDeck jest rozdzielona według właściciela i nie miesza się w je
 | Kanał | Właściciel | Zawartość | Edycja |
 |---|---|---|---|
 | `application.yaml` w jarze | Aplikacja | Infrastruktura Spring Boot: datasource, port, poziomy logowania, cykl życia kontekstu. | Tylko przez nowe wydanie. |
-| `vDeck.properties` w katalogu instalacji | Użytkownik | Ustawienia aplikacyjne panelu, docelowo edytowalne z GUI. | Ręcznie oraz z panelu. |
+| `.vDeck/config/vDeck.properties` w katalogu instalacji | Użytkownik | Ustawienia aplikacyjne panelu, docelowo edytowalne z GUI. | Ręcznie oraz z panelu. |
+| `.vDeck/config/valheim-server.properties` w katalogu instalacji | Użytkownik | Profil uruchomieniowy serwera Valheim (AD-011). | Ręcznie oraz z ekranów „Serwer” i „Ustawienia gry”. |
 
-Plik `vDeck.properties` leży obok `vdeck.jar`, nigdy w `src/main/resources`, i jest tworzony z
-wartościami domyślnymi przy pierwszym starcie. Brakujące i puste klucze są uzupełniane przy kolejnym
-starcie, dzięki czemu właściwości dodane w nowym wydaniu pojawiają się w istniejącej instalacji.
-Zbiór właściwości opisuje enum implementujący `SystemPropertyIf`; dostęp zapewnia
-`SystemPropertiesService`, tworzony osobno dla każdego obsługiwanego pliku. Plik jest kodowany w
-UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE` — dlatego zapis wykonany przez panel
-zachowuje wpisy nienależące do panelu, ale nie zachowuje komentarzy ani kolejności kluczy wpisanych
-ręcznie.
+Zgodnie z `AD-010` wszystkie pliki ustawień leżą w podkatalogu `.vDeck/config` katalogu instalacji,
+nigdy w `src/main/resources` ani bezpośrednio obok `vdeck.jar`. Ich lokalizację wyznacza wyłącznie
+`PathService.getConfigurationFile`. Plik i brakujący katalog są tworzone z wartościami domyślnymi przy
+pierwszym starcie. Brakujące klucze są uzupełniane przy kolejnym starcie, dzięki czemu właściwości
+dodane w nowym wydaniu pojawiają się w istniejącej instalacji.
+
+Zbiór właściwości pliku opisuje enum implementujący `SystemPropertyIf`; dostęp zapewnia
+jeden `SystemPropertiesService` dla wszystkich plików (AD-013): każda operacja przyjmuje nazwę pliku
+(`FILE_NAME` enuma), a plik musi zostać wcześniej wczytany przez `loadFile` z kompletem wartości
+domyślnych. Wszystkie pliki wczytuje przy starcie `SystemPropertiesInitializer`, zanim serwer WWW
+przyjmie pierwsze żądanie. Każda właściwość deklaruje, czy jest
+obowiązkowa (`isMandatory()`): obowiązkowa ma niepustą wartość domyślną, która zastępuje także pustą
+wartość w pliku; opcjonalna może być pusta — pusta wartość oznacza „nie używaj”, a przywracany jest
+tylko brakujący klucz. `setValues` zapisuje wiele właściwości jednym atomowym zapisem: wszystkie albo
+żadna. Zestaw wartości — domyślnych przy `loadFile` i zapisywanych przez `setValues` — przekazuje
+tworzony osobno dla każdego wywołania obiekt `SystemPropertyValues`, nie mapa. Wartości typowane
+(liczby, wartości logiczne, opcje z zamkniętej listy) odczytuje statyczne narzędzie
+`shared.PropertyReader`, które przy wartości niepasującej do ustawienia zwraca wartość zastępczą
+podaną przez wywołującego i loguje nazwę ustawienia na `WARN`. Plik jest kodowany w UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE` — dlatego
+zapis wykonany przez panel zachowuje wpisy nienależące do panelu, ale nie zachowuje komentarzy ani
+kolejności kluczy wpisanych ręcznie.
 
 Teksty interfejsu nie są kanałem konfiguracji i nie leżą w katalogu instalacji. Zgodnie z `AD-009`
 panel jest jednojęzyczny, a jego teksty pochodzą z pliku `resources/messages.properties` dołączonego
@@ -383,13 +429,21 @@ względna, jest normalizowana i po rozwiązaniu do postaci rzeczywistej musi poz
 instalacji. Ścieżka absolutna, wychodząca poza katalog instalacji albo prowadząca poza niego przez
 dowiązanie lub punkt reparsowania jest odrzucana.
 
+Druga właściwość, `panel.game.settings.advanced` (domyślnie `false`), zapamiętuje, czy ekran
+„Ustawienia gry” pokazuje sekcję „Zaawansowane” (AD-012). To preferencja wyświetlania panelu, a nie
+część profilu uruchomieniowego: jej zmiana nie wpływa na opcje przekazywane serwerowi.
+
 Podstawowy układ danych:
 
 ```text
 <ApplicationHome>/
 ├── valheim_server.exe
 ├── vdeck.jar
-├── vDeck.properties
+├── .vDeck/
+│   └── config/                        ← wszystkie pliki ustawień (AD-010)
+│       ├── vDeck.properties
+│       └── valheim-server.properties
+├── valheim-data/                      ← katalog domyślny; zmienia go `server.save.directory`
 ├── vdeck.lock
 ├── server.pid
 ├── vdeck.db
@@ -582,6 +636,7 @@ auto-restartem, ponieważ ponowny start gry może nadpisać pliki `.old`.
 | Sesje | Maksymalnie jedna aktywna sesja; nowsze logowanie unieważnia wcześniejszą sesję. |
 | Widoki | Thymeleaf, fragmenty HTMX i natywne moduły ES bez obowiązkowego procesu budowania frontendu. |
 | Nawigacja | Menu boczne jako wspólny fragment `common/side-menu.html`: domyślnie ukryte, otwierane okrągłym przyciskiem w lewym dolnym rogu, z pozycjami pogrupowanymi w tytułowane sekcje; w obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach działające jak akordeon. Drzewo jest zapisane w znacznikach fragmentu, bez modelu w Javie. Menu nie jest osadzane na ekranie wymuszonej zmiany hasła początkowego. |
+| Profil uruchomieniowy | Dwa ekrany otwierane z sekcji „Konfiguracja” menu bocznego: „Serwer” (`/server-settings` — tożsamość, dostęp, świat i zapis, kopie automatyczne) oraz „Ustawienia gry” (`/game-settings` — zestaw ustawień świata na górze, a modyfikatory i klucze świata w sekcji „Zaawansowane”, domyślnie ukrytej, z zapamiętywaną widocznością). Pola odpowiadają opcjom `valheim_server.exe` z instrukcji serwera dedykowanego, są pogrupowane w sekcje i każde ma opis z dozwolonymi wartościami. Każdy ekran zapisuje atomowo wyłącznie własne ustawienia; hasło serwera nigdy nie wraca do przeglądarki. Zmiany obowiązują od następnego uruchomienia serwera. |
 | Logi | Aktualizowane w przeglądarce przez SSE. |
 | Bezpieczeństwo żądań | Włączone CSRF; token jest dodawany do `hx-post` przez `htmx:configRequest`. |
 

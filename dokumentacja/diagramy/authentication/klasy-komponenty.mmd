@@ -19,22 +19,14 @@ classDiagram
         ADMIN
     }
 
-    class PasswordChangeStatus {
-        <<enumeration>>
-        SUCCESS
-        CURRENT_PASSWORD_INCORRECT
-        NEW_PASSWORD_MISMATCH
-        NEW_PASSWORD_UNCHANGED
-        NEW_PASSWORD_TOO_WEAK
+    class PasswordChangeException {
+        -PasswordChangeMessage messageKey
+        +getMessageKey() PasswordChangeMessage
     }
 
-    class PasswordChangeResult {
-        <<record>>
-        +status() PasswordChangeStatus
-        +messageKey() TranslationKeyIf
-        +success()$ PasswordChangeResult
-        +rejected(PasswordChangeStatus, TranslationKeyIf)$ PasswordChangeResult
-        +isSuccessful() boolean
+    class PasswordChangeExceptionHandler {
+        <<ControllerAdvice>>
+        +handleRejectedChange(PasswordChangeException, HttpServletRequest, RedirectAttributes) String
     }
 
     class PasswordChangeMessage {
@@ -82,18 +74,17 @@ classDiagram
     class PanelUserService {
         <<interface>>
         +PASSWORD_CHANGE_REQUIRED_AUTHORITY String
-        +changePassword(String, PasswordChangeRequest) PasswordChangeResult
-        +changeInitialPassword(String, InitialPasswordChangeRequest) PasswordChangeResult
+        +changePassword(String, PasswordChangeRequest) void
+        +changeInitialPassword(String, InitialPasswordChangeRequest) void
     }
 
     class PanelUserServiceImpl {
         -UserRepository userRepository
         -PasswordEncoder passwordEncoder
         +loadUserByUsername(String) UserDetails
-        +changePassword(String, PasswordChangeRequest) PasswordChangeResult
-        +changeInitialPassword(String, InitialPasswordChangeRequest) PasswordChangeResult
-        -applyNewPassword(PanelUser, String, String) PasswordChangeResult
-        -rejected(PasswordChangeStatus, PasswordChangeMessage) PasswordChangeResult
+        +changePassword(String, PasswordChangeRequest) void
+        +changeInitialPassword(String, InitialPasswordChangeRequest) void
+        -applyNewPassword(PanelUser, String, String) void
         -toUserDetails(PanelUser) UserDetails
     }
 
@@ -141,16 +132,15 @@ classDiagram
     PanelUserServiceImpl --> UserRepository : używa
     PanelUserServiceImpl ..> PasswordChangeRequest : przyjmuje
     PanelUserServiceImpl ..> InitialPasswordChangeRequest : przyjmuje
-    PanelUserServiceImpl ..> PasswordChangeResult : zwraca
-    PanelUserServiceImpl ..> PasswordChangeMessage : dobiera komunikat
-    PasswordChangeResult --> PasswordChangeStatus : ma
-    PasswordChangeResult --> TranslationKeyIf : niesie klucz
+    PanelUserServiceImpl ..> PasswordChangeException : rzuca przy odrzuceniu
+    PasswordChangeException --> PasswordChangeMessage : niesie klucz
+    PasswordChangeExceptionHandler ..> PasswordChangeException : obsługuje
     UserRepository ..> PanelUser : przechowuje
     PanelUser --> PanelRole : ma
     PasswordChangeController --> PanelUserService : deleguje
     InitialPasswordChangeController --> PanelUserService : deleguje
-    PasswordChangeController ..> PasswordChangeResult : czyta wynik i klucz
-    InitialPasswordChangeController ..> PasswordChangeResult : czyta wynik i klucz
+    PasswordChangeController ..> PasswordChangeException : rzuca przy błędzie adnotacji
+    InitialPasswordChangeController ..> PasswordChangeException : rzuca przy błędzie adnotacji
     PasswordChangeAuthenticationSuccessHandler ..> PanelUserService : czyta uprawnienie
     PasswordChangeRequiredFilter ..> PanelUserService : czyta uprawnienie
     SecurityConfiguration ..> PasswordChangeRequiredFilter : tworzy

@@ -13,6 +13,7 @@
     --color-text-disabled: rgba(242, 237, 226, 0.38);
     --color-accent: #e8b45a;
     --color-danger: #e88a78;
+    --color-success: #9cc98a;
 
     /* Frames, backgrounds and separators of the wooden panel surfaces */
     --color-frame: #07080a;
@@ -35,9 +36,13 @@
     /* Blocks inset into a panel, such as an alert or the password rules; the texture stays visible */
     --color-inset-surface: rgba(8, 7, 6, 0.66);
 
-    /* Page and surface textures; framed surfaces use the panel texture, only the island and side menu differ */
+    /*
+     * Page and surface textures. Framed surfaces use the panel texture; only the island, the side menu
+     * and the password screens keep their own.
+     */
     --page-texture: url("../img/page-background.jpg");
-    --panel-texture: url("../img/panel-background.jpg");
+    --panel-texture: url("../img/config-background.jpg");
+    --password-panel-texture: url("../img/panel-background.jpg");
     --island-texture: url("../img/island-background.jpg");
     --side-menu-texture: url("../img/side-menu-background.jpg");
 
@@ -94,7 +99,7 @@
     --side-menu-corner-inset: calc(var(--side-menu-toggle-size) / 2 - var(--side-menu-toggle-depth));
     --side-menu-notch-radius: calc(var(--side-menu-toggle-size) / 2 + var(--side-menu-toggle-gap));
     --side-menu-notch-ring-width: 0.1875rem;
-    --side-menu-scrollbar-color: rgba(232, 180, 90, 0.55) transparent;
+    --side-menu-scrollbar-color: var(--scrollbar-color);
     --side-menu-section-line-color: rgba(195, 185, 166, 0.35);
     --side-menu-section-line-width: 0.0625rem;
     --side-menu-section-title-opacity: 0.3;
@@ -108,11 +113,31 @@
     --icon-size: 1.5rem;
     --icon-size-large: 2rem;
     --field-radius: 0.625rem;
+    --checkbox-size: 1.25rem;
+    /* Field explanations stay readable but sit visibly below the labels and values they describe */
+    --form-hint-opacity: 0.85;
     --focus-ring-width: 0.125rem;
     --focus-ring-offset: 0.1875rem;
 
+    /*
+     * Height of the frame wrapping every panel, so all panels share one height and leave free space
+     * above and below them. Dynamic viewport units follow the mobile browser bars.
+     */
+    --panel-frame-block-size: 70dvh;
+    /* Thumb and track of the thin scrollbars inside panels and the side menu */
+    --scrollbar-color: rgba(232, 180, 90, 0.55) transparent;
+
     /* Single-column view content, for example the password change form */
     --card-max-inline-size: 27rem;
+    /* Card of a long form whose fields may sit in two columns, for example the settings panels */
+    --card-max-inline-size-wide: 52rem;
+    /* The same card on a landscape screen, where its sections are placed side by side in columns */
+    --card-max-inline-size-landscape: 76rem;
+    --card-max-inline-size-landscape-wide: 118rem;
+    /* Width of the centred save button of such a form; it never grows wider than the screen allows */
+    --settings-submit-min-inline-size: 16rem;
+    /* Narrowest column of such a form before it falls back to a single column */
+    --form-column-min-inline-size: 18rem;
 
     --space-xs: 0.375rem;
     --space-sm: 0.75rem;

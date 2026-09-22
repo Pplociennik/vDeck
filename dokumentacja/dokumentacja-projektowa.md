@@ -21,6 +21,7 @@ i wyraźnie oznaczone jako niezrealizowane.
 - [2. Architektura aplikacji](#2-architektura-aplikacji)
   - [2.1 Podział na pakiety](#21-podział-na-pakiety)
   - [2.2 Start aplikacji](#22-start-aplikacji)
+  - [2.3 Obsługa wyjątków](#23-obsługa-wyjątków)
 - [3. Konfiguracja](#3-konfiguracja)
   - [3.1 Dwa kanały konfiguracji](#31-dwa-kanały-konfiguracji)
   - [3.2 Ustawienia panelu w vDeck.properties](#32-ustawienia-panelu-w-vdeckproperties)
@@ -41,6 +42,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.3 Ikony](#53-ikony)
   - [5.4 Ekrany panelu](#54-ekrany-panelu)
   - [5.5 Menu boczne](#55-menu-boczne)
+  - [5.6 Serwer i Ustawienia gry](#56-serwer-i-ustawienia-gry)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -57,8 +59,8 @@ vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim
 dystrybuowana razem z instalacją serwera, uruchamiana na tej samej maszynie i obsługiwana z poziomu
 przeglądarki. Docelowy zakres produktu obejmuje sterowanie cyklem życia serwera, konfigurację profilu
 uruchomieniowego, zarządzanie światami i kopiami bezpieczeństwa, podgląd logów, listy graczy oraz
-opcjonalne RCON i mody. Obecnie zaimplementowana jest infrastruktura konfiguracji oraz
-uwierzytelnianie dostępu do panelu.
+opcjonalne RCON i mody. Obecnie zaimplementowana jest infrastruktura konfiguracji, uwierzytelnianie
+dostępu do panelu oraz definiowanie profilu uruchomieniowego serwera (bez samego uruchamiania).
 
 Wspierany jest wyłącznie Windows.
 
@@ -90,7 +92,8 @@ java -jar vdeck-app\target\vdeck-app-0.0.1-SNAPSHOT.jar
 Nazwa artefaktu buildu to `vdeck-app-<wersja>.jar`; dokumenty projektowe mówią o `vdeck.jar` jako
 nazwie pliku w gotowej instalacji obok `valheim_server.exe`. Katalog, w którym leży uruchomiony jar,
 jest katalogiem instalacyjnym opisanym w sekcji [3.3](#33-rozwiązywanie-ścieżek). Przy pierwszym
-starcie powstają w nim `vDeck.properties` oraz plik bazy `vdeck.db`.
+starcie powstaje w nim katalog `.vDeck/config` z plikami `vDeck.properties` i
+`valheim-server.properties` oraz plik bazy `vdeck.db`.
 
 Uruchomienie z IDE lub przez `spring-boot:run` **wymaga** wskazania katalogu instalacyjnego, ponieważ
 bez niego `ApplicationHome` wskazuje na `vdeck-app/target/classes`:
@@ -115,23 +118,62 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | Pakiet | Zawartość |
 |---|---|
 | `` (bazowy) | `VdeckApplication` — jedyny wyjątek od reguły umieszczania klas w podpakietach |
-| `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SystemPropertiesConfiguration`, `SecurityConfiguration` oraz inicjalizacja startowa `DataInitializer` |
-| `feature.authentication` | Pionowy feature uwierzytelniania: kontroler, `domain`, `dto`, `persistence`, `service` i `service.impl` |
+| `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SecurityConfiguration` oraz inicjalizacja startowa `SystemPropertiesInitializer` i `DataInitializer` |
+| `feature.authentication` | Pionowy feature uwierzytelniania: kontrolery i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `persistence`, `service` i `service.impl` |
+| `feature.home` | Strona główna panelu: `HomeController` |
+| `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery ekranów „Serwer” i „Ustawienia gry” i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-011) |
 | `security` | Przekrojowe filtry i handlery Spring Security, niezwiązane z jednym feature'em |
-| `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc` |
+| `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc`, domyślna obsługa wyjątków w `shared.web` |
 
 Kontrakty serwisów znajdują się w pakiecie `service`, a implementacje w `service.impl`. Konsumenci
 wstrzykują interfejs; klasy implementacyjne pozostają pakietowo-prywatne tam, gdzie to możliwe.
 
 ### 2.2 Start aplikacji
 
-Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, przygotowanie pliku
-ustawień, aktualizacja schematu bazy i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
+Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, aktualizacja schematu
+bazy, przygotowanie plików ustawień i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
 bazowego przerywa start, zamiast pozwolić aplikacji działać z niepoprawną konfiguracją.
 
 ![Diagram przepływu: start aplikacji vDeck i przygotowanie środowiska](diagramy/wspolne/img/przeplyw-start-aplikacji.svg)
 
 Źródło diagramu: [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd)
+
+### 2.3 Obsługa wyjątków
+
+Obowiązuje [`AD-014`](../.docs/architectural_decisions.md). Każdy główny proces panelu — zapis
+profilu uruchomieniowego i zmiana hasła — kończy się przy odrzuceniu **albo** niepowodzeniu własnym
+wyjątkiem z podpakietu `exc` swojego feature'a. Serwisy nie zwracają obiektów wyniku, a kontrolery
+nie sprawdzają wyniku ani nie przechwytują wyjątków; błąd walidacji adnotacji kontroler zgłasza tym
+samym wyjątkiem procesu.
+
+| Wyjątek procesu | Rzucany przez | Obsługuje | Co trafia do przekierowania |
+|---|---|---|---|
+| `feature.launch.exc.LaunchProfileUpdateException` | `ServerSettingsController`, `GameSettingsController`, `LaunchProfileServiceImpl` | `LaunchProfileExceptionHandler` | klucz `LaunchProfileMessage` i przesłany formularz (ekranu „Serwer” zawsze bez hasła) |
+| `feature.authentication.exc.PasswordChangeException` | oba kontrolery zmiany hasła, `PanelUserServiceImpl` | `PasswordChangeExceptionHandler` | wyłącznie klucz `PasswordChangeMessage` — formularz hasła jest zawsze pusty |
+
+Wyjątek procesu niesie komunikat jako enum kluczy tłumaczeń, nigdy jako tekst. Odrzucenie przez regułę
+nie ma przyczyny; niepowodzenie, np. nieudany zapis pliku, zachowuje ją jako `cause`. `@ControllerAdvice`
+feature'a jest ograniczony do jego kontrolerów (`assignableTypes`) i ma pierwszeństwo przed obsługą
+domyślną. Przekierowuje na ekran, który wysłał formularz, a komunikat i ewentualny formularz przekazuje
+atrybutami flash, więc odświeżenie strony nie ponawia wysłania. Kontroler przy `GET` wypełnia formularz
+z zapisanego profilu tylko wtedy, gdy model nie zawiera już formularza przekazanego po odrzuceniu.
+
+Każdy inny wyjątek, który opuści kontroler, trafia do `shared.web.DefaultExceptionHandler` o najniższym
+priorytecie. Loguje go na poziomie `WARN` ze stack trace i odpowiada `500` przez `sendError`, więc
+użytkownik widzi stronę błędu Spring Boota bez treści wyjątku. Dotyczy to każdego
+`RuntimeException`, także wyjątku Spring MVC, który bez tej obsługi dostałby własny status — np.
+niepoprawnego parametru żądania, odpowiadającego wtedy `500` zamiast `400`. Wyjątki kontrolowane
+Spring MVC (np. brak zasobu, niedozwolona metoda HTTP) oraz wyjątki łańcucha filtrów Spring Security
+do tej obsługi nie trafiają i zachowują swój status.
+
+`catch` pozostaje tylko tam, gdzie zmienia znaczenie błędu, a nie tylko go loguje: przy zamianie
+wyjątku technicznego na wyjątek procesu, przy zamianie `IOException` na `UncheckedIOException`, przy
+przywracaniu stanu w pamięci po nieudanym zapisie, przy sprzątaniu pliku tymczasowego oraz przy
+odczycie wartości z pliku, która po ręcznej edycji nie jest liczbą i zostaje zastąpiona domyślną.
+
+![Diagram przepływu: obsługa wyjątku rzuconego podczas obsługi żądania](diagramy/wspolne/img/przeplyw-obsluga-wyjatkow.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd`](diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd)
 
 ---
 
@@ -144,7 +186,12 @@ Konfiguracja jest rozdzielona według właściciela:
 | Kanał | Lokalizacja | Właściciel | Edytowalny przez użytkownika |
 |---|---|---|---|
 | `application.yaml` | wewnątrz jara | infrastruktura Spring Boot: datasource, JPA, adres serwera, ciasteczka sesji | nie |
-| `vDeck.properties` | obok `vdeck.jar`, w katalogu instalacyjnym | własne ustawienia panelu | tak |
+| `vDeck.properties` | `.vDeck/config` w katalogu instalacyjnym | własne ustawienia panelu | tak |
+| `valheim-server.properties` | `.vDeck/config` w katalogu instalacyjnym | profil uruchomieniowy serwera Valheim, patrz [5.6](#56-serwer-i-ustawienia-gry) | tak, także z panelu |
+
+Wszystkie pliki ustawień leżą w podkatalogu `.vDeck/config` katalogu instalacyjnego (`AD-010`);
+żaden nie leży bezpośrednio obok `vdeck.jar`. Plik `vDeck.properties` pozostawiony w katalogu
+instalacyjnym przez wcześniejszą wersję deweloperską nie jest czytany ani przenoszony.
 
 Bieżąca zawartość `application.yaml` obejmuje nazwę aplikacji, źródło danych SQLite
 (`jdbc:sqlite:vdeck.db`), dialekt Hibernate `SQLiteDialect` z `ddl-auto: update`, zachowanie
@@ -156,24 +203,58 @@ Bieżąca zawartość `application.yaml` obejmuje nazwę aplikacji, źródło da
 Zbiór ustawień pliku jest zamknięty i opisany typem wyliczeniowym implementującym `SystemPropertyIf`.
 Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 
-| Klucz | Znaczenie | Wartość domyślna |
-|---|---|---|
-| `game.log.directory` | Katalog z plikiem logu serwera gry, względny wobec katalogu instalacyjnego | `vdeck-logs` |
+| Klucz | Znaczenie | Obowiązkowe | Wartość domyślna |
+|---|---|---|---|
+| `game.log.directory` | Katalog z plikiem logu serwera gry, względny wobec katalogu instalacyjnego | tak | `vdeck-logs` |
+| `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 
-Zachowanie `SystemPropertiesServiceImpl` — jedna instancja obsługuje dokładnie jeden plik:
+Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obowiązkowe. Wartość
+flagi podaje konstruktor enuma, obok klucza i wartości domyślnej. Ustawienie obowiązkowe ma zawsze
+niepustą wartość; opcjonalne może być puste, a pusta wartość oznacza, że ustawienie nie jest używane.
 
-- plik jest wczytywany **raz, podczas konstrukcji**, i utrzymywany w pamięci; ręczna edycja pliku przy
-  działającym panelu zostanie uwzględniona dopiero po restarcie;
-- brakujący plik jest tworzony z wartościami domyślnymi;
-- brakujący lub pusty klucz zarządzany jest przywracany do wartości domyślnej i zapisywany — to
-  jednocześnie ścieżka migracji ustawień dodanych w nowej wersji;
+Wszystkie pliki ustawień obsługuje jeden bean `SystemPropertiesService` (`AD-013`). Każda operacja —
+`getValue`, `setValue`, `setValues` — przyjmuje nazwę pliku, czyli stałą `FILE_NAME` jego enuma.
+`SystemPropertiesServiceImpl` trzyma wczytane pliki w mapie według nazwy, po jednym `PropertiesFile`
+na plik. Zestaw wartości — domyślnych przy `loadFile` albo zapisywanych razem przez `setValues` —
+przekazuje obiekt `SystemPropertyValues` (`shared`), a nie luźna mapa. Tworzy go `create()`, wpisy
+dodaje łańcuchowo `with( ustawienie, wartość )`, a `asMap()` zwraca je tylko do odczytu, w kolejności
+dodania. Każde wywołanie buduje nowy obiekt, więc wpisy jednego zapisu nie trafiają do innego; ponowne
+podanie tego samego ustawienia kończy się `IllegalArgumentException`, a obiekt celowo nie ma
+`toString` ujawniającego wartości, bo wśród nich może być hasło serwera.
+
+Wartości typowane odczytuje statyczne narzędzie `shared.PropertyReader`, któremu wywołujący podaje
+serwis, nazwę pliku, ustawienie i wartość zastępczą: `read` zwraca wartość bez zmian, `readInt` liczbę,
+`readBoolean` wyłącznie `true` albo `false` w dowolnej wielkości liter, a `readOptional` wartość
+ustawienia opcjonalnego zinterpretowaną przez podany parser — pusta oznacza „nie używaj”, a
+nierozpoznana jest pomijana. Wartość niepasująca do ustawienia daje wartość zastępczą i wpis `WARN`
+z nazwą ustawienia i pliku, nigdy z samą wartością; odczyt nie przepisuje pliku.
+
+Zasady obsługi plików:
+
+- plik trzeba najpierw wczytać przez `loadFile( nazwaPliku, wartościDomyślne )`; lokalizację wyznacza
+  `PathService.getConfigurationFile`; ponowne wczytanie tego samego pliku oraz odwołanie do pliku
+  niewczytanego kończą się `IllegalStateException`;
+- wszystkie pliki wczytuje przy starcie `SystemPropertiesInitializer` (`config`,
+  `SmartInitializingSingleton`) — po utworzeniu wszystkich beanów, ale zanim serwer WWW przyjmie
+  pierwsze żądanie; błąd wczytania przerywa start;
+- plik jest wczytywany **raz** i utrzymywany w pamięci; ręczna edycja pliku przy działającym panelu
+  zostanie uwzględniona dopiero po restarcie;
+- brakujący plik jest tworzony z wartościami domyślnymi razem z brakującymi katalogami nadrzędnymi;
+- brakujący klucz jest przywracany do wartości domyślnej i zapisywany — to jednocześnie ścieżka
+  migracji ustawień dodanych w nowej wersji; pusta wartość jest zastępowana domyślną tylko dla
+  ustawienia obowiązkowego, a ustawienie opcjonalne zachowuje ją;
+- obowiązkowe ustawienie z pustą wartością domyślną jest odrzucane już przy wczytaniu, a zapis
+  pustej wartości ustawienia obowiązkowego kończy się `IllegalArgumentException`;
 - wpisy nienależące do zbioru zarządzanego są zachowywane, ale komentarze i kolejność kluczy przepadają
   przy pierwszym zapisie pliku przez aplikację;
-- po konstrukcji każde zarządzane ustawienie ma niepustą wartość, więc `getValue` jest zwykłym odczytem;
+- `getValue` jest zwykłym odczytem z pamięci i nigdy nie zwraca `null`;
+- `setValues` zmienia wiele ustawień naraz: najpierw sprawdza wszystkie wpisy, potem zapisuje plik
+  **jeden raz** — zmieniają się wszystkie wartości albo żadna;
 - zapis jest atomowy: dane trafiają do pliku tymczasowego, są wypychane na urządzenie (`FileChannel.force`),
-  a następnie podmieniane przez `ATOMIC_MOVE`; nieudany zapis przywraca poprzednią wartość w pamięci,
+  a następnie podmieniane przez `ATOMIC_MOVE`; nieudany zapis przywraca poprzednie wartości w pamięci,
   więc pamięć i dysk nie mogą się rozjechać;
-- do logu trafiają wyłącznie nazwy kluczy, nigdy wartości, ponieważ plik ustawień może zawierać sekrety.
+- do logu trafiają wyłącznie nazwy kluczy i ich liczba, nigdy wartości, ponieważ plik ustawień może
+  zawierać sekrety.
 
 ### 3.3 Rozwiązywanie ścieżek
 
@@ -194,6 +275,11 @@ podczas konstrukcji, więc błędna konfiguracja przerywa start panelu.
 Gdy cel już istnieje, zwracana jest jego postać rzeczywista (`toRealPath`) i ponownie sprawdzany jest
 zasięg. Metoda nigdy nie tworzy plików ani katalogów, więc zwrócona ścieżka może jeszcze nie istnieć.
 
+`getConfigurationFile( String )` jest jedynym sposobem wyznaczenia lokalizacji pliku ustawień.
+Przyjmuje samą nazwę pliku — nazwę z separatorem katalogów, `.` albo `..` odrzuca wyjątkiem
+`PathResolutionException` — i rozwiązuje ją w katalogu `PathService.CONFIGURATION_DIRECTORY`
+(`.vDeck/config`) przez `getAbsolutePath`, więc obowiązują te same kontrole zasięgu.
+
 ### 3.4 Komponenty konfiguracji
 
 ![Diagram klas: infrastruktura konfiguracji i rozwiązywania ścieżek](diagramy/wspolne/img/klasy-konfiguracja.svg)
@@ -201,8 +287,10 @@ zasięg. Metoda nigdy nie tworzy plików ani katalogów, więc zwrócona ścież
 Źródło diagramu: [`diagramy/wspolne/klasy-konfiguracja.mmd`](diagramy/wspolne/klasy-konfiguracja.mmd)
 
 Dodanie kolejnego pliku ustawień polega na utworzeniu nowego typu wyliczeniowego implementującego
-`SystemPropertyIf` i nowego beana `SystemPropertiesService` dla tego pliku. `SystemPropertyIf` celowo
-nie niesie nic poza kluczem — wartość domyślna i plik właściciela należą do konkretnego enuma.
+`SystemPropertyIf` ze stałą `FILE_NAME` i dopisaniu wywołania `loadFile` w
+`SystemPropertiesInitializer`. Nie powstaje nowy bean ani kwalifikator: konsument wstrzykuje ten sam
+`SystemPropertiesService` i podaje nazwę pliku w każdym wywołaniu. `SystemPropertyIf` celowo niesie tylko klucz i flagę obowiązkowości —
+wartość domyślna i plik właściciela należą do konkretnego enuma.
 
 ### 3.5 Tłumaczenia interfejsu
 
@@ -348,28 +436,27 @@ nieudana kontrola kończy operację:
 5. wymagany zestaw rodzajów znaków — cyfrę, małą literę, wielką literę oraz znak specjalny, czyli
    znak niebędący literą, cyfrą ani białym znakiem.
 
-Po każdym niepowodzeniu formularz jest renderowany ponownie z **pustymi** polami i pojedynczym
+Po każdym niepowodzeniu użytkownik wraca na ten sam ekran z **pustymi** polami i pojedynczym
 komunikatem; komunikaty nie zdradzają, który element poświadczeń był niepoprawny bardziej, niż wymaga
 tego obsługa błędu.
 
-Wynik operacji jest rekordem `PasswordChangeResult`, który niesie **status oraz klucz komunikatu do
-pokazania**. Dzięki temu kontroler nie tłumaczy statusu na własne brzmienie i oba ekrany opisują ten
-sam wynik identycznie. Rekord pilnuje niezmiennika: sukces nie ma klucza komunikatu, a odrzucenie
-zawsze go ma.
+Odrzucona zmiana kończy się `PasswordChangeException`, który niesie **klucz komunikatu do pokazania**
+(patrz [2.3](#23-obsługa-wyjątków)). Dzięki temu kontroler nie tłumaczy wyniku na własne brzmienie i oba
+ekrany opisują to samo odrzucenie identycznie. Udana zmiana kończy się bez wyjątku.
 
-| `PasswordChangeStatus` | Warunek | `messageKey` |
-|---|---|---|
-| `CURRENT_PASSWORD_INCORRECT` | Aktualne hasło nie pasuje do zapisanego hasha (tylko wariant na życzenie) | `PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT` |
-| `NEW_PASSWORD_MISMATCH` | Nowe hasło różni się od potwierdzenia | `PasswordChangeMessage.NEW_PASSWORD_MISMATCH` |
-| `NEW_PASSWORD_UNCHANGED` | Nowe hasło jest identyczne z aktualnym | `PasswordChangeMessage.NEW_PASSWORD_UNCHANGED` |
-| `NEW_PASSWORD_TOO_WEAK` | Nowe hasło nie zawiera cyfry, małej litery, wielkiej litery i znaku specjalnego | `PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK` |
-| `SUCCESS` | Wszystkie kontrole przeszły | brak — następuje wylogowanie i przekierowanie na `/login` |
+| Warunek odrzucenia | Klucz komunikatu w `PasswordChangeException` |
+|---|---|
+| Pole puste albo nowe hasło spoza 12–128 znaków (walidacja adnotacji w kontrolerze) | `PasswordChangeMessage.INVALID_INPUT` |
+| Aktualne hasło nie pasuje do zapisanego hasha (tylko wariant na życzenie) | `PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT` |
+| Nowe hasło różni się od potwierdzenia | `PasswordChangeMessage.NEW_PASSWORD_MISMATCH` |
+| Nowe hasło jest identyczne z aktualnym | `PasswordChangeMessage.NEW_PASSWORD_UNCHANGED` |
+| Nowe hasło nie zawiera cyfry, małej litery, wielkiej litery i znaku specjalnego | `PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK` |
 
-Błąd walidacji adnotacji nie tworzy `PasswordChangeResult` — kontroler od razu publikuje
-`PasswordChangeMessage.INVALID_INPUT`, bo żądanie nie dotarło do serwisu.
-
-Kontroler dodaje do modelu wyłącznie klucz tłumaczenia (`passwordChangeErrorKey`), a brzmienie
-komunikatu pochodzi z pliku tłumaczeń opisanego w [3.5](#35-tłumaczenia-interfejsu).
+`PasswordChangeExceptionHandler` przekierowuje na ekran, który wysłał formularz, i przekazuje atrybutem
+flash wyłącznie klucz tłumaczenia (`passwordChangeErrorKey`); brzmienie komunikatu pochodzi z pliku
+tłumaczeń opisanego w [3.5](#35-tłumaczenia-interfejsu). Formularz nie jest przekazywany, więc
+wpisane hasło nigdy nie wraca do przeglądarki. `IllegalStateException` wariantu wymuszonego obsługuje
+`DefaultExceptionHandler`, a `UsernameNotFoundException` — Spring Security.
 
 ![Diagram przepływu: zmiana hasła panelu vDeck w obu wariantach](diagramy/authentication/img/przeplyw-zmiana-hasla.svg)
 
@@ -402,10 +489,10 @@ Filtr i handler bezpieczeństwa leżą w przekrojowym pakiecie `security`, a nie
 dotyczą każdego żądania do panelu. `DataInitializer` należy do `config`, mimo że wstrzykuje repozytorium
 uwierzytelniania, ponieważ jest elementem inicjalizacji startowej aplikacji.
 
-`PasswordChangeStatus` i `PasswordChangeResult` należą do `domain`, a `PasswordChangeMessage` — do
-korzenia feature'a, bo zawiera również `INVALID_INPUT`, komunikat walidacji warstwy webowej, którego
-serwis nigdy nie zwraca. Rekord wyniku wiąże je, nie znając zbioru komunikatów: jego pole
-`messageKey` ma typ `shared.TranslationKeyIf`, więc `domain` zależy wyłącznie od pakietu wspólnego.
+`PasswordChangeException` należy do `exc`, a `PasswordChangeMessage` i `PasswordChangeExceptionHandler`
+— do korzenia feature'a: komunikaty zawierają również `INVALID_INPUT`, komunikat walidacji warstwy
+webowej, którego serwis nigdy nie zgłasza, a advice musi widzieć pakietowo-prywatne kontrolery, które
+obsługuje.
 
 ---
 
@@ -414,8 +501,9 @@ serwis nigdy nie zwraca. Rekord wyniku wiąże je, nie znając zbioru komunikat�
 Reguły obowiązujące przy budowie interfejsu opisuje [`.docs/ui.md`](../.docs/ui.md); ta sekcja opisuje
 wyłącznie stan zaimplementowany. Interfejs jest budowany z szablonów Thymeleaf i arkuszy CSS oraz
 natywnych modułów ES bez procesu budowania frontendu i bez zależności od CDN — panel wyświetla się
-w całości z zasobów wbudowanych w aplikację. Jedynym modułem jest obecnie `side-menu.js`, sterujący
-menu bocznym.
+w całości z zasobów wbudowanych w aplikację. Moduły są dwa: `side-menu.js` steruje menu bocznym,
+a `game-settings.js` pokazuje i ukrywa sekcję „Zaawansowane” ekranu „Ustawienia gry”, zapamiętując
+wybór. Formularze obu ekranów ustawień zapisują się bez JavaScriptu.
 
 ### 5.1 Zasoby statyczne i arkusze stylów
 
@@ -424,17 +512,20 @@ vdeck-app/src/main/resources/
 ├── static/
 │   ├── css/
 │   │   ├── variables.css        ← wszystkie zmienne CSS panelu
-│   │   ├── base.css             ← baza dokumentu, layout, komponenty wspólne
-│   │   └── authentication.css   ← styl ekranów hasła
+│   │   └── base.css             ← baza dokumentu, layout, karta widoku, formularze, panele ustawień, komponenty wspólne
 │   ├── icons/icons.svg          ← jeden sprite ze wszystkimi ikonami
-│   ├── img/                     ← page-, panel-, island- i side-menu-background.jpg
-│   └── js/side-menu.js          ← zachowanie menu bocznego
+│   ├── img/                     ← page-, config-, panel-, island- i side-menu-background.jpg
+│   └── js/
+│       ├── side-menu.js         ← zachowanie menu bocznego
+│       └── game-settings.js     ← sekcja „Zaawansowane” ekranu „Ustawienia gry”
 ├── messages.properties          ← polski zestaw tekstów interfejsu
 └── templates/
     ├── common/island.html          ← komponent wspólny: wyspa akcji
     ├── common/password-rules.html  ← komponent wspólny: wymagania dla nowego hasła
     ├── common/side-menu.html       ← komponent wspólny: menu boczne
     ├── home/index.html             ← strona główna panelu
+    ├── launch/server-settings.html ← ekran „Serwer”
+    ├── launch/game-settings.html   ← ekran „Ustawienia gry”
     ├── authentication/change-password.html
     └── authentication/initial-password-change.html
 ```
@@ -442,12 +533,31 @@ vdeck-app/src/main/resources/
 - `variables.css` jest jedynym miejscem definicji zmiennych CSS. Każdy pozostały arkusz zaczyna się
   od `@import url("variables.css")` i nie definiuje własnych tokenów.
 - `base.css` zawiera bazę dokumentu, wyśrodkowanie widoku (`.page-center`), wspólną powierzchnię
-  z ramą i teksturą (`.surface`), kontrakt ikony (`.icon`) oraz style komponentów wspólnych.
-- Interfejs używa czterech tekstur: `page-background.jpg` na tle strony, `panel-background.jpg` na
-  panelach, `island-background.jpg` na wyspie akcji oraz `side-menu-background.jpg` w menu bocznym.
-  Panel jest przypadkiem domyślnym: `.surface` ustawia teksturę panelu, a powierzchnia o innej
-  teksturze nadpisuje wyłącznie lokalną właściwość `--surface-texture` — robią to modyfikatory
-  `.surface--island` i `.surface--side-menu`.
+  z ramą i teksturą (`.surface`), kontrakt ikony (`.icon`), style komponentów wspólnych oraz kartę
+  widoku i kontrolki formularzy używane przez kilka ekranów: `.view-card` z nagłówkiem
+  (`.view-header`, `.view-title`, `.view-lead`), komunikaty `.form-alert` i `.form-success`, sekcje
+  `.form-section` z tytułem na linii, pola `.form-field`, `.form-input`, `.form-select`,
+  `.form-checkbox`, opis pola `.form-hint` i przycisk `.form-submit`. Zawiera też układ paneli
+  ustawień wspólny dla ekranów „Serwer” i „Ustawienia gry” (`AD-012`): szeroką kartę
+  `.view-card--wide`, formularz `.settings-form` z wariantem kolumnowym `.settings-form--columns`,
+  kolumny `.settings-column`, siatkę pól `.settings-fields`, wyśrodkowany komunikat
+  `.settings-message`, stopkę z przyciskiem `.settings-footer` i przełącznik sekcji zaawansowanej
+  `.settings-advanced-toggle`. Globalna reguła `[hidden]` gwarantuje, że atrybut `hidden` ukrywa
+  element także wtedy, gdy jego klasa ustawia `display`. Arkusz widoku zawierałby wyłącznie układ
+  właściwy jednemu ekranowi — obecnie żaden widok go nie potrzebuje.
+- Każdy panel — karta ekranu hasła albo ekranu ustawień — jest owinięty w ramę `.panel-frame`
+  o stałej wysokości 70 % widoku (`--panel-frame-block-size`), wyśrodkowaną w miejscu pod wyspą;
+  nad panelem i pod nim zostaje wolne miejsce, a wszystkie panele mają tę samą wysokość. Karta
+  wypełnia ramę i przewija treść wewnątrz, z cienkim paskiem przewijania w kolorze akcentu. Gdy widok
+  jest niższy niż rama, np. telefon w poziomie, rama kurczy się do dostępnego miejsca.
+- Karta panelu pod wyspą ma od dołu zapas na pływający przycisk menu bocznego, więc ostatni element,
+  zwykle przycisk formularza, da się przewinąć ponad przycisk menu.
+- Interfejs używa pięciu tekstur: `page-background.jpg` na tle strony, `config-background.jpg` na
+  panelach, `panel-background.jpg` na kartach obu ekranów hasła, `island-background.jpg` na wyspie
+  akcji oraz `side-menu-background.jpg` w menu bocznym. Panel jest przypadkiem domyślnym: `.surface`
+  ustawia teksturę panelu, a powierzchnia o innej teksturze nadpisuje wyłącznie lokalną właściwość
+  `--surface-texture` — robią to modyfikatory `.surface--island`, `.surface--side-menu` i
+  `.surface--password`.
 - Kontrolki — przyciski i pola formularza — mają jednolicie czarne tło, więc odcinają się od tekstury
   zamiast jej prześwitywać. Stan wyróżnia jasność tła (`hover`), obramowanie akcentem (`focus`) oraz
   przygaszona ikona lub etykieta (`disabled`); wyłączona kontrolka nie jest wygaszana przezroczystością,
@@ -460,7 +570,7 @@ vdeck-app/src/main/resources/
 - **Strona nie przewija się w żadnej osi.** `body` jest powłoką o wysokości jednego widoku
   (`100dvh`, `overflow: hidden`); wyspa zajmuje swoją wysokość, a obszar treści (`.page-content`)
   bierze resztę. Gdy widok nie mieści się w bardzo niskim oknie, układ najpierw oddaje odstępy
-  dekoracyjne, a dopiero potem przewija się sam obszar treści albo karta widoku — nigdy strona.
+  dekoracyjne, a dopiero potem przewija się karta panelu wewnątrz swojej ramy — nigdy strona.
 
 ### 5.2 Wyspa akcji
 
@@ -490,7 +600,8 @@ początkowego — konto przed zmianą hasła nie może wykonać żadnej z jej ak
 Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są osadzane przez `<use>`.
 Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
 `icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
-`icon-key`, `icon-logout`, `icon-menu` (przycisk menu bocznego) i `icon-chevron` (stan gałęzi menu). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
+`icon-key`, `icon-logout`, `icon-menu` (przycisk menu bocznego), `icon-server` (ekran „Serwer”),
+`icon-sliders` (ekran „Ustawienia gry”) i `icon-chevron` (stan gałęzi menu). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
 przyciski tworzą kopię, a nie pobierają pliku.
 
 Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlatego
@@ -513,6 +624,9 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
   specjalny, różnica względem aktualnego hasła i zgodność obu pól — powiązany z polem nowego hasła
   przez `aria-describedby`. Pola mają rozmiar tekstu 1 rem, aby przeglądarki mobilne nie przybliżały
   widoku po ustawieniu fokusu.
+- **Serwer** (`launch/server-settings.html`, adres `/server-settings`) i **Ustawienia gry**
+  (`launch/game-settings.html`, adres `/game-settings`) to szerokie karty z domyślną teksturą panelu,
+  osadzone pod wyspą akcji, z menu bocznym — opisane w [5.6](#56-serwer-i-ustawienia-gry).
 - **Logowanie** korzysta ze strony generowanej przez Spring Security — nie jest ani stylowane, ani
   tłumaczone, więc pozostaje w języku angielskim.
 
@@ -522,9 +636,11 @@ i `title` pochodzą z tłumaczeń opisanych w [3.5](#35-tłumaczenia-interfejsu)
 ### 5.5 Menu boczne
 
 Menu boczne jest komponentem wspólnym — plik `templates/common/side-menu.html` z fragmentem
-`sideMenu`, osadzanym przez `th:replace="~{common/side-menu :: sideMenu}"` na stronie głównej i na
-ekranie zmiany hasła na życzenie. Fragment dołącza własny moduł `/js/side-menu.js`, więc widok nie
-musi o nim pamiętać; style leżą w `base.css`.
+`sideMenu`, osadzanym przez `th:replace="~{common/side-menu :: sideMenu}"` na stronie głównej, na
+ekranie zmiany hasła na życzenie oraz na ekranach „Serwer” i „Ustawienia gry”. Widok otwierany z menu
+przekazuje identyfikator swojej pozycji — np. `~{common/side-menu :: sideMenu(activeEntry='gameSettings')}` —
+dzięki czemu pozycja jest oznaczona jako bieżąca strona. Fragment dołącza własny moduł
+`/js/side-menu.js`, więc widok nie musi o nim pamiętać; style leżą w `base.css`.
 
 Widoczne zachowanie:
 
@@ -544,8 +660,13 @@ Widoczne zachowanie:
 - Menu zamyka ponowne kliknięcie przycisku, klawisz Escape albo wciśnięcie w dowolnym miejscu poza
   menu i przyciskiem. Zamknięcie zwija wszystkie gałęzie, a fokus z wnętrza menu wraca na przycisk.
 - Pozycje są pogrupowane w sekcje. Sekcja nie ma własnej ramy — wyróżnia ją jedynie tytuł: przygaszony
-  tekst na środku poziomej linii. Sekcje dzielą większe odstępy niż pozycje wewnątrz nich. Przykładowe
-  sekcje to „Konfiguracja”, „Operacje” i „Kopie bezpieczeństwa”.
+  tekst na środku poziomej linii. Sekcje dzielą większe odstępy niż pozycje wewnątrz nich. Sekcje to
+  „Konfiguracja”, „Operacje” i „Kopie bezpieczeństwa”.
+- Pierwsze pozycje sekcji „Konfiguracja” to „Serwer” (odnośnik do `/server-settings`, identyfikator
+  `serverSettings`) i „Ustawienia gry” (odnośnik do `/game-settings`, identyfikator `gameSettings`).
+  Na swoim ekranie pozycja ma `aria-current="page"` oraz obramowanie i tekst w kolorze akcentu.
+  Pozostałe pozycje — w sekcjach „Operacje” i „Kopie bezpieczeństwa” — są przykładowe, wszystkie
+  noszą etykietę „Test” (klucz `sideMenu.dummy.label`) i nie otwierają żadnego panelu.
 - W obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach, działające jak akordeon:
   gałąź rozwija swoje dzieci w miejscu, z wcięciem, a rozwinięcie gałęzi zwija rozwinięte rodzeństwo
   z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron.
@@ -563,13 +684,143 @@ Budowa komponentu:
 | `sideMenu` | Korzeń: przycisk `[data-side-menu-toggle]` z `aria-expanded` i `aria-controls`, panel `nav[data-side-menu-panel]` oraz moduł skryptu |
 | `section.side-menu-section` | Sekcja: tytuł `sectionTitle( labelKey, titleId )`, który nazywa sekcję przez `aria-labelledby`, oraz lista pierwszego poziomu |
 | `branchToggle( labelKey, iconId, childrenId )` | Pozycja rozwijająca gałąź; bezpośrednio po niej w tym samym elemencie listy leży opakowanie dzieci `.side-menu-children` o identyfikatorze `childrenId` |
-| `leaf( labelKey, iconId )` | Pozycja otwierająca panel; `iconId` może być `null` |
+| `link( labelKey, iconId, href, entryId )` | Pozycja otwierająca panel — odnośnik; gdy `entryId` równa się `activeEntry` przekazanemu przez widok, pozycja dostaje `aria-current="page"` |
+| `leaf( labelKey, iconId )` | Przykładowa pozycja bez zachowania, zastępowana przez `link` wraz z powstaniem panelu; `iconId` może być `null` |
 | `side-menu.js` | Przełącza atrybuty `data-state`, `aria-expanded` i `inert`; animacje należą wyłącznie do arkusza stylów |
 
 Drzewo jest zapisane bezpośrednio w znacznikach fragmentu — nie ma modelu w Javie. Dodanie panelu
-polega na dodaniu elementu listy z wywołaniem `leaf(...)` w odpowiedniej sekcji lub gałęzi. Zamknięte menu
+polega na dodaniu elementu listy z wywołaniem `link(...)` w odpowiedniej sekcji lub gałęzi. Po otwarciu
+menu fokus trafia na pierwszą pozycję, odnośnik albo przycisk. Zamknięte menu
 i zwinięte gałęzie mają atrybut `inert`, więc ich pozycje nie są osiągalne klawiaturą ani przez
 technologie asystujące. Stan otwarcia nie jest zapamiętywany między stronami.
+
+### 5.6 Serwer i Ustawienia gry
+
+Feature `launch` pozwala zdefiniować profil uruchomieniowy serwera Valheim — opcje wiersza poleceń
+`valheim_server.exe` opisane w instrukcji serwera dedykowanego. Profil jest tylko **zapisywany**:
+panel nie uruchamia jeszcze serwera, więc zmiany zaczną działać wraz z implementacją sterowania
+serwerem, zawsze od jego następnego startu. Profil leży w pliku
+`.vDeck/config/valheim-server.properties` (`AD-011`, `AD-013`), obsługiwanym przez ten sam mechanizm co
+`vDeck.properties` ([3.2](#32-ustawienia-panelu-w-vdeckproperties)). Edytują go dwa ekrany, a każdy
+zapisuje wyłącznie własne ustawienia, nie zmieniając ustawień drugiego.
+
+Widoczne zachowanie wspólne dla obu ekranów:
+
+- Ekrany otwierają pozycje „Serwer” i „Ustawienia gry” w sekcji „Konfiguracja” menu bocznego. Karta
+  ma domyślną teksturę panelu (`config-background.jpg`) i jest szersza niż karta hasła. Ma wspólną dla
+  wszystkich paneli stałą wysokość, a formularz przewija się wewnątrz karty.
+- Pola są pogrupowane w sekcje z tytułem na środku poziomej linii. Każde pole ma pod sobą opis
+  powiązany przez `aria-describedby`: opcję wiersza poleceń, znaczenie, **dozwolone albo możliwe
+  wartości** i wartość domyślną. Opis listy rozwijanej (preset i modyfikatory) pomija możliwe
+  wartości, bo pokazuje je sama lista, a opis modyfikatora pomija też wartość domyślną, bo lista
+  oznacza ją opcją „Domyślnie (wartość gry)”. Opis pola wyboru (checkbox) nie podaje wartości ani
+  wartości domyślnej — mówi tylko, co oznacza zaznaczenie. Opcje listy mają przy nazwie także wartość przekazywaną
+  serwerowi, np. „Trudno (hard)”.
+- Pola każdej sekcji rozkładają się na tyle kolumn, ile zmieści karta, nie węższych niż 18 rem. Na
+  telefonie i każdym ekranie pionowym wszystko idzie jedną kolumną. Na ekranie poziomym karta
+  rozszerza się do 76 rem od 60 rem szerokości i do 118 rem od 96 rem.
+- Zapis przekierowuje z powrotem na ten sam ekran (`?saved`) z potwierdzeniem w `role="status"`.
+  Odrzucenie i błąd zapisu też przekierowują na ten sam ekran (bez `?saved`), który pokazuje jeden
+  komunikat w `role="alert"` i zachowuje wpisane wartości — poza hasłem. Komunikat i wartości
+  przekazuje `LaunchProfileExceptionHandler` atrybutami flash (`launchProfileErrorKey` i formularz
+  ekranu), patrz [2.3](#23-obsługa-wyjątków).
+
+**Serwer** (`/server-settings`) zawiera sekcje „Serwer”, „Dostęp”, „Świat i zapis” oraz „Kopie
+automatyczne”, zgrupowane w dwie kolumny: „Serwer” z „Dostępem” oraz „Świat i zapis” z „Kopiami
+automatycznymi”. Na ekranie poziomym od 60 rem kolumny stoją obok siebie; każda układa swoje sekcje
+jedna pod drugą.
+
+- Hasła serwera nie da się odczytać: ekran pokazuje tylko „Hasło jest ustawione” albo „Hasło nie jest
+  ustawione”. Puste pole zachowuje zapisane hasło, a pole wyboru „Usuń hasło” (widoczne, gdy hasło
+  jest ustawione) usuwa je.
+- Opcja `-logFile` nie jest edytowalna: ekran wyjaśnia, że panel wyznacza ją z `game.log.directory`.
+
+**Ustawienia gry** (`/game-settings`) ma na górze wyłącznie sekcję „Zestaw ustawień” z listą presetu
+świata. Modyfikatory i klucze świata leżą niżej, w sekcji „Zaawansowane”:
+
+- Stopka z przyciskiem zapisu znajduje się na dole karty również przy ukrytych ustawieniach
+  zaawansowanych. Jeśli formularz nie mieści się w karcie, stopka znajduje się za polami i jest
+  dostępna po przewinięciu panelu.
+- Sekcja „Zaawansowane” jest domyślnie ukryta. Pokazuje ją wyśrodkowane pole wyboru „Konfiguracja
+  zaawansowana” nad nią; odznaczenie ją ukrywa.
+- Wybór jest zapamiętywany od razu po kliknięciu, niezależnie od zapisu formularza: `game-settings.js`
+  przełącza atrybut `hidden` sekcji i wysyła `POST /game-settings/advanced` z parametrem `shown` i
+  tokenem CSRF z formularza. Stan leży w `vDeck.properties` pod kluczem
+  `panel.game.settings.advanced`, więc obowiązuje przy każdej kolejnej wizycie, także z innej
+  przeglądarki. Serwer renderuje ekran od razu w zapamiętanym stanie.
+- Pole wyboru nie ma nazwy, więc nie jest częścią formularza ustawień. Ukrycie sekcji niczego nie
+  wyłącza: jej pola są nadal wysyłane przy zapisie, a zapisane wartości nadal obowiązują.
+- Gdy zapamiętanie wyboru się nie powiedzie, sekcja i tak zostaje przełączona, a kolejna wizyta pokaże
+  ostatni zapisany stan.
+
+| Ekran › sekcja | Klucz | Opcja | Dozwolone wartości | Domyślnie |
+|---|---|---|---|---|
+| Serwer › Serwer | `server.name` | `-name` | 1–64 znaki, bez `"` i znaków sterujących | `vDeck` |
+| Serwer › Serwer | `server.port` | `-port` | 1024–65534 (serwer używa też portu +1) | `2456` |
+| Serwer › Serwer | `server.public` | `-public` | `true` / `false` (w wierszu poleceń `1` / `0`) | `true` |
+| Serwer › Serwer | `server.crossplay` | `-crossplay` | `true` / `false` | `false` |
+| Serwer › Serwer | `server.instance.id` | `-instanceid` | puste albo do 32 znaków `[A-Za-z0-9_-]` | puste |
+| Serwer › Dostęp | `server.password` | `-password` | puste albo 5–64 znaki bez `"`, bez spacji na brzegach, niebędące fragmentem nazwy serwera | puste |
+| Serwer › Świat i zapis | `server.world` | `-world` | 1–64 znaki `[A-Za-z0-9 _-]`, bez spacji na brzegach | `Dedicated` |
+| Serwer › Świat i zapis | `server.save.directory` | `-savedir` | ścieżka względna wewnątrz katalogu instalacyjnego, inna niż on sam | `valheim-data` |
+| Serwer › Świat i zapis | `server.save.interval` | `-saveinterval` | 60–86400 s | `1800` |
+| Serwer › Kopie automatyczne | `server.backup.count` | `-backups` | 1–100 | `4` |
+| Serwer › Kopie automatyczne | `server.backup.short` | `-backupshort` | 60–604800 s | `7200` |
+| Serwer › Kopie automatyczne | `server.backup.long` | `-backuplong` | 60–2592000 s | `43200` |
+| Ustawienia gry › Zestaw ustawień | `world.preset` | `-preset` | puste, `normal`, `casual`, `easy`, `hard`, `hardcore`, `immersive`, `hammer` | puste |
+| Ustawienia gry › Zaawansowane | `world.modifier.combat` | `-modifier combat` | puste, `veryeasy`, `easy`, `hard`, `veryhard` | puste |
+| Ustawienia gry › Zaawansowane | `world.modifier.death.penalty` | `-modifier deathpenalty` | puste, `casual`, `veryeasy`, `easy`, `hard`, `hardcore` | puste |
+| Ustawienia gry › Zaawansowane | `world.modifier.resources` | `-modifier resources` | puste, `muchless`, `less`, `more`, `muchmore`, `most` | puste |
+| Ustawienia gry › Zaawansowane | `world.modifier.raids` | `-modifier raids` | puste, `none`, `muchless`, `less`, `more`, `muchmore` | puste |
+| Ustawienia gry › Zaawansowane | `world.modifier.portals` | `-modifier portals` | puste, `casual`, `hard`, `veryhard` | puste |
+| Ustawienia gry › Zaawansowane | `world.key.no.build.cost`, `world.key.player.events`, `world.key.passive.mobs`, `world.key.no.map` | `-setkey …` | `true` / `false` | `false` |
+
+Ustawienia z pustą wartością domyślną są opcjonalne: pusta wartość oznacza, że opcja nie będzie
+przekazana serwerowi. Pozostałe są obowiązkowe.
+
+Walidacja przebiega w dwóch krokach. Adnotacje `ServerSettingsForm` i `GameSettingsForm` sprawdzają
+format i zakresy. `LaunchProfileServiceImpl` sprawdza to, czego adnotacje nie wyrażą:
+
+- preset i modyfikatory muszą pochodzić z listy wartości (`WorldPreset`, `WorldModifier`);
+- katalog zapisu jest rozwiązywany przez `PathService` i zapisywany w postaci znormalizowanej,
+  względnej, z ukośnikami `/`; katalog instalacyjny sam w sobie jest odrzucany;
+- nazwa serwera nie może zawierać hasła, bez względu na wielkość liter. To reguła samego serwera
+  Valheim, sprawdzana także dla hasła zachowanego z pliku.
+
+Dopiero wtedy ustawienia ekranu trafiają do pliku jednym wywołaniem `setValues` — 12 ustawień ekranu
+„Serwer” albo 10 ustawień ekranu „Ustawienia gry”; zapisują się wszystkie albo żadne. Każda nieudana
+kontrola kończy się `LaunchProfileUpdateException` z kluczem komunikatu. Błąd zapisu pliku serwis
+zamienia na ten sam wyjątek z kluczem `SAVE_FAILED` i przyczyną, więc kończy się komunikatem na
+ekranie, a nie stroną błędu.
+
+![Diagram sekwencji: zapis profilu uruchomieniowego z obu ekranów](diagramy/launch/img/przeplyw-zapis-profilu.svg)
+
+Źródło diagramu: [`diagramy/launch/przeplyw-zapis-profilu.mmd`](diagramy/launch/przeplyw-zapis-profilu.mmd)
+
+![Diagram sekwencji: pokazywanie i ukrywanie sekcji „Zaawansowane”](diagramy/launch/img/przeplyw-sekcja-zaawansowana.svg)
+
+Źródło diagramu: [`diagramy/launch/przeplyw-sekcja-zaawansowana.mmd`](diagramy/launch/przeplyw-sekcja-zaawansowana.mmd)
+
+Komponenty:
+
+| Element | Rola |
+|---|---|
+| `ServerSettingsController` | `GET` i `POST /server-settings`; publikuje formularz (przekazany po odrzuceniu albo z zapisanego profilu) i informację `passwordSet`, po sukcesie przekierowuje z `?saved` |
+| `GameSettingsController` | `GET` i `POST /game-settings`; publikuje formularz (przekazany po odrzuceniu albo z zapisanego profilu), listy opcji i widoczność sekcji `advancedShown`, po sukcesie przekierowuje z `?saved`; `POST /game-settings/advanced` zapamiętuje widoczność i odpowiada `204`, a nieudany zapis obsługuje `DefaultExceptionHandler` odpowiedzią `500` |
+| `LaunchProfileExceptionHandler` | `@ControllerAdvice` obu kontrolerów: loguje odrzucenie (`INFO`) albo niepowodzenie (`ERROR` ze stack trace) i przekierowuje na wysłany ekran z komunikatem i formularzem jako atrybutami flash |
+| `LaunchProfileMessage` | Zamknięty zbiór kluczy komunikatów: `INVALID_INPUT`, `INVALID_SAVE_DIRECTORY`, `PASSWORD_PART_OF_NAME`, `SAVE_FAILED` |
+| `domain.LaunchProperty` | Enum ustawień pliku `valheim-server.properties`: klucz, wartość domyślna i obowiązkowość |
+| `domain.LaunchProfile` | Typowany widok zapisanego profilu; hasło reprezentuje wyłącznie `passwordSet` |
+| `domain.WorldPreset`, `WorldModifier`, `WorldKey` | Zamknięte zbiory presetów, modyfikatorów z ich dozwolonymi wartościami i kluczy `-setkey` |
+| `exc.LaunchProfileUpdateException` | Wyjątek procesu zapisu: klucz `LaunchProfileMessage`, przesłany formularz (ekranu „Serwer” bez hasła) i — przy nieudanym zapisie — przyczyna |
+| `dto.ServerSettingsForm` | Rekord formularza ekranu „Serwer” z walidacją; `toString()` redaguje hasło, `withoutPassword()` usuwa je przed ponownym wyświetleniem |
+| `dto.GameSettingsForm` | Rekord formularza ekranu „Ustawienia gry”: preset, modyfikatory i klucze świata |
+| `service.LaunchProfileService` / `impl.LaunchProfileServiceImpl` | Odczyt profilu przez `PropertyReader` oraz osobny zapis ustawień każdego ekranu (`updateServerSettings`, `updateGameSettings`) przez `SystemPropertiesService` z nazwą pliku `LaunchProperty.FILE_NAME` |
+| `service.GameSettingsDisplayService` / `impl.GameSettingsDisplayServiceImpl` | Odczyt (`PropertyReader.readBoolean`) i zapis widoczności sekcji „Zaawansowane” przez `SystemPropertiesService` z nazwą pliku `VdeckProperty.FILE_NAME`; wartość inna niż `true`/`false` oznacza sekcję ukrytą |
+
+Wartość zapisana w pliku, która nie pasuje do ustawienia — np. po ręcznej edycji — jest przy odczycie
+przez `PropertyReader` zastępowana wartością domyślną, a nieznany preset albo wartość modyfikatora są
+pomijane; oba przypadki są odnotowywane w logu na poziomie `WARN`. Plik nie jest wtedy przepisywany.
 
 ## 6. Bezpieczeństwo
 
@@ -594,6 +845,12 @@ Zaimplementowane mechanizmy przekrojowe:
   opuścić katalogu instalacyjnego — także przez dowiązania i junction (patrz [3.3](#33-rozwiązywanie-ścieżek)).
 - **Trwałość ustawień.** Zapis pliku ustawień jest atomowy i wymuszony na urządzenie, więc utrata
   zasilania nie zostawia pustego pliku konfiguracji.
+- **Hasło serwera Valheim.** Serwer wymaga hasła w wierszu poleceń, więc jest ono przechowywane
+  jawnym tekstem w `.vDeck/config/valheim-server.properties` (`AD-011`). Chronią je wyłącznie
+  uprawnienia konta systemowego do katalogu instalacyjnego. Plik trafia do każdej kopii katalogu
+  instalacyjnego i jest usuwany razem z nim. Hasło nigdy nie jest odsyłane do przeglądarki — ani po
+  zapisie, ani po odrzuceniu formularza. Nie trafia do logu, a `ServerSettingsForm.toString()` je
+  redaguje. Odpowiedzi panelu dostają nagłówki Spring Security zakazujące cache'owania.
 
 ## 7. Persystencja
 
@@ -615,34 +872,41 @@ Zdarzenia rejestrowane obecnie:
 
 | Poziom | Zdarzenie |
 |---|---|
-| `INFO` | Rozwiązanie katalogu bazowego; utworzenie pliku ustawień z domyślnymi wartościami; wczytanie ustawień; zmiana ustawienia; utworzenie domyślnego administratora; zmiana hasła na życzenie użytkownika; zmiana hasła początkowego wraz ze zdjęciem ograniczenia pierwszego logowania |
-| `WARN` | Przywrócenie domyślnej wartości brakującego ustawienia; nieudane usunięcie pliku tymczasowego |
-| `DEBUG` | Źródło katalogu bazowego (override albo `ApplicationHome`); pominięcie inicjalizacji istniejącego administratora; odrzucenie zmiany hasła wraz z `PasswordChangeStatus`, który o tym zdecydował |
+| `INFO` | Rozwiązanie katalogu bazowego; utworzenie pliku ustawień z domyślnymi wartościami; wczytanie ustawień; zmiana ustawienia albo liczba ustawień zmienionych naraz; utworzenie domyślnego administratora; zmiana hasła na życzenie użytkownika; zmiana hasła początkowego wraz ze zdjęciem ograniczenia pierwszego logowania; żądanie zapisu ustawień ekranu „Serwer” albo „Ustawienia gry”, ich zapis albo — w `LaunchProfileExceptionHandler` — odrzucenie z nazwą `LaunchProfileMessage`; pokazanie albo ukrycie sekcji „Zaawansowane” |
+| `WARN` | Przywrócenie domyślnej wartości brakującego ustawienia; nieudane usunięcie pliku tymczasowego; wartość ustawienia niepasująca do niego, zastąpiona wartością zastępczą albo pominięta (`PropertyReader`, z nazwą ustawienia i pliku) — w tym w profilu uruchomieniowym i w `panel.game.settings.advanced`, traktowanej wtedy jako sekcja ukryta; wyjątek nieobsłużony przez feature (`DefaultExceptionHandler`, z metodą i ścieżką żądania oraz stack trace), w tym nieudany zapis widoczności sekcji „Zaawansowane” |
+| `ERROR` | Nieudany zapis pliku profilu uruchomieniowego (`LaunchProfileExceptionHandler`), ze stack trace |
+| `DEBUG` | Źródło katalogu bazowego (override albo `ApplicationHome`); pominięcie inicjalizacji istniejącego administratora; odrzucenie zmiany hasła wraz z nazwą `PasswordChangeMessage` (`PasswordChangeExceptionHandler`); powód odrzucenia katalogu zapisu |
 
 Żaden komunikat nie zawiera hasła, hasha ani wartości ustawień. Wpis o odrzuconej zmianie hasła
-zawiera wyłącznie nazwę statusu, a nie wprowadzone wartości ani nazwę konta.
+zawiera wyłącznie nazwę komunikatu, a nie wprowadzone wartości ani nazwę konta.
 
 ## 9. Stan implementacji i znane ograniczenia
 
 Zaimplementowane: infrastruktura konfiguracji (`shared`), rozwiązywanie ścieżek, uwierzytelnianie
 panelu wraz z oboma wariantami zmiany hasła, teksty interfejsu w resource bundle oraz warstwa
 interfejsu — arkusze stylów, sprite ikon, komponenty wspólne wyspy akcji, wymagań dla hasła i menu
-bocznego, strona główna panelu oraz oba ostylowane ekrany hasła.
+bocznego, strona główna panelu, oba ostylowane ekrany hasła oraz ekrany „Serwer” i „Ustawienia gry”
+zapisujące profil uruchomieniowy.
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
-sterowanie cyklem życia serwera Valheim, moduł `vdeck-runtime` (nie ma katalogu `src`), profile
-uruchomieniowe, światy i kopie bezpieczeństwa, podgląd logów, listy graczy, RCON, mody, harmonogramy
-i aktualizacje serwera.
+sterowanie cyklem życia serwera Valheim (w tym budowanie wiersza poleceń z profilu uruchomieniowego),
+moduł `vdeck-runtime` (nie ma katalogu `src`), światy i kopie bezpieczeństwa, podgląd logów, listy
+graczy, RCON, mody, harmonogramy i aktualizacje serwera.
 
 Znane ograniczenia stanu bieżącego:
 
 - panel nie ma własnej strony logowania — używana jest strona generowana przez Spring Security;
+- panel nie ma własnej strony błędu — odpowiedź `500` z `DefaultExceptionHandler` renderuje domyślna
+  strona błędu Spring Boota, bez treści wyjątku;
 - strona główna jest pusta poza wyspą akcji: pokazuje tło i wyspę, ale nie prezentuje jeszcze żadnych
   danych ani stanu serwera;
 - przyciski sterowania serwerem i kopii bezpieczeństwa na wyspie są elementami interfejsu bez
   akcji — odpowiadające funkcjonalności nie są zaimplementowane;
-- menu boczne zawiera wyłącznie przykładowe sekcje i pozycje (numerowane sekcje, grupy i panele)
-  pokazujące podział na sekcje i trzy poziomy drzewa; żadna pozycja nie otwiera jeszcze panelu;
+- menu boczne ma dwie działające pozycje — „Serwer” i „Ustawienia gry”; pozostałe są przykładowe
+  (etykieta „Test”), pokazują trzy poziomy drzewa i nie otwierają żadnego panelu;
+- profil uruchomieniowy jest zapisywany, ale jeszcze nieużywany, bo panel nie uruchamia serwera;
+- hasło serwera Valheim leży w pliku ustawień jawnym tekstem, chronione wyłącznie uprawnieniami
+  systemu plików;
 - panel jest jednojęzyczny i nie ma mechanizmu zmiany języka; zmiana brzmienia tekstu wymaga nowego
   wydania, a strona logowania generowana przez Spring Security pozostaje angielska niezależnie od
   tekstów panelu;
@@ -651,7 +915,7 @@ Znane ograniczenia stanu bieżącego:
 - brak mechanizmu odzyskiwania dostępu po utracie hasła — odzyskanie wymaga ingerencji w plik bazy;
 - ścieżka bazy `jdbc:sqlite:vdeck.db` z `application.yaml` jest względna wobec katalogu roboczego
   procesu i **nie** przechodzi przez `PathService`;
-- plik ustawień jest czytany wyłącznie przy starcie, więc ręczna edycja wymaga restartu panelu;
+- pliki ustawień są czytane wyłącznie przy starcie, więc ręczna edycja wymaga restartu panelu;
 - zapis pliku ustawień gubi komentarze i kolejność kluczy;
 - brak testów ArchUnit egzekwujących opisane granice pakietów.
 
@@ -674,8 +938,11 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Diagram | Rodzaj | Obrazek | Źródło | Opisany w |
 |---|---|---|---|---|
 | Start aplikacji vDeck | przepływ | [`img/przeplyw-start-aplikacji.svg`](diagramy/wspolne/img/przeplyw-start-aplikacji.svg) | [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd) | [2.2](#22-start-aplikacji) |
+| Obsługa wyjątków | przepływ | [`img/przeplyw-obsluga-wyjatkow.svg`](diagramy/wspolne/img/przeplyw-obsluga-wyjatkow.svg) | [`diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd`](diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd) | [2.3](#23-obsługa-wyjątków) |
 | Infrastruktura konfiguracji | klasy | [`img/klasy-konfiguracja.svg`](diagramy/wspolne/img/klasy-konfiguracja.svg) | [`diagramy/wspolne/klasy-konfiguracja.mmd`](diagramy/wspolne/klasy-konfiguracja.mmd) | [3.4](#34-komponenty-konfiguracji) |
 | Logowanie do panelu | przepływ | [`img/przeplyw-logowanie.svg`](diagramy/authentication/img/przeplyw-logowanie.svg) | [`diagramy/authentication/przeplyw-logowanie.mmd`](diagramy/authentication/przeplyw-logowanie.mmd) | [4.4](#44-logowanie) |
 | Zmiana hasła w obu wariantach | przepływ | [`img/przeplyw-zmiana-hasla.svg`](diagramy/authentication/img/przeplyw-zmiana-hasla.svg) | [`diagramy/authentication/przeplyw-zmiana-hasla.mmd`](diagramy/authentication/przeplyw-zmiana-hasla.mmd) | [4.5](#45-zmiana-hasła) |
 | Feature authentication | klasy | [`img/klasy-komponenty.svg`](diagramy/authentication/img/klasy-komponenty.svg) | [`diagramy/authentication/klasy-komponenty.mmd`](diagramy/authentication/klasy-komponenty.mmd) | [4.7](#47-komponenty-featurea) |
 | Menu boczne | przepływ | [`img/przeplyw-menu-boczne.svg`](diagramy/wspolne/img/przeplyw-menu-boczne.svg) | [`diagramy/wspolne/przeplyw-menu-boczne.mmd`](diagramy/wspolne/przeplyw-menu-boczne.mmd) | [5.5](#55-menu-boczne) |
+| Zapis profilu uruchomieniowego | sekwencja | [`img/przeplyw-zapis-profilu.svg`](diagramy/launch/img/przeplyw-zapis-profilu.svg) | [`diagramy/launch/przeplyw-zapis-profilu.mmd`](diagramy/launch/przeplyw-zapis-profilu.mmd) | [5.6](#56-serwer-i-ustawienia-gry) |
+| Sekcja „Zaawansowane” | sekwencja | [`img/przeplyw-sekcja-zaawansowana.svg`](diagramy/launch/img/przeplyw-sekcja-zaawansowana.svg) | [`diagramy/launch/przeplyw-sekcja-zaawansowana.mmd`](diagramy/launch/przeplyw-sekcja-zaawansowana.mmd) | [5.6](#56-serwer-i-ustawienia-gry) |

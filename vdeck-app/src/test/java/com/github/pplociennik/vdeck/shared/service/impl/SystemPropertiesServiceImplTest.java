@@ -1,44 +1,49 @@
 package com.github.pplociennik.vdeck.shared.service.impl;
 
 import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
-import com.github.pplociennik.vdeck.shared.VdeckProperty;
+import com.github.pplociennik.vdeck.shared.SystemPropertyValues;
+import com.github.pplociennik.vdeck.shared.exc.PathResolutionException;
+import com.github.pplociennik.vdeck.shared.service.PathService;
 import jakarta.annotation.Nonnull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.BDDMockito.given;
 
 /**
- * Verifies that {@link SystemPropertiesServiceImpl} loads, repairs and atomically persists one external
- * properties file.
- *
- * <p>A test-local property set is used instead of {@link VdeckProperty} so that the generic contract
- * of the service is verified independently of the settings vDeck currently happens to declare.
+ * Verifies that {@link SystemPropertiesServiceImpl} serves several properties files through one
+ * instance, addressing each file by its name. The per-file load, repair and save rules are verified by
+ * {@code PropertiesFileTest}; this class covers the file registry and its routing.
  */
+@ExtendWith( MockitoExtension.class )
 class SystemPropertiesServiceImplTest {
 
     // =================================================================================================
     // FIELDS
     // =================================================================================================
 
+    private static final String FIRST_FILE = "first.properties";
+
+    private static final String SECOND_FILE = "second.properties";
+
     @TempDir
     private Path directory;
 
-    private Path settingsFile;
+    @Mock
+    private PathService pathService;
 
     private SystemPropertiesServiceImpl underTest;
 
@@ -47,12 +52,11 @@ class SystemPropertiesServiceImplTest {
     // =================================================================================================
 
     /**
-     * Creates a fresh service bootstrapping an isolated settings file with default values.
+     * Creates a fresh service with no file loaded.
      */
     @BeforeEach
     void setUp() {
-        settingsFile = directory.resolve( "test.properties" );
-        underTest = createUnderTest();
+        underTest = new SystemPropertiesServiceImpl( pathService );
     }
 
     // =================================================================================================
@@ -60,212 +64,89 @@ class SystemPropertiesServiceImplTest {
     // =================================================================================================
 
     /**
-     * Verifies that a missing settings file is created with every managed key set to its default.
+     * Verifies that loading a file creates it with its default values at the location resolved by the
+     * path service.
      */
     @Test
-    void shouldCreateFileWithDefaultValues_whenFileDoesNotExist() throws IOException {
+    void shouldCreateFileAtResolvedLocation_whenFileIsLoaded() throws IOException {
         // GIVEN
-        // the service created in setUp against a directory holding no settings file
+        Path firstFile = resolveConfigurationFile( FIRST_FILE );
 
         // WHEN
-        Properties storedProperties = readSettingsFile();
+        underTest.loadFile( FIRST_FILE, firstDefaults() );
 
         // THEN
-        assertThat( settingsFile ).exists();
-        assertThat( storedProperties ).containsOnly(
-                Map.entry( TestProperty.FIRST.getName(), "first-default" ),
-                Map.entry( TestProperty.SECOND.getName(), "second-default" ) );
+        assertThat( readFile( firstFile ) )
+                .containsEntry( FirstProperty.NAME.getName(), "first-default" )
+                .containsEntry( FirstProperty.NOTE.getName(), "" );
     }
 
     /**
-     * Verifies that a value present in the file is returned instead of the default.
+     * Verifies that a value is read from the file named by the caller.
      */
     @Test
-    void shouldReturnStoredValue_whenPropertyExistsInFile() throws IOException {
+    void shouldReturnValueOfNamedFile_whenFileIsLoaded() {
         // GIVEN
-        writeSettingsFile( "first.key=configured" );
+        loadBothFiles();
 
         // WHEN
-        underTest = createUnderTest();
+        String result = underTest.getValue( SECOND_FILE, SecondProperty.PORT );
 
         // THEN
-        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "configured" );
+        assertThat( result ).isEqualTo( "2456" );
     }
 
     /**
-     * Verifies that the default is used when the file does not declare a managed key.
+     * Verifies that a written value is persisted to the named file only.
      */
     @Test
-    void shouldReturnDefaultValue_whenPropertyIsMissingInFile() throws IOException {
+    void shouldPersistValueToNamedFile_whenValueIsWritten() throws IOException {
         // GIVEN
-        writeSettingsFile( "second.key=configured" );
+        Path firstFile = resolveConfigurationFile( FIRST_FILE );
+        Path secondFile = resolveConfigurationFile( SECOND_FILE );
+        underTest.loadFile( FIRST_FILE, firstDefaults() );
+        underTest.loadFile( SECOND_FILE, secondDefaults() );
 
         // WHEN
-        underTest = createUnderTest();
+        underTest.setValue( FIRST_FILE, FirstProperty.NAME, "changed" );
 
         // THEN
-        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "first-default" );
+        assertThat( underTest.getValue( FIRST_FILE, FirstProperty.NAME ) ).isEqualTo( "changed" );
+        assertThat( readFile( firstFile ) ).containsEntry( FirstProperty.NAME.getName(), "changed" );
+        assertThat( readFile( secondFile ) ).doesNotContainKey( FirstProperty.NAME.getName() );
     }
 
     /**
-     * Verifies that a blank value in the file is treated as missing and replaced by the default.
-     */
-    @ParameterizedTest( name = "[{index}] stored value=\"{0}\"" )
-    @ValueSource( strings = { "", " ", "\t" } )
-    void shouldReturnDefaultValue_whenStoredValueIsBlank( String storedValue ) throws IOException {
-        // GIVEN
-        writeSettingsFile( "first.key=" + storedValue );
-
-        // WHEN
-        underTest = createUnderTest();
-
-        // THEN
-        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "first-default" );
-    }
-
-    /**
-     * Verifies that whitespace around a stored value is removed when the value is read.
+     * Verifies that several values written together are persisted to the named file.
      */
     @Test
-    void shouldStripSurroundingWhitespace_whenValueIsRead() throws IOException {
+    void shouldPersistEveryValueToNamedFile_whenValuesAreWrittenTogether() throws IOException {
         // GIVEN
-        writeSettingsFile( "first.key=   spaced   " );
+        Path firstFile = resolveConfigurationFile( FIRST_FILE );
+        underTest.loadFile( FIRST_FILE, firstDefaults() );
+        SystemPropertyValues values = SystemPropertyValues.create()
+                .with( FirstProperty.NAME, "changed" )
+                .with( FirstProperty.NOTE, "note" );
 
         // WHEN
-        underTest = createUnderTest();
+        underTest.setValues( FIRST_FILE, values );
 
         // THEN
-        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "spaced" );
+        assertThat( readFile( firstFile ) )
+                .containsEntry( FirstProperty.NAME.getName(), "changed" )
+                .containsEntry( FirstProperty.NOTE.getName(), "note" );
     }
 
     /**
-     * Verifies that a managed key missing from the file is written back, which is the migration path
-     * for settings introduced by a new release.
+     * Verifies that a setting of one file cannot be read through the name of another loaded file.
      */
     @Test
-    void shouldRepairFileOnDisk_whenManagedKeyIsMissing() throws IOException {
+    void shouldThrowException_whenPropertyBelongsToAnotherFile() {
         // GIVEN
-        writeSettingsFile( "second.key=configured" );
+        loadBothFiles();
 
         // WHEN
-        underTest = createUnderTest();
-
-        // THEN
-        assertThat( readSettingsFile() ).containsEntry( TestProperty.FIRST.getName(), "first-default" );
-    }
-
-    /**
-     * Verifies that entries not owned by the service survive a rewrite of the file.
-     */
-    @Test
-    void shouldPreserveForeignEntries_whenFileIsRewritten() throws IOException {
-        // GIVEN
-        writeSettingsFile( "first.key=configured\nsecond.key=configured\nforeign.key=kept" );
-        underTest = createUnderTest();
-
-        // WHEN
-        underTest.setValue( TestProperty.FIRST, "changed" );
-
-        // THEN
-        assertThat( readSettingsFile() ).containsEntry( "foreign.key", "kept" );
-    }
-
-    /**
-     * Verifies that a written value is visible in memory and persisted to the file.
-     */
-    @Test
-    void shouldPersistValue_whenValueIsWritten() throws IOException {
-        // GIVEN
-        String newValue = "changed";
-
-        // WHEN
-        underTest.setValue( TestProperty.FIRST, newValue );
-
-        // THEN
-        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( newValue );
-        assertThat( readSettingsFile() ).containsEntry( TestProperty.FIRST.getName(), newValue );
-    }
-
-    /**
-     * Verifies that whitespace around a written value is removed before it is persisted.
-     */
-    @Test
-    void shouldStripSurroundingWhitespace_whenValueIsWritten() throws IOException {
-        // GIVEN
-        String newValue = "   changed   ";
-
-        // WHEN
-        underTest.setValue( TestProperty.FIRST, newValue );
-
-        // THEN
-        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "changed" );
-    }
-
-    /**
-     * Verifies that the temporary file used for the atomic replace is not left behind.
-     */
-    @Test
-    void shouldLeaveNoTemporaryFile_whenValueIsWritten() throws IOException {
-        // GIVEN
-        // a freshly bootstrapped settings file
-
-        // WHEN
-        underTest.setValue( TestProperty.FIRST, "changed" );
-
-        // THEN
-        try ( var entries = Files.list( directory ) ) {
-            assertThat( entries ).containsExactly( settingsFile );
-        }
-    }
-
-    /**
-     * Verifies that a failed write leaves the in-memory value unchanged, so memory and disk cannot
-     * diverge.
-     */
-    @Test
-    void shouldKeepPreviousValue_whenWriteFails() throws IOException {
-        // GIVEN
-        Files.delete( settingsFile );
-        Files.delete( directory );
-
-        // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.setValue( TestProperty.FIRST, "changed" ) );
-
-        // THEN
-        assertThat( thrown )
-                .isInstanceOf( UncheckedIOException.class )
-                .hasMessageContaining( "Failed to save vDeck settings" );
-        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "first-default" );
-    }
-
-    /**
-     * Verifies that a blank value is rejected instead of being persisted.
-     */
-    @ParameterizedTest( name = "[{index}] value=\"{0}\"" )
-    @ValueSource( strings = { "", "   ", "\t" } )
-    void shouldThrowException_whenWrittenValueIsBlank( String value ) {
-        // GIVEN
-        // a freshly bootstrapped settings file
-
-        // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.setValue( TestProperty.FIRST, value ) );
-
-        // THEN
-        assertThat( thrown )
-                .isInstanceOf( IllegalArgumentException.class )
-                .hasMessageContaining( "value must not be blank" );
-    }
-
-    /**
-     * Verifies that reading a setting owned by another file is reported as a programming error.
-     */
-    @Test
-    void shouldThrowException_whenReadPropertyIsNotManaged() {
-        // GIVEN
-        SystemPropertyIf unmanagedProperty = () -> "unmanaged.key";
-
-        // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.getValue( unmanagedProperty ) );
+        Throwable thrown = catchThrowable( () -> underTest.getValue( SECOND_FILE, FirstProperty.NAME ) );
 
         // THEN
         assertThat( thrown )
@@ -274,103 +155,137 @@ class SystemPropertiesServiceImplTest {
     }
 
     /**
-     * Verifies that writing a setting owned by another file is reported as a programming error.
+     * Verifies that loading the same file twice is rejected, because a second handler would diverge from
+     * the first one.
      */
     @Test
-    void shouldThrowException_whenWrittenPropertyIsNotManaged() {
+    void shouldThrowException_whenFileIsLoadedTwice() {
         // GIVEN
-        SystemPropertyIf unmanagedProperty = () -> "unmanaged.key";
+        resolveConfigurationFile( FIRST_FILE );
+        underTest.loadFile( FIRST_FILE, firstDefaults() );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.setValue( unmanagedProperty, "value" ) );
+        Throwable thrown = catchThrowable( () -> underTest.loadFile( FIRST_FILE, firstDefaults() ) );
 
         // THEN
         assertThat( thrown )
-                .isInstanceOf( IllegalArgumentException.class )
-                .hasMessageContaining( "is not managed by file" );
+                .isInstanceOf( IllegalStateException.class )
+                .hasMessageContaining( "has already been loaded" );
     }
 
     /**
-     * Verifies that an unreadable settings file aborts construction instead of silently using defaults.
+     * Verifies that a file name rejected by the path service aborts loading and leaves the file unloaded.
      */
     @Test
-    void shouldThrowException_whenFileCannotBeRead() throws IOException {
+    void shouldPropagateException_whenPathServiceRejectsFileName() {
         // GIVEN
-        Files.delete( settingsFile );
-        Files.createDirectory( settingsFile );
+        String fileName = "../outside.properties";
+        given( pathService.getConfigurationFile( fileName ) ).willThrow( new PathResolutionException( "rejected" ) );
 
         // WHEN
-        Throwable thrown = catchThrowable( this::createUnderTest );
+        Throwable thrown = catchThrowable( () -> underTest.loadFile( fileName, firstDefaults() ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( PathResolutionException.class );
+        assertThat( catchThrowable( () -> underTest.getValue( fileName, FirstProperty.NAME ) ) )
+                .isInstanceOf( IllegalStateException.class );
+    }
+
+    /**
+     * Verifies that reading from a file that has not been loaded is reported as a programming error.
+     */
+    @Test
+    void shouldThrowException_whenReadFileIsNotLoaded() {
+        // GIVEN
+        // no file loaded
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.getValue( FIRST_FILE, FirstProperty.NAME ) );
 
         // THEN
         assertThat( thrown )
-                .isInstanceOf( UncheckedIOException.class )
-                .hasMessageContaining( "Failed to read vDeck settings" );
+                .isInstanceOf( IllegalStateException.class )
+                .hasMessageContaining( "has not been loaded" );
     }
 
     /**
-     * Verifies that a relative settings file path is rejected, because it would depend on the process
-     * working directory.
+     * Verifies that writing to a file that has not been loaded is reported as a programming error.
      */
     @Test
-    void shouldThrowException_whenPropertiesFileIsNotAbsolute() {
+    void shouldThrowException_whenWrittenFileIsNotLoaded() {
         // GIVEN
-        Path relativeFile = Path.of( "test.properties" );
+        // no file loaded
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( relativeFile, defaults() ) );
+        Throwable thrown = catchThrowable( () -> underTest.setValue( FIRST_FILE, FirstProperty.NAME, "value" ) );
 
         // THEN
         assertThat( thrown )
-                .isInstanceOf( IllegalArgumentException.class )
-                .hasMessageContaining( "propertiesFile must be absolute" );
+                .isInstanceOf( IllegalStateException.class )
+                .hasMessageContaining( "has not been loaded" );
     }
 
     /**
-     * Verifies that a blank default value is rejected, because it would break the guarantee that a
-     * read never returns a blank value.
+     * Verifies that a batch written to a file that has not been loaded is reported as a programming error.
      */
     @Test
-    void shouldThrowException_whenDefaultValueIsBlank() {
+    void shouldThrowException_whenBatchFileIsNotLoaded() {
         // GIVEN
-        Map< SystemPropertyIf, String > blankDefaults = Map.of( TestProperty.FIRST, "  " );
+        SystemPropertyValues values = SystemPropertyValues.create().with( FirstProperty.NAME, "value" );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( settingsFile, blankDefaults ) );
+        Throwable thrown = catchThrowable( () -> underTest.setValues( FIRST_FILE, values ) );
 
         // THEN
         assertThat( thrown )
-                .isInstanceOf( IllegalArgumentException.class )
-                .hasMessageContaining( "must not be blank" );
+                .isInstanceOf( IllegalStateException.class )
+                .hasMessageContaining( "has not been loaded" );
     }
 
     /**
-     * Verifies that a null settings file is rejected by the constructor contract.
+     * Verifies that a null path service is rejected by the constructor contract.
      */
     @Test
-    void shouldThrowException_whenPropertiesFileIsNull() {
+    void shouldThrowException_whenPathServiceIsNull() {
         // GIVEN
-        // no settings file at all
+        // no path service at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( null, defaults() ) );
+        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( null ) );
 
         // THEN
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
-                .hasMessageContaining( "propertiesFile must not be null" );
+                .hasMessageContaining( "pathService must not be null" );
     }
 
     /**
-     * Verifies that a null default value set is rejected by the constructor contract.
+     * Verifies that loading a file with a null name is rejected before the path is resolved.
      */
     @Test
-    void shouldThrowException_whenDefaultValuesAreNull() {
+    void shouldThrowException_whenLoadedFileNameIsNull() {
+        // GIVEN
+        // no file name at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.loadFile( null, firstDefaults() ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "fileName must not be null" );
+    }
+
+    /**
+     * Verifies that loading a file with null default values is rejected before the path is resolved.
+     */
+    @Test
+    void shouldThrowException_whenLoadedDefaultValuesAreNull() {
         // GIVEN
         // no default values at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new SystemPropertiesServiceImpl( settingsFile, null ) );
+        Throwable thrown = catchThrowable( () -> underTest.loadFile( FIRST_FILE, null ) );
 
         // THEN
         assertThat( thrown )
@@ -379,15 +294,32 @@ class SystemPropertiesServiceImplTest {
     }
 
     /**
-     * Verifies that reading a null setting is rejected before the lookup happens.
+     * Verifies that reading with a null file name is rejected before any lookup.
+     */
+    @Test
+    void shouldThrowException_whenReadFileNameIsNull() {
+        // GIVEN
+        // no file name at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.getValue( null, FirstProperty.NAME ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "fileName must not be null" );
+    }
+
+    /**
+     * Verifies that reading a null setting of a loaded file is rejected.
      */
     @Test
     void shouldThrowException_whenReadPropertyIsNull() {
         // GIVEN
-        // no setting at all
+        loadBothFiles();
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.getValue( null ) );
+        Throwable thrown = catchThrowable( () -> underTest.getValue( FIRST_FILE, null ) );
 
         // THEN
         assertThat( thrown )
@@ -396,15 +328,32 @@ class SystemPropertiesServiceImplTest {
     }
 
     /**
-     * Verifies that writing a null setting is rejected before the file is touched.
+     * Verifies that writing with a null file name is rejected before any lookup.
+     */
+    @Test
+    void shouldThrowException_whenWrittenFileNameIsNull() {
+        // GIVEN
+        // no file name at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.setValue( null, FirstProperty.NAME, "value" ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "fileName must not be null" );
+    }
+
+    /**
+     * Verifies that writing a null setting of a loaded file is rejected before the file is touched.
      */
     @Test
     void shouldThrowException_whenWrittenPropertyIsNull() {
         // GIVEN
-        // no setting at all
+        loadBothFiles();
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.setValue( null, "value" ) );
+        Throwable thrown = catchThrowable( () -> underTest.setValue( FIRST_FILE, null, "value" ) );
 
         // THEN
         assertThat( thrown )
@@ -413,15 +362,15 @@ class SystemPropertiesServiceImplTest {
     }
 
     /**
-     * Verifies that writing a null value is rejected before the file is touched.
+     * Verifies that writing a null value to a loaded file is rejected before the file is touched.
      */
     @Test
     void shouldThrowException_whenWrittenValueIsNull() {
         // GIVEN
-        // no value at all
+        loadBothFiles();
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.setValue( TestProperty.FIRST, null ) );
+        Throwable thrown = catchThrowable( () -> underTest.setValue( FIRST_FILE, FirstProperty.NAME, null ) );
 
         // THEN
         assertThat( thrown )
@@ -429,50 +378,118 @@ class SystemPropertiesServiceImplTest {
                 .hasMessageContaining( "value must not be null" );
     }
 
+    /**
+     * Verifies that a batch with a null file name is rejected before any lookup.
+     */
+    @Test
+    void shouldThrowException_whenBatchFileNameIsNull() {
+        // GIVEN
+        SystemPropertyValues values = SystemPropertyValues.create().with( FirstProperty.NAME, "value" );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.setValues( null, values ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "fileName must not be null" );
+    }
+
+    /**
+     * Verifies that a null batch written to a loaded file is rejected before the file is touched.
+     */
+    @Test
+    void shouldThrowException_whenBatchValuesAreNull() {
+        // GIVEN
+        loadBothFiles();
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.setValues( FIRST_FILE, null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "values must not be null" );
+    }
+
     // =================================================================================================
     // HELPER METHODS
     // =================================================================================================
 
-    private SystemPropertiesServiceImpl createUnderTest() {
-        return new SystemPropertiesServiceImpl( settingsFile, defaults() );
+    private Path resolveConfigurationFile( String fileName ) {
+        Path file = directory.resolve( ".vDeck" ).resolve( "config" ).resolve( fileName );
+        given( pathService.getConfigurationFile( fileName ) ).willReturn( file );
+        return file;
     }
 
-    private static Map< SystemPropertyIf, String > defaults() {
-        Map< SystemPropertyIf, String > defaults = new LinkedHashMap<>();
-        defaults.put( TestProperty.FIRST, "first-default" );
-        defaults.put( TestProperty.SECOND, "second-default" );
-        return defaults;
+    private void loadBothFiles() {
+        resolveConfigurationFile( FIRST_FILE );
+        resolveConfigurationFile( SECOND_FILE );
+        underTest.loadFile( FIRST_FILE, firstDefaults() );
+        underTest.loadFile( SECOND_FILE, secondDefaults() );
     }
 
-    private void writeSettingsFile( String content ) throws IOException {
-        Files.writeString( settingsFile, content, StandardCharsets.UTF_8 );
+    private static SystemPropertyValues firstDefaults() {
+        return SystemPropertyValues.create()
+                .with( FirstProperty.NAME, "first-default" )
+                .with( FirstProperty.NOTE, "" );
     }
 
-    private Properties readSettingsFile() throws IOException {
+    private static SystemPropertyValues secondDefaults() {
+        return SystemPropertyValues.create().with( SecondProperty.PORT, "2456" );
+    }
+
+    private static Properties readFile( Path file ) throws IOException {
         Properties properties = new Properties();
-        try ( BufferedReader reader = Files.newBufferedReader( settingsFile, StandardCharsets.UTF_8 ) ) {
+        try ( BufferedReader reader = Files.newBufferedReader( file, StandardCharsets.UTF_8 ) ) {
             properties.load( reader );
         }
         return properties;
     }
 
     /**
-     * Test-local property set keeping the verified contract independent of {@link VdeckProperty}.
+     * Test-local settings owned by the first file.
      */
-    private enum TestProperty implements SystemPropertyIf {
+    private enum FirstProperty implements SystemPropertyIf {
 
-        FIRST( "first.key" ),
-        SECOND( "second.key" );
+        NAME( "first.name", true ),
+        NOTE( "first.note", false );
 
         private final String name;
 
-        TestProperty( String name ) {
+        private final boolean mandatory;
+
+        FirstProperty( String name, boolean mandatory ) {
             this.name = name;
+            this.mandatory = mandatory;
         }
 
         @Override
         public @Nonnull String getName() {
             return name;
+        }
+
+        @Override
+        public boolean isMandatory() {
+            return mandatory;
+        }
+    }
+
+    /**
+     * Test-local settings owned by the second file.
+     */
+    private enum SecondProperty implements SystemPropertyIf {
+
+        PORT;
+
+        @Override
+        public @Nonnull String getName() {
+            return "second.port";
+        }
+
+        @Override
+        public boolean isMandatory() {
+            return true;
         }
     }
 }

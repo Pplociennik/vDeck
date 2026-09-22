@@ -133,7 +133,7 @@ Ta sekcja go nie zmienia i nie stosuje się do klas testowych.
 ```java
 @Bean
 @Nonnull
-SystemPropertiesService vdeckProperties( @Nonnull PathService pathService ) {
+PathService pathService( @Value( "${vdeck.server-directory:}" ) @Nullable String configuredDirectory ) {
 ```
 
 - Adnotacje nullability parametrów zapisujemy w linii parametru, przed jego typem.

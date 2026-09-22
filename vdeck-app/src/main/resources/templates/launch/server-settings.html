@@ -25,10 +25,10 @@
                 <h1 class="view-title" th:text="#{serverSettings.heading}">Serwer</h1>
             </div>
             <p class="view-lead" th:text="#{serverSettings.lead}"></p>
-            <p class="form-success settings-message" role="status" th:if="${param.saved != null and serverSettingsErrorKey == null}"
+            <p class="form-success settings-message" role="status" th:if="${param.saved != null and launchProfileErrorKey == null}"
                th:text="#{serverSettings.saved}"></p>
             <p class="form-alert settings-message" role="alert"
-               th:if="${serverSettingsErrorKey}" th:text="#{${serverSettingsErrorKey}}"></p>
+               th:if="${launchProfileErrorKey}" th:text="#{${launchProfileErrorKey}}"></p>
 
             <form class="form-stack settings-form settings-form--columns" method="post" th:action="@{/server-settings}"
                   th:with="form=${serverSettingsForm}">

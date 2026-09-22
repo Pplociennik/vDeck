@@ -11,11 +11,11 @@ flowchart TD
     bean -- błędy --> generic[INVALID_INPUT: wszystkie pola wymagane,<br/>nowe hasło 12-128 znaków]
     bean -- ok --> load[PanelUserServiceImpl:<br/>wyszukanie konta z Authentication]
     load --> found{Konto nadal<br/>istnieje?}
-    found -- nie --> missing([UsernameNotFoundException])
+    found -- nie --> missing([UsernameNotFoundException:<br/>obsługuje Spring Security])
     found -- tak --> variant{Wariant<br/>żądania}
 
     variant -- wymuszony --> pending{passwordChangeRequired<br/>nadal ustawione?}
-    pending -- nie --> illegal([IllegalStateException])
+    pending -- nie --> illegal([IllegalStateException:<br/>DefaultExceptionHandler, WARN i 500])
     pending -- tak --> equal
     variant -- na życzenie --> current{PasswordEncoder.matches<br/>aktualne hasło?}
     current -- nie --> incorrect[CURRENT_PASSWORD_INCORRECT]
@@ -31,8 +31,10 @@ flowchart TD
     commit --> logout[SecurityContextLogoutHandler:<br/>wyczyszczenie kontekstu i unieważnienie sesji]
     logout --> done([Przekierowanie na /login])
 
-    incorrect --> render
-    mismatch --> render
-    unchanged --> render
-    weak --> render
-    generic --> render[Ponowne wyświetlenie formularza z komunikatem<br/>z PasswordChangeResult.messageKey i pustymi polami]
+    incorrect --> thrown
+    mismatch --> thrown
+    unchanged --> thrown
+    weak --> thrown
+    generic --> thrown[PasswordChangeException<br/>z kluczem komunikatu]
+    thrown --> advice[PasswordChangeExceptionHandler:<br/>flash passwordChangeErrorKey,<br/>przekierowanie na ten sam ekran]
+    advice --> render([GET: pusty formularz z komunikatem])

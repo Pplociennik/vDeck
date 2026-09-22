@@ -21,6 +21,7 @@ i wyraźnie oznaczone jako niezrealizowane.
 - [2. Architektura aplikacji](#2-architektura-aplikacji)
   - [2.1 Podział na pakiety](#21-podział-na-pakiety)
   - [2.2 Start aplikacji](#22-start-aplikacji)
+  - [2.3 Obsługa wyjątków](#23-obsługa-wyjątków)
 - [3. Konfiguracja](#3-konfiguracja)
   - [3.1 Dwa kanały konfiguracji](#31-dwa-kanały-konfiguracji)
   - [3.2 Ustawienia panelu w vDeck.properties](#32-ustawienia-panelu-w-vdeckproperties)
@@ -117,25 +118,62 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | Pakiet | Zawartość |
 |---|---|
 | `` (bazowy) | `VdeckApplication` — jedyny wyjątek od reguły umieszczania klas w podpakietach |
-| `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SystemPropertiesConfiguration`, `SecurityConfiguration` oraz inicjalizacja startowa `DataInitializer` |
-| `feature.authentication` | Pionowy feature uwierzytelniania: kontroler, `domain`, `dto`, `persistence`, `service` i `service.impl` |
+| `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SecurityConfiguration` oraz inicjalizacja startowa `SystemPropertiesInitializer` i `DataInitializer` |
+| `feature.authentication` | Pionowy feature uwierzytelniania: kontrolery i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `persistence`, `service` i `service.impl` |
 | `feature.home` | Strona główna panelu: `HomeController` |
-| `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery ekranów „Serwer” i „Ustawienia gry”, `domain`, `dto`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-011) |
+| `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery ekranów „Serwer” i „Ustawienia gry” i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-011) |
 | `security` | Przekrojowe filtry i handlery Spring Security, niezwiązane z jednym feature'em |
-| `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc` |
+| `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc`, domyślna obsługa wyjątków w `shared.web` |
 
 Kontrakty serwisów znajdują się w pakiecie `service`, a implementacje w `service.impl`. Konsumenci
 wstrzykują interfejs; klasy implementacyjne pozostają pakietowo-prywatne tam, gdzie to możliwe.
 
 ### 2.2 Start aplikacji
 
-Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, przygotowanie pliku
-ustawień, aktualizacja schematu bazy i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
+Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, aktualizacja schematu
+bazy, przygotowanie plików ustawień i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
 bazowego przerywa start, zamiast pozwolić aplikacji działać z niepoprawną konfiguracją.
 
 ![Diagram przepływu: start aplikacji vDeck i przygotowanie środowiska](diagramy/wspolne/img/przeplyw-start-aplikacji.svg)
 
 Źródło diagramu: [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd)
+
+### 2.3 Obsługa wyjątków
+
+Obowiązuje [`AD-014`](../.docs/architectural_decisions.md). Każdy główny proces panelu — zapis
+profilu uruchomieniowego i zmiana hasła — kończy się przy odrzuceniu **albo** niepowodzeniu własnym
+wyjątkiem z podpakietu `exc` swojego feature'a. Serwisy nie zwracają obiektów wyniku, a kontrolery
+nie sprawdzają wyniku ani nie przechwytują wyjątków; błąd walidacji adnotacji kontroler zgłasza tym
+samym wyjątkiem procesu.
+
+| Wyjątek procesu | Rzucany przez | Obsługuje | Co trafia do przekierowania |
+|---|---|---|---|
+| `feature.launch.exc.LaunchProfileUpdateException` | `ServerSettingsController`, `GameSettingsController`, `LaunchProfileServiceImpl` | `LaunchProfileExceptionHandler` | klucz `LaunchProfileMessage` i przesłany formularz (ekranu „Serwer” zawsze bez hasła) |
+| `feature.authentication.exc.PasswordChangeException` | oba kontrolery zmiany hasła, `PanelUserServiceImpl` | `PasswordChangeExceptionHandler` | wyłącznie klucz `PasswordChangeMessage` — formularz hasła jest zawsze pusty |
+
+Wyjątek procesu niesie komunikat jako enum kluczy tłumaczeń, nigdy jako tekst. Odrzucenie przez regułę
+nie ma przyczyny; niepowodzenie, np. nieudany zapis pliku, zachowuje ją jako `cause`. `@ControllerAdvice`
+feature'a jest ograniczony do jego kontrolerów (`assignableTypes`) i ma pierwszeństwo przed obsługą
+domyślną. Przekierowuje na ekran, który wysłał formularz, a komunikat i ewentualny formularz przekazuje
+atrybutami flash, więc odświeżenie strony nie ponawia wysłania. Kontroler przy `GET` wypełnia formularz
+z zapisanego profilu tylko wtedy, gdy model nie zawiera już formularza przekazanego po odrzuceniu.
+
+Każdy inny wyjątek, który opuści kontroler, trafia do `shared.web.DefaultExceptionHandler` o najniższym
+priorytecie. Loguje go na poziomie `WARN` ze stack trace i odpowiada `500` przez `sendError`, więc
+użytkownik widzi stronę błędu Spring Boota bez treści wyjątku. Dotyczy to każdego
+`RuntimeException`, także wyjątku Spring MVC, który bez tej obsługi dostałby własny status — np.
+niepoprawnego parametru żądania, odpowiadającego wtedy `500` zamiast `400`. Wyjątki kontrolowane
+Spring MVC (np. brak zasobu, niedozwolona metoda HTTP) oraz wyjątki łańcucha filtrów Spring Security
+do tej obsługi nie trafiają i zachowują swój status.
+
+`catch` pozostaje tylko tam, gdzie zmienia znaczenie błędu, a nie tylko go loguje: przy zamianie
+wyjątku technicznego na wyjątek procesu, przy zamianie `IOException` na `UncheckedIOException`, przy
+przywracaniu stanu w pamięci po nieudanym zapisie, przy sprzątaniu pliku tymczasowego oraz przy
+odczycie wartości z pliku, która po ręcznej edycji nie jest liczbą i zostaje zastąpiona domyślną.
+
+![Diagram przepływu: obsługa wyjątku rzuconego podczas obsługi żądania](diagramy/wspolne/img/przeplyw-obsluga-wyjatkow.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd`](diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd)
 
 ---
 
@@ -174,15 +212,38 @@ Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obo
 flagi podaje konstruktor enuma, obok klucza i wartości domyślnej. Ustawienie obowiązkowe ma zawsze
 niepustą wartość; opcjonalne może być puste, a pusta wartość oznacza, że ustawienie nie jest używane.
 
-Zachowanie `SystemPropertiesServiceImpl` — jedna instancja obsługuje dokładnie jeden plik:
+Wszystkie pliki ustawień obsługuje jeden bean `SystemPropertiesService` (`AD-013`). Każda operacja —
+`getValue`, `setValue`, `setValues` — przyjmuje nazwę pliku, czyli stałą `FILE_NAME` jego enuma.
+`SystemPropertiesServiceImpl` trzyma wczytane pliki w mapie według nazwy, po jednym `PropertiesFile`
+na plik. Zestaw wartości — domyślnych przy `loadFile` albo zapisywanych razem przez `setValues` —
+przekazuje obiekt `SystemPropertyValues` (`shared`), a nie luźna mapa. Tworzy go `create()`, wpisy
+dodaje łańcuchowo `with( ustawienie, wartość )`, a `asMap()` zwraca je tylko do odczytu, w kolejności
+dodania. Każde wywołanie buduje nowy obiekt, więc wpisy jednego zapisu nie trafiają do innego; ponowne
+podanie tego samego ustawienia kończy się `IllegalArgumentException`, a obiekt celowo nie ma
+`toString` ujawniającego wartości, bo wśród nich może być hasło serwera.
 
-- plik jest wczytywany **raz, podczas konstrukcji**, i utrzymywany w pamięci; ręczna edycja pliku przy
-  działającym panelu zostanie uwzględniona dopiero po restarcie;
+Wartości typowane odczytuje statyczne narzędzie `shared.PropertyReader`, któremu wywołujący podaje
+serwis, nazwę pliku, ustawienie i wartość zastępczą: `read` zwraca wartość bez zmian, `readInt` liczbę,
+`readBoolean` wyłącznie `true` albo `false` w dowolnej wielkości liter, a `readOptional` wartość
+ustawienia opcjonalnego zinterpretowaną przez podany parser — pusta oznacza „nie używaj”, a
+nierozpoznana jest pomijana. Wartość niepasująca do ustawienia daje wartość zastępczą i wpis `WARN`
+z nazwą ustawienia i pliku, nigdy z samą wartością; odczyt nie przepisuje pliku.
+
+Zasady obsługi plików:
+
+- plik trzeba najpierw wczytać przez `loadFile( nazwaPliku, wartościDomyślne )`; lokalizację wyznacza
+  `PathService.getConfigurationFile`; ponowne wczytanie tego samego pliku oraz odwołanie do pliku
+  niewczytanego kończą się `IllegalStateException`;
+- wszystkie pliki wczytuje przy starcie `SystemPropertiesInitializer` (`config`,
+  `SmartInitializingSingleton`) — po utworzeniu wszystkich beanów, ale zanim serwer WWW przyjmie
+  pierwsze żądanie; błąd wczytania przerywa start;
+- plik jest wczytywany **raz** i utrzymywany w pamięci; ręczna edycja pliku przy działającym panelu
+  zostanie uwzględniona dopiero po restarcie;
 - brakujący plik jest tworzony z wartościami domyślnymi razem z brakującymi katalogami nadrzędnymi;
 - brakujący klucz jest przywracany do wartości domyślnej i zapisywany — to jednocześnie ścieżka
   migracji ustawień dodanych w nowej wersji; pusta wartość jest zastępowana domyślną tylko dla
   ustawienia obowiązkowego, a ustawienie opcjonalne zachowuje ją;
-- obowiązkowe ustawienie z pustą wartością domyślną jest odrzucane już przy konstrukcji, a zapis
+- obowiązkowe ustawienie z pustą wartością domyślną jest odrzucane już przy wczytaniu, a zapis
   pustej wartości ustawienia obowiązkowego kończy się `IllegalArgumentException`;
 - wpisy nienależące do zbioru zarządzanego są zachowywane, ale komentarze i kolejność kluczy przepadają
   przy pierwszym zapisie pliku przez aplikację;
@@ -226,10 +287,9 @@ Przyjmuje samą nazwę pliku — nazwę z separatorem katalogów, `.` albo `..` 
 Źródło diagramu: [`diagramy/wspolne/klasy-konfiguracja.mmd`](diagramy/wspolne/klasy-konfiguracja.mmd)
 
 Dodanie kolejnego pliku ustawień polega na utworzeniu nowego typu wyliczeniowego implementującego
-`SystemPropertyIf` i nowego beana `SystemPropertiesService` dla tego pliku, tworzonego w
-`SystemPropertiesConfiguration` przez `getConfigurationFile`. Bean nosi nazwę stałej
-`SERVICE_QUALIFIER` enuma, a konsument wstrzykuje go z adnotacją `@Qualifier` z tą stałą — istnieje
-kilka beanów tego samego typu. `SystemPropertyIf` celowo niesie tylko klucz i flagę obowiązkowości —
+`SystemPropertyIf` ze stałą `FILE_NAME` i dopisaniu wywołania `loadFile` w
+`SystemPropertiesInitializer`. Nie powstaje nowy bean ani kwalifikator: konsument wstrzykuje ten sam
+`SystemPropertiesService` i podaje nazwę pliku w każdym wywołaniu. `SystemPropertyIf` celowo niesie tylko klucz i flagę obowiązkowości —
 wartość domyślna i plik właściciela należą do konkretnego enuma.
 
 ### 3.5 Tłumaczenia interfejsu
@@ -376,28 +436,27 @@ nieudana kontrola kończy operację:
 5. wymagany zestaw rodzajów znaków — cyfrę, małą literę, wielką literę oraz znak specjalny, czyli
    znak niebędący literą, cyfrą ani białym znakiem.
 
-Po każdym niepowodzeniu formularz jest renderowany ponownie z **pustymi** polami i pojedynczym
+Po każdym niepowodzeniu użytkownik wraca na ten sam ekran z **pustymi** polami i pojedynczym
 komunikatem; komunikaty nie zdradzają, który element poświadczeń był niepoprawny bardziej, niż wymaga
 tego obsługa błędu.
 
-Wynik operacji jest rekordem `PasswordChangeResult`, który niesie **status oraz klucz komunikatu do
-pokazania**. Dzięki temu kontroler nie tłumaczy statusu na własne brzmienie i oba ekrany opisują ten
-sam wynik identycznie. Rekord pilnuje niezmiennika: sukces nie ma klucza komunikatu, a odrzucenie
-zawsze go ma.
+Odrzucona zmiana kończy się `PasswordChangeException`, który niesie **klucz komunikatu do pokazania**
+(patrz [2.3](#23-obsługa-wyjątków)). Dzięki temu kontroler nie tłumaczy wyniku na własne brzmienie i oba
+ekrany opisują to samo odrzucenie identycznie. Udana zmiana kończy się bez wyjątku.
 
-| `PasswordChangeStatus` | Warunek | `messageKey` |
-|---|---|---|
-| `CURRENT_PASSWORD_INCORRECT` | Aktualne hasło nie pasuje do zapisanego hasha (tylko wariant na życzenie) | `PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT` |
-| `NEW_PASSWORD_MISMATCH` | Nowe hasło różni się od potwierdzenia | `PasswordChangeMessage.NEW_PASSWORD_MISMATCH` |
-| `NEW_PASSWORD_UNCHANGED` | Nowe hasło jest identyczne z aktualnym | `PasswordChangeMessage.NEW_PASSWORD_UNCHANGED` |
-| `NEW_PASSWORD_TOO_WEAK` | Nowe hasło nie zawiera cyfry, małej litery, wielkiej litery i znaku specjalnego | `PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK` |
-| `SUCCESS` | Wszystkie kontrole przeszły | brak — następuje wylogowanie i przekierowanie na `/login` |
+| Warunek odrzucenia | Klucz komunikatu w `PasswordChangeException` |
+|---|---|
+| Pole puste albo nowe hasło spoza 12–128 znaków (walidacja adnotacji w kontrolerze) | `PasswordChangeMessage.INVALID_INPUT` |
+| Aktualne hasło nie pasuje do zapisanego hasha (tylko wariant na życzenie) | `PasswordChangeMessage.CURRENT_PASSWORD_INCORRECT` |
+| Nowe hasło różni się od potwierdzenia | `PasswordChangeMessage.NEW_PASSWORD_MISMATCH` |
+| Nowe hasło jest identyczne z aktualnym | `PasswordChangeMessage.NEW_PASSWORD_UNCHANGED` |
+| Nowe hasło nie zawiera cyfry, małej litery, wielkiej litery i znaku specjalnego | `PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK` |
 
-Błąd walidacji adnotacji nie tworzy `PasswordChangeResult` — kontroler od razu publikuje
-`PasswordChangeMessage.INVALID_INPUT`, bo żądanie nie dotarło do serwisu.
-
-Kontroler dodaje do modelu wyłącznie klucz tłumaczenia (`passwordChangeErrorKey`), a brzmienie
-komunikatu pochodzi z pliku tłumaczeń opisanego w [3.5](#35-tłumaczenia-interfejsu).
+`PasswordChangeExceptionHandler` przekierowuje na ekran, który wysłał formularz, i przekazuje atrybutem
+flash wyłącznie klucz tłumaczenia (`passwordChangeErrorKey`); brzmienie komunikatu pochodzi z pliku
+tłumaczeń opisanego w [3.5](#35-tłumaczenia-interfejsu). Formularz nie jest przekazywany, więc
+wpisane hasło nigdy nie wraca do przeglądarki. `IllegalStateException` wariantu wymuszonego obsługuje
+`DefaultExceptionHandler`, a `UsernameNotFoundException` — Spring Security.
 
 ![Diagram przepływu: zmiana hasła panelu vDeck w obu wariantach](diagramy/authentication/img/przeplyw-zmiana-hasla.svg)
 
@@ -430,10 +489,10 @@ Filtr i handler bezpieczeństwa leżą w przekrojowym pakiecie `security`, a nie
 dotyczą każdego żądania do panelu. `DataInitializer` należy do `config`, mimo że wstrzykuje repozytorium
 uwierzytelniania, ponieważ jest elementem inicjalizacji startowej aplikacji.
 
-`PasswordChangeStatus` i `PasswordChangeResult` należą do `domain`, a `PasswordChangeMessage` — do
-korzenia feature'a, bo zawiera również `INVALID_INPUT`, komunikat walidacji warstwy webowej, którego
-serwis nigdy nie zwraca. Rekord wyniku wiąże je, nie znając zbioru komunikatów: jego pole
-`messageKey` ma typ `shared.TranslationKeyIf`, więc `domain` zależy wyłącznie od pakietu wspólnego.
+`PasswordChangeException` należy do `exc`, a `PasswordChangeMessage` i `PasswordChangeExceptionHandler`
+— do korzenia feature'a: komunikaty zawierają również `INVALID_INPUT`, komunikat walidacji warstwy
+webowej, którego serwis nigdy nie zgłasza, a advice musi widzieć pakietowo-prywatne kontrolery, które
+obsługuje.
 
 ---
 
@@ -641,7 +700,7 @@ Feature `launch` pozwala zdefiniować profil uruchomieniowy serwera Valheim — 
 `valheim_server.exe` opisane w instrukcji serwera dedykowanego. Profil jest tylko **zapisywany**:
 panel nie uruchamia jeszcze serwera, więc zmiany zaczną działać wraz z implementacją sterowania
 serwerem, zawsze od jego następnego startu. Profil leży w pliku
-`.vDeck/config/valheim-server.properties` (`AD-011`), obsługiwanym przez ten sam mechanizm co
+`.vDeck/config/valheim-server.properties` (`AD-011`, `AD-013`), obsługiwanym przez ten sam mechanizm co
 `vDeck.properties` ([3.2](#32-ustawienia-panelu-w-vdeckproperties)). Edytują go dwa ekrany, a każdy
 zapisuje wyłącznie własne ustawienia, nie zmieniając ustawień drugiego.
 
@@ -661,7 +720,10 @@ Widoczne zachowanie wspólne dla obu ekranów:
   telefonie i każdym ekranie pionowym wszystko idzie jedną kolumną. Na ekranie poziomym karta
   rozszerza się do 76 rem od 60 rem szerokości i do 118 rem od 96 rem.
 - Zapis przekierowuje z powrotem na ten sam ekran (`?saved`) z potwierdzeniem w `role="status"`.
-  Odrzucenie pokazuje jeden komunikat w `role="alert"` i zachowuje wpisane wartości — poza hasłem.
+  Odrzucenie i błąd zapisu też przekierowują na ten sam ekran (bez `?saved`), który pokazuje jeden
+  komunikat w `role="alert"` i zachowuje wpisane wartości — poza hasłem. Komunikat i wartości
+  przekazuje `LaunchProfileExceptionHandler` atrybutami flash (`launchProfileErrorKey` i formularz
+  ekranu), patrz [2.3](#23-obsługa-wyjątków).
 
 **Serwer** (`/server-settings`) zawiera sekcje „Serwer”, „Dostęp”, „Świat i zapis” oraz „Kopie
 automatyczne”, zgrupowane w dwie kolumny: „Serwer” z „Dostępem” oraz „Świat i zapis” z „Kopiami
@@ -726,8 +788,10 @@ format i zakresy. `LaunchProfileServiceImpl` sprawdza to, czego adnotacje nie wy
   Valheim, sprawdzana także dla hasła zachowanego z pliku.
 
 Dopiero wtedy ustawienia ekranu trafiają do pliku jednym wywołaniem `setValues` — 12 ustawień ekranu
-„Serwer” albo 10 ustawień ekranu „Ustawienia gry”; zapisują się wszystkie albo żadne. Błąd zapisu
-pliku kończy się komunikatem, a nie stroną błędu.
+„Serwer” albo 10 ustawień ekranu „Ustawienia gry”; zapisują się wszystkie albo żadne. Każda nieudana
+kontrola kończy się `LaunchProfileUpdateException` z kluczem komunikatu. Błąd zapisu pliku serwis
+zamienia na ten sam wyjątek z kluczem `SAVE_FAILED` i przyczyną, więc kończy się komunikatem na
+ekranie, a nie stroną błędu.
 
 ![Diagram sekwencji: zapis profilu uruchomieniowego z obu ekranów](diagramy/launch/img/przeplyw-zapis-profilu.svg)
 
@@ -741,21 +805,22 @@ Komponenty:
 
 | Element | Rola |
 |---|---|
-| `ServerSettingsController` | `GET` i `POST /server-settings`; publikuje formularz i informację `passwordSet`, po sukcesie przekierowuje |
-| `GameSettingsController` | `GET` i `POST /game-settings`; publikuje formularz, listy opcji i widoczność sekcji `advancedShown`, po sukcesie przekierowuje; `POST /game-settings/advanced` zapamiętuje widoczność i odpowiada `204` albo `500` |
+| `ServerSettingsController` | `GET` i `POST /server-settings`; publikuje formularz (przekazany po odrzuceniu albo z zapisanego profilu) i informację `passwordSet`, po sukcesie przekierowuje z `?saved` |
+| `GameSettingsController` | `GET` i `POST /game-settings`; publikuje formularz (przekazany po odrzuceniu albo z zapisanego profilu), listy opcji i widoczność sekcji `advancedShown`, po sukcesie przekierowuje z `?saved`; `POST /game-settings/advanced` zapamiętuje widoczność i odpowiada `204`, a nieudany zapis obsługuje `DefaultExceptionHandler` odpowiedzią `500` |
+| `LaunchProfileExceptionHandler` | `@ControllerAdvice` obu kontrolerów: loguje odrzucenie (`INFO`) albo niepowodzenie (`ERROR` ze stack trace) i przekierowuje na wysłany ekran z komunikatem i formularzem jako atrybutami flash |
 | `LaunchProfileMessage` | Zamknięty zbiór kluczy komunikatów: `INVALID_INPUT`, `INVALID_SAVE_DIRECTORY`, `PASSWORD_PART_OF_NAME`, `SAVE_FAILED` |
 | `domain.LaunchProperty` | Enum ustawień pliku `valheim-server.properties`: klucz, wartość domyślna i obowiązkowość |
 | `domain.LaunchProfile` | Typowany widok zapisanego profilu; hasło reprezentuje wyłącznie `passwordSet` |
 | `domain.WorldPreset`, `WorldModifier`, `WorldKey` | Zamknięte zbiory presetów, modyfikatorów z ich dozwolonymi wartościami i kluczy `-setkey` |
-| `domain.LaunchProfileUpdateResult` | Wynik zapisu: sukces albo klucz komunikatu odrzucenia |
+| `exc.LaunchProfileUpdateException` | Wyjątek procesu zapisu: klucz `LaunchProfileMessage`, przesłany formularz (ekranu „Serwer” bez hasła) i — przy nieudanym zapisie — przyczyna |
 | `dto.ServerSettingsForm` | Rekord formularza ekranu „Serwer” z walidacją; `toString()` redaguje hasło, `withoutPassword()` usuwa je przed ponownym wyświetleniem |
 | `dto.GameSettingsForm` | Rekord formularza ekranu „Ustawienia gry”: preset, modyfikatory i klucze świata |
-| `service.LaunchProfileService` / `impl.LaunchProfileServiceImpl` | Odczyt profilu oraz osobny zapis ustawień każdego ekranu (`updateServerSettings`, `updateGameSettings`) przez bean `SystemPropertiesService` o kwalifikatorze `LaunchProperty.SERVICE_QUALIFIER` |
-| `service.GameSettingsDisplayService` / `impl.GameSettingsDisplayServiceImpl` | Odczyt i zapis widoczności sekcji „Zaawansowane” przez bean o kwalifikatorze `VdeckProperty.SERVICE_QUALIFIER`; wartość inna niż `true`/`false` oznacza sekcję ukrytą |
+| `service.LaunchProfileService` / `impl.LaunchProfileServiceImpl` | Odczyt profilu przez `PropertyReader` oraz osobny zapis ustawień każdego ekranu (`updateServerSettings`, `updateGameSettings`) przez `SystemPropertiesService` z nazwą pliku `LaunchProperty.FILE_NAME` |
+| `service.GameSettingsDisplayService` / `impl.GameSettingsDisplayServiceImpl` | Odczyt (`PropertyReader.readBoolean`) i zapis widoczności sekcji „Zaawansowane” przez `SystemPropertiesService` z nazwą pliku `VdeckProperty.FILE_NAME`; wartość inna niż `true`/`false` oznacza sekcję ukrytą |
 
 Wartość zapisana w pliku, która nie pasuje do ustawienia — np. po ręcznej edycji — jest przy odczycie
-zastępowana wartością domyślną i odnotowywana w logu na poziomie `WARN`. Plik nie jest wtedy
-przepisywany.
+przez `PropertyReader` zastępowana wartością domyślną, a nieznany preset albo wartość modyfikatora są
+pomijane; oba przypadki są odnotowywane w logu na poziomie `WARN`. Plik nie jest wtedy przepisywany.
 
 ## 6. Bezpieczeństwo
 
@@ -807,13 +872,13 @@ Zdarzenia rejestrowane obecnie:
 
 | Poziom | Zdarzenie |
 |---|---|
-| `INFO` | Rozwiązanie katalogu bazowego; utworzenie pliku ustawień z domyślnymi wartościami; wczytanie ustawień; zmiana ustawienia albo liczba ustawień zmienionych naraz; utworzenie domyślnego administratora; zmiana hasła na życzenie użytkownika; zmiana hasła początkowego wraz ze zdjęciem ograniczenia pierwszego logowania; żądanie zapisu ustawień ekranu „Serwer” albo „Ustawienia gry”, ich zapis albo odrzucenie z nazwą `LaunchProfileMessage`; pokazanie albo ukrycie sekcji „Zaawansowane” |
-| `WARN` | Przywrócenie domyślnej wartości brakującego ustawienia; nieudane usunięcie pliku tymczasowego; niepoprawna wartość w pliku profilu uruchomieniowego zastąpiona domyślną; niepoprawna wartość `panel.game.settings.advanced` traktowana jako sekcja ukryta |
-| `ERROR` | Nieudany zapis pliku profilu uruchomieniowego albo widoczności sekcji „Zaawansowane”, ze stack trace |
-| `DEBUG` | Źródło katalogu bazowego (override albo `ApplicationHome`); pominięcie inicjalizacji istniejącego administratora; odrzucenie zmiany hasła wraz z `PasswordChangeStatus`, który o tym zdecydował; powód odrzucenia katalogu zapisu |
+| `INFO` | Rozwiązanie katalogu bazowego; utworzenie pliku ustawień z domyślnymi wartościami; wczytanie ustawień; zmiana ustawienia albo liczba ustawień zmienionych naraz; utworzenie domyślnego administratora; zmiana hasła na życzenie użytkownika; zmiana hasła początkowego wraz ze zdjęciem ograniczenia pierwszego logowania; żądanie zapisu ustawień ekranu „Serwer” albo „Ustawienia gry”, ich zapis albo — w `LaunchProfileExceptionHandler` — odrzucenie z nazwą `LaunchProfileMessage`; pokazanie albo ukrycie sekcji „Zaawansowane” |
+| `WARN` | Przywrócenie domyślnej wartości brakującego ustawienia; nieudane usunięcie pliku tymczasowego; wartość ustawienia niepasująca do niego, zastąpiona wartością zastępczą albo pominięta (`PropertyReader`, z nazwą ustawienia i pliku) — w tym w profilu uruchomieniowym i w `panel.game.settings.advanced`, traktowanej wtedy jako sekcja ukryta; wyjątek nieobsłużony przez feature (`DefaultExceptionHandler`, z metodą i ścieżką żądania oraz stack trace), w tym nieudany zapis widoczności sekcji „Zaawansowane” |
+| `ERROR` | Nieudany zapis pliku profilu uruchomieniowego (`LaunchProfileExceptionHandler`), ze stack trace |
+| `DEBUG` | Źródło katalogu bazowego (override albo `ApplicationHome`); pominięcie inicjalizacji istniejącego administratora; odrzucenie zmiany hasła wraz z nazwą `PasswordChangeMessage` (`PasswordChangeExceptionHandler`); powód odrzucenia katalogu zapisu |
 
 Żaden komunikat nie zawiera hasła, hasha ani wartości ustawień. Wpis o odrzuconej zmianie hasła
-zawiera wyłącznie nazwę statusu, a nie wprowadzone wartości ani nazwę konta.
+zawiera wyłącznie nazwę komunikatu, a nie wprowadzone wartości ani nazwę konta.
 
 ## 9. Stan implementacji i znane ograniczenia
 
@@ -831,6 +896,8 @@ graczy, RCON, mody, harmonogramy i aktualizacje serwera.
 Znane ograniczenia stanu bieżącego:
 
 - panel nie ma własnej strony logowania — używana jest strona generowana przez Spring Security;
+- panel nie ma własnej strony błędu — odpowiedź `500` z `DefaultExceptionHandler` renderuje domyślna
+  strona błędu Spring Boota, bez treści wyjątku;
 - strona główna jest pusta poza wyspą akcji: pokazuje tło i wyspę, ale nie prezentuje jeszcze żadnych
   danych ani stanu serwera;
 - przyciski sterowania serwerem i kopii bezpieczeństwa na wyspie są elementami interfejsu bez
@@ -871,6 +938,7 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Diagram | Rodzaj | Obrazek | Źródło | Opisany w |
 |---|---|---|---|---|
 | Start aplikacji vDeck | przepływ | [`img/przeplyw-start-aplikacji.svg`](diagramy/wspolne/img/przeplyw-start-aplikacji.svg) | [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd) | [2.2](#22-start-aplikacji) |
+| Obsługa wyjątków | przepływ | [`img/przeplyw-obsluga-wyjatkow.svg`](diagramy/wspolne/img/przeplyw-obsluga-wyjatkow.svg) | [`diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd`](diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd) | [2.3](#23-obsługa-wyjątków) |
 | Infrastruktura konfiguracji | klasy | [`img/klasy-konfiguracja.svg`](diagramy/wspolne/img/klasy-konfiguracja.svg) | [`diagramy/wspolne/klasy-konfiguracja.mmd`](diagramy/wspolne/klasy-konfiguracja.mmd) | [3.4](#34-komponenty-konfiguracji) |
 | Logowanie do panelu | przepływ | [`img/przeplyw-logowanie.svg`](diagramy/authentication/img/przeplyw-logowanie.svg) | [`diagramy/authentication/przeplyw-logowanie.mmd`](diagramy/authentication/przeplyw-logowanie.mmd) | [4.4](#44-logowanie) |
 | Zmiana hasła w obu wariantach | przepływ | [`img/przeplyw-zmiana-hasla.svg`](diagramy/authentication/img/przeplyw-zmiana-hasla.svg) | [`diagramy/authentication/przeplyw-zmiana-hasla.mmd`](diagramy/authentication/przeplyw-zmiana-hasla.mmd) | [4.5](#45-zmiana-hasła) |

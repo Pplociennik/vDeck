@@ -27,10 +27,10 @@
                 <h1 class="view-title" th:text="#{gameSettings.heading}">Ustawienia gry</h1>
             </div>
             <p class="view-lead" th:text="#{gameSettings.lead}"></p>
-            <p class="form-success settings-message" role="status" th:if="${param.saved != null and gameSettingsErrorKey == null}"
+            <p class="form-success settings-message" role="status" th:if="${param.saved != null and launchProfileErrorKey == null}"
                th:text="#{gameSettings.saved}"></p>
             <p class="form-alert settings-message" role="alert"
-               th:if="${gameSettingsErrorKey}" th:text="#{${gameSettingsErrorKey}}"></p>
+               th:if="${launchProfileErrorKey}" th:text="#{${launchProfileErrorKey}}"></p>
 
             <form class="form-stack settings-form" method="post" th:action="@{/game-settings}"
                   th:with="form=${gameSettingsForm}" data-game-settings>

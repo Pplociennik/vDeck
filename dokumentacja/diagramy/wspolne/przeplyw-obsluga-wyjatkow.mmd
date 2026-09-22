@@ -1,0 +1,13 @@
+%% Diagram przepływu: obsługa wyjątku rzuconego podczas obsługi żądania do panelu
+flowchart TD
+    thrown([Wyjątek opuszcza kontroler]) --> process{Wyjątek procesu<br/>z exc feature'a?}
+    process -- tak --> advice[ControllerAdvice feature'a<br/>np. LaunchProfileExceptionHandler]
+    advice --> failure{Ma przyczynę?}
+    failure -- nie, odrzucenie --> info[Log INFO albo DEBUG<br/>bez stack trace]
+    failure -- tak, niepowodzenie --> error[Log ERROR ze stack trace]
+    info --> flash
+    error --> flash[Flash: klucz komunikatu<br/>i formularz bez sekretów]
+    flash --> redirect([Przekierowanie na ekran,<br/>który wysłał formularz])
+
+    process -- nie --> default[DefaultExceptionHandler:<br/>każdy RuntimeException,<br/>log WARN ze stack trace]
+    default --> status([sendError 500:<br/>strona błędu Spring Boot<br/>bez treści wyjątku])

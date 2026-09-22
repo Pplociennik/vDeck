@@ -1,13 +1,12 @@
 package com.github.pplociennik.vdeck.feature.launch;
 
-import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfileUpdateResult;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldKey;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldModifier;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldPreset;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import com.github.pplociennik.vdeck.feature.launch.service.GameSettingsDisplayService;
 import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
-import com.github.pplociennik.vdeck.shared.TranslationKeyIf;
 import jakarta.annotation.Nonnull;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +28,10 @@ import static java.util.Objects.requireNonNull;
  * <p>The advanced section is hidden by default. Whether it is shown is remembered as soon as the
  * administrator toggles it, through a separate request, so the choice holds on every later visit.
  * Hiding the section never changes the stored settings.
+ *
+ * <p>A rejected or failed update ends with a {@link LaunchProfileUpdateException}, which
+ * {@link LaunchProfileExceptionHandler} answers by redirecting back with the message and the submitted
+ * values. A failure to remember the section visibility is left to the application-wide default handler.
  */
 @Controller
 class GameSettingsController {
@@ -41,11 +44,6 @@ class GameSettingsController {
      * Model attribute holding the form backing object.
      */
     private static final String FORM_ATTRIBUTE = "gameSettingsForm";
-
-    /**
-     * Model attribute carrying the translation key of the failure message.
-     */
-    private static final String ERROR_KEY_ATTRIBUTE = "gameSettingsErrorKey";
 
     /**
      * Model attribute telling the view whether the advanced section starts shown.
@@ -72,7 +70,8 @@ class GameSettingsController {
     }
 
     /**
-     * Displays the form filled with the stored settings.
+     * Displays the form filled with the stored settings. After a rejected update the model already holds
+     * the submitted values, flashed by {@link LaunchProfileExceptionHandler}, and they are shown instead.
      *
      * @param model
      *         MVC model receiving the form, the option lists and the section visibility
@@ -82,8 +81,14 @@ class GameSettingsController {
     @Nonnull
     String showGameSettings( @Nonnull Model model ) {
         requireNonNull( model, "model must not be null" );
-        model.addAttribute( FORM_ATTRIBUTE, GameSettingsForm.from( launchProfileService.getProfile() ) );
-        return render( model );
+        if ( !model.containsAttribute( FORM_ATTRIBUTE ) ) {
+            model.addAttribute( FORM_ATTRIBUTE, GameSettingsForm.from( launchProfileService.getProfile() ) );
+        }
+        model.addAttribute( ADVANCED_SHOWN_ATTRIBUTE, displayService.isAdvancedShown() );
+        model.addAttribute( "worldPresets", WorldPreset.values() );
+        model.addAttribute( "worldModifiers", WorldModifier.values() );
+        model.addAttribute( "worldKeys", WorldKey.values() );
+        return GAME_SETTINGS_VIEW;
     }
 
     /**
@@ -93,29 +98,24 @@ class GameSettingsController {
      *         submitted settings
      * @param bindingResult
      *         validation result produced from the form annotations
-     * @param model
-     *         MVC model receiving the form and the translation key of the failure message
-     * @return redirect to the screen after success, otherwise the game settings template name
+     * @return redirect to the screen with the confirmation flag
+     * @throws LaunchProfileUpdateException
+     *         if the form fails annotation validation, a check of the service rejects it or the settings
+     *         cannot be written; nothing was stored
      */
     @PostMapping( GAME_SETTINGS_PATH )
     @Nonnull
     String updateGameSettings(
             @Valid @ModelAttribute( FORM_ATTRIBUTE ) @Nonnull GameSettingsForm gameSettingsForm,
-            @Nonnull BindingResult bindingResult,
-            @Nonnull Model model ) {
+            @Nonnull BindingResult bindingResult ) {
         requireNonNull( gameSettingsForm, "gameSettingsForm must not be null" );
         requireNonNull( bindingResult, "bindingResult must not be null" );
-        requireNonNull( model, "model must not be null" );
 
         if ( bindingResult.hasErrors() ) {
-            return renderFailure( model, LaunchProfileMessage.INVALID_INPUT );
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, gameSettingsForm );
         }
-
-        LaunchProfileUpdateResult result = launchProfileService.updateGameSettings( gameSettingsForm );
-        if ( result.isSuccessful() ) {
-            return "redirect:" + GAME_SETTINGS_PATH + "?saved";
-        }
-        return renderFailure( model, requireNonNull( result.messageKey() ) );
+        launchProfileService.updateGameSettings( gameSettingsForm );
+        return "redirect:" + GAME_SETTINGS_PATH + "?saved";
     }
 
     /**
@@ -124,31 +124,13 @@ class GameSettingsController {
      *
      * @param shown
      *         whether the section is shown
-     * @return empty response: 204 when the choice was stored, 500 when it could not be written
+     * @return empty 204 response once the choice is stored; a failed write is answered with 500 by the
+     *         application-wide default handler
      */
     @PostMapping( GAME_SETTINGS_PATH + "/advanced" )
     @Nonnull
     ResponseEntity< Void > updateAdvancedShown( @RequestParam( "shown" ) boolean shown ) {
-        if ( displayService.setAdvancedShown( shown ) ) {
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.internalServerError().build();
-    }
-
-    /**
-     * Shows the submitted values again with a single failure message, so the user does not lose the edits.
-     * The rejected form stays in the model under its attribute name.
-     */
-    private @Nonnull String renderFailure( @Nonnull Model model, @Nonnull TranslationKeyIf messageKey ) {
-        model.addAttribute( ERROR_KEY_ATTRIBUTE, messageKey.getKey() );
-        return render( model );
-    }
-
-    private @Nonnull String render( @Nonnull Model model ) {
-        model.addAttribute( ADVANCED_SHOWN_ATTRIBUTE, displayService.isAdvancedShown() );
-        model.addAttribute( "worldPresets", WorldPreset.values() );
-        model.addAttribute( "worldModifiers", WorldModifier.values() );
-        model.addAttribute( "worldKeys", WorldKey.values() );
-        return GAME_SETTINGS_VIEW;
+        displayService.setAdvancedShown( shown );
+        return ResponseEntity.noContent().build();
     }
 }

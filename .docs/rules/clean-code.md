@@ -358,14 +358,34 @@ lub value object zamiast rozszerzać kolejną instrukcję warunkową.
 
 Wyjątki:
 
-- reprezentują sytuacje wyjątkowe, nie zwykły przepływ sterowania;
+- reprezentują sytuacje wyjątkowe, nie zwykły przepływ sterowania — z jednym zamierzonym wyjątkiem:
+  odrzucenie żądania przez regułę głównego procesu feature'a również kończy się wyjątkiem procesu
+  (`AD-014`);
 - mają precyzyjny typ i komunikat zawierający użyteczny kontekst;
 - zachowują pierwotną przyczynę przy opakowywaniu;
-- są przechwytywane na poziomie, który potrafi podjąć sensowną decyzję;
+- są przechwytywane na poziomie, który potrafi podjąć sensowną decyzję; w warstwie webowej jest nim
+  `@ControllerAdvice`, a nie serwis ani kontroler;
 - nie są ignorowane ani zastępowane pustym `catch`.
 
 Nie przechwytujemy ogólnego `Exception` lub `Throwable`, chyba że jest to świadoma granica procesu,
 która rejestruje błąd, zachowuje przyczynę i określa dalszy stan systemu.
+
+Obsługa błędów warstwy webowej (`AD-014`):
+
+- Każdy główny proces feature'a ma jeden wyjątek procesu w `exc` tego feature'a, np.
+  `LaunchProfileUpdateException`. Rzuca go zarówno odrzucenie przez regułę (bez przyczyny), jak i
+  niepowodzenie (z przyczyną). Wyjątek niesie komunikat jako enum implementujący
+  `shared.TranslationKeyIf` i nigdy nie przechowuje sekretu.
+- Serwis procesu nie zwraca obiektu wyniku odrzucenia. Kontroler nie sprawdza wyniku, a błąd
+  walidacji adnotacji zgłasza tym samym wyjątkiem procesu.
+- Wyjątek procesu obsługuje `@ControllerAdvice` w korzeniu feature'a, ograniczony przez
+  `assignableTypes` do jego kontrolerów i oznaczony `@Order( Ordered.HIGHEST_PRECEDENCE )`. Advice
+  loguje wyjątek dokładnie raz i przekierowuje z atrybutami flash.
+- Pozostałe wyjątki obsługuje `shared.web.DefaultExceptionHandler`. Nie dodajemy lokalnego `catch`,
+  który tylko loguje i zamienia wyjątek na wartość zwracaną.
+- `catch` jest dozwolony, gdy zmienia znaczenie błędu: zamiana wyjątku technicznego na wyjątek
+  procesu, zamiana checked exception na unchecked, przywrócenie stanu po nieudanej operacji,
+  sprzątanie zasobu albo jawnie udokumentowana wartość zastępcza dla niepoprawnej danej.
 
 Własny typ wyjątku tworzymy dopiero wtedy, gdy biblioteka standardowa nie wyraża danego warunku, np.
 `IllegalArgumentException` dla niepoprawnego argumentu i `UncheckedIOException` dla awarii wejścia lub

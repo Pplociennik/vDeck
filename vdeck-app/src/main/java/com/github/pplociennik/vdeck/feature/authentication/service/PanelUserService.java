@@ -1,8 +1,8 @@
 package com.github.pplociennik.vdeck.feature.authentication.service;
 
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
 import com.github.pplociennik.vdeck.feature.authentication.dto.InitialPasswordChangeRequest;
 import com.github.pplociennik.vdeck.feature.authentication.dto.PasswordChangeRequest;
+import com.github.pplociennik.vdeck.feature.authentication.exc.PasswordChangeException;
 import jakarta.annotation.Nonnull;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
@@ -30,10 +30,10 @@ public interface PanelUserService extends UserDetailsService {
      *         authenticated login name whose password is being changed
      * @param passwordChangeRequest
      *         validated current password, requested replacement and confirmation
-     * @return expected result of validation and password replacement
+     * @throws PasswordChangeException
+     *         if a check rejects the replacement; the stored password is unchanged
      */
-    @Nonnull
-    PasswordChangeResult changePassword(
+    void changePassword(
             @Nonnull String username, @Nonnull PasswordChangeRequest passwordChangeRequest );
 
     /**
@@ -48,12 +48,13 @@ public interface PanelUserService extends UserDetailsService {
      *         authenticated login name whose initial password is being replaced
      * @param initialPasswordChangeRequest
      *         validated requested replacement and its confirmation
-     * @return expected result of validation and password replacement, never
-     *         {@link PasswordChangeResult#CURRENT_PASSWORD_INCORRECT}
+     * @throws PasswordChangeException
+     *         if a check rejects the replacement, never with
+     *         {@link com.github.pplociennik.vdeck.feature.authentication.PasswordChangeMessage#CURRENT_PASSWORD_INCORRECT};
+     *         the stored password is unchanged
      * @throws IllegalStateException
      *         if the account no longer requires replacement of its initial password
      */
-    @Nonnull
-    PasswordChangeResult changeInitialPassword(
+    void changeInitialPassword(
             @Nonnull String username, @Nonnull InitialPasswordChangeRequest initialPasswordChangeRequest );
 }

@@ -13,8 +13,7 @@ classDiagram
         GAME_LOG_DIRECTORY
         GAME_SETTINGS_ADVANCED
         +FILE_NAME String
-        +SERVICE_QUALIFIER String
-        +defaults() Map
+        +defaults() SystemPropertyValues
         +getName() String
         +isMandatory() boolean
         +getDefaultValue() String
@@ -24,24 +23,49 @@ classDiagram
         <<enumeration>>
         SERVER_NAME … WORLD_KEY_NO_MAP
         +FILE_NAME String
-        +SERVICE_QUALIFIER String
-        +defaults() Map
+        +defaults() SystemPropertyValues
         +getName() String
         +isMandatory() boolean
         +getDefaultValue() String
     }
 
+    class SystemPropertyValues {
+        -Map values
+        +create()$ SystemPropertyValues
+        +with(SystemPropertyIf, String) SystemPropertyValues
+        +asMap() Map
+    }
+
+    class PropertyReader {
+        <<utility>>
+        +read(SystemPropertiesService, String, SystemPropertyIf)$ String
+        +readInt(SystemPropertiesService, String, SystemPropertyIf, String)$ int
+        +readBoolean(SystemPropertiesService, String, SystemPropertyIf, String)$ boolean
+        +readOptional(SystemPropertiesService, String, SystemPropertyIf, Function)$ Optional
+    }
+
     class SystemPropertiesService {
         <<interface>>
-        +getValue(SystemPropertyIf) String
-        +setValue(SystemPropertyIf, String) void
-        +setValues(Map) void
+        +loadFile(String, SystemPropertyValues) void
+        +getValue(String, SystemPropertyIf) String
+        +setValue(String, SystemPropertyIf, String) void
+        +setValues(String, SystemPropertyValues) void
     }
 
     class SystemPropertiesServiceImpl {
+        <<Service>>
+        -PathService pathService
+        -Map files
+        -requireLoaded(String) PropertiesFile
+    }
+
+    class PropertiesFile {
         -Path propertiesFile
         -Map defaults
         -Properties properties
+        ~getValue(SystemPropertyIf) String
+        ~setValue(SystemPropertyIf, String) void
+        ~setValues(SystemPropertyValues) void
         -loadOrCreate() void
         -createParentDirectories() void
         -read() void
@@ -73,19 +97,23 @@ classDiagram
         +pathService(String) PathService
     }
 
-    class SystemPropertiesConfiguration {
-        +vdeckProperties(PathService) SystemPropertiesService
-        +launchProperties(PathService) SystemPropertiesService
+    class SystemPropertiesInitializer {
+        <<SmartInitializingSingleton>>
+        +afterSingletonsInstantiated() void
     }
 
     SystemPropertyIf <|.. VdeckProperty
     SystemPropertyIf <|.. LaunchProperty
     SystemPropertiesService <|.. SystemPropertiesServiceImpl
-    SystemPropertiesServiceImpl ..> SystemPropertyIf : klucze i obowiązkowość ustawień
+    SystemPropertiesServiceImpl *-- PropertiesFile : jeden na wczytany plik
+    SystemPropertiesServiceImpl --> PathService : plik w .vDeck/config
+    PropertiesFile ..> SystemPropertyIf : klucze i obowiązkowość ustawień
+    SystemPropertyValues o-- SystemPropertyIf : wartość na ustawienie
+    SystemPropertiesService ..> SystemPropertyValues : wartości domyślne i zapis zbiorczy
+    PropertyReader ..> SystemPropertiesService : getValue i wartość zastępcza
     PathService <|.. PathServiceImpl
     PathServiceImpl ..> PathResolutionException : zgłasza
     PathConfiguration ..> PathServiceImpl : tworzy
-    SystemPropertiesConfiguration ..> SystemPropertiesServiceImpl : tworzy po jednym na plik
-    SystemPropertiesConfiguration --> PathService : plik w .vDeck/config
-    SystemPropertiesConfiguration ..> VdeckProperty : wartości domyślne
-    SystemPropertiesConfiguration ..> LaunchProperty : wartości domyślne
+    SystemPropertiesInitializer --> SystemPropertiesService : loadFile przy starcie
+    SystemPropertiesInitializer ..> VdeckProperty : FILE_NAME i wartości domyślne
+    SystemPropertiesInitializer ..> LaunchProperty : FILE_NAME i wartości domyślne

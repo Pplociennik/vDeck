@@ -1,8 +1,8 @@
 package com.github.pplociennik.vdeck.feature.launch;
 
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
-import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfileUpdateResult;
 import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -77,25 +78,45 @@ class ServerSettingsControllerTest {
     }
 
     /**
-     * Verifies that annotation failures are reported without calling the service, and that the
-     * submitted password is not written back.
+     * Verifies that the submitted values flashed after a rejected update are shown instead of the stored
+     * profile.
      */
     @Test
-    void shouldReturnValidationErrorKey_whenBindingHasErrors() {
+    void shouldKeepFlashedForm_whenPageIsOpenedAfterRejection() {
         // GIVEN
         given( launchProfileService.getProfile() ).willReturn( storedProfile() );
-        ServerSettingsForm form = submittedForm();
-        BindingResult bindingResult = new BeanPropertyBindingResult( form, "serverSettingsForm" );
-        bindingResult.addError( new FieldError( "serverSettingsForm", "port", "out of range" ) );
+        ServerSettingsForm flashed = submittedForm().withoutPassword();
         ExtendedModelMap model = new ExtendedModelMap();
+        model.addAttribute( "serverSettingsForm", flashed );
 
         // WHEN
-        String result = underTest.updateServerSettings( form, bindingResult, model );
+        String result = underTest.showServerSettings( model );
 
         // THEN
         assertThat( result ).isEqualTo( VIEW );
-        assertThat( model.get( "serverSettingsErrorKey" ) ).isEqualTo( LaunchProfileMessage.INVALID_INPUT.getKey() );
-        assertThat( model.get( "serverSettingsForm" ) ).isEqualTo( form.withoutPassword() );
+        assertThat( model.get( "serverSettingsForm" ) ).isSameAs( flashed );
+        assertThat( model.get( "passwordSet" ) ).isEqualTo( true );
+    }
+
+    /**
+     * Verifies that annotation failures end the update with the process exception without calling the
+     * service, and that the exception keeps the submitted values without the password.
+     */
+    @Test
+    void shouldThrowInvalidInput_whenBindingHasErrors() {
+        // GIVEN
+        ServerSettingsForm form = submittedForm();
+        BindingResult bindingResult = new BeanPropertyBindingResult( form, "serverSettingsForm" );
+        bindingResult.addError( new FieldError( "serverSettingsForm", "port", "out of range" ) );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form, bindingResult ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class, exception -> {
+            assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT );
+            assertThat( exception.getSubmittedForm() ).isEqualTo( form.withoutPassword() );
+        } );
         verify( launchProfileService, never() ).updateServerSettings( any() );
     }
 
@@ -106,37 +127,33 @@ class ServerSettingsControllerTest {
     void shouldRedirectWithConfirmation_whenSettingsAreStored() {
         // GIVEN
         ServerSettingsForm form = submittedForm();
-        given( launchProfileService.updateServerSettings( form ) ).willReturn( LaunchProfileUpdateResult.success() );
 
         // WHEN
-        String result = underTest.updateServerSettings( form, new BeanPropertyBindingResult( form, "form" ),
-                new ExtendedModelMap() );
+        String result = underTest.updateServerSettings( form, new BeanPropertyBindingResult( form, "form" ) );
 
         // THEN
         assertThat( result ).isEqualTo( "redirect:/server-settings?saved" );
+        verify( launchProfileService ).updateServerSettings( form );
     }
 
     /**
-     * Verifies that a rejection by the service shows its message and the submitted values without the
-     * password.
+     * Verifies that a rejection by the service is left to the controller advice instead of being handled
+     * here.
      */
     @Test
-    void shouldShowServiceMessage_whenUpdateIsRejected() {
+    void shouldPropagateException_whenServiceRejectsUpdate() {
         // GIVEN
         ServerSettingsForm form = submittedForm();
-        given( launchProfileService.updateServerSettings( form ) )
-                .willReturn( LaunchProfileUpdateResult.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME ) );
-        given( launchProfileService.getProfile() ).willReturn( storedProfile() );
-        ExtendedModelMap model = new ExtendedModelMap();
+        LaunchProfileUpdateException rejection =
+                LaunchProfileUpdateException.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME, form );
+        willThrow( rejection ).given( launchProfileService ).updateServerSettings( form );
 
         // WHEN
-        String result = underTest.updateServerSettings( form, new BeanPropertyBindingResult( form, "form" ), model );
+        Throwable thrown = catchThrowable(
+                () -> underTest.updateServerSettings( form, new BeanPropertyBindingResult( form, "form" ) ) );
 
         // THEN
-        assertThat( result ).isEqualTo( VIEW );
-        assertThat( model.get( "serverSettingsErrorKey" ) )
-                .isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME.getKey() );
-        assertThat( ( ( ServerSettingsForm ) model.get( "serverSettingsForm" ) ).password() ).isNull();
+        assertThat( thrown ).isSameAs( rejection );
     }
 
     /**
@@ -165,8 +182,7 @@ class ServerSettingsControllerTest {
         BindingResult bindingResult = new BeanPropertyBindingResult( submittedForm(), "form" );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( null, bindingResult,
-                new ExtendedModelMap() ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( null, bindingResult ) );
 
         // THEN
         assertThat( thrown )

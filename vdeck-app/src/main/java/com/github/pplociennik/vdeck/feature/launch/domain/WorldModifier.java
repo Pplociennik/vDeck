@@ -16,45 +16,41 @@ public enum WorldModifier {
     /**
      * Strength of enemies relative to the players.
      */
-    COMBAT( "combat", "combat", LaunchProperty.WORLD_MODIFIER_COMBAT,
+    COMBAT( "combat", LaunchProperty.WORLD_MODIFIER_COMBAT,
             List.of( "veryeasy", "easy", "hard", "veryhard" ) ),
 
     /**
      * What a player loses on death.
      */
-    DEATH_PENALTY( "deathPenalty", "deathpenalty", LaunchProperty.WORLD_MODIFIER_DEATH_PENALTY,
+    DEATH_PENALTY( "deathPenalty", LaunchProperty.WORLD_MODIFIER_DEATH_PENALTY,
             List.of( "casual", "veryeasy", "easy", "hard", "hardcore" ) ),
 
     /**
      * Amount of resources dropped by enemies and gathered from the world.
      */
-    RESOURCES( "resources", "resources", LaunchProperty.WORLD_MODIFIER_RESOURCES,
+    RESOURCES( "resources", LaunchProperty.WORLD_MODIFIER_RESOURCES,
             List.of( "muchless", "less", "more", "muchmore", "most" ) ),
 
     /**
      * Frequency of raids on the players' bases.
      */
-    RAIDS( "raids", "raids", LaunchProperty.WORLD_MODIFIER_RAIDS,
+    RAIDS( "raids", LaunchProperty.WORLD_MODIFIER_RAIDS,
             List.of( "none", "muchless", "less", "more", "muchmore" ) ),
 
     /**
      * Which items may be carried through portals.
      */
-    PORTALS( "portals", "portals", LaunchProperty.WORLD_MODIFIER_PORTALS,
+    PORTALS( "portals", LaunchProperty.WORLD_MODIFIER_PORTALS,
             List.of( "casual", "hard", "veryhard" ) );
 
     private final String key;
-
-    private final String cliName;
 
     private final LaunchProperty property;
 
     private final List< String > allowedValues;
 
-    WorldModifier( @Nonnull String key, @Nonnull String cliName, @Nonnull LaunchProperty property,
-                   @Nonnull List< String > allowedValues ) {
+    WorldModifier( @Nonnull String key, @Nonnull LaunchProperty property, @Nonnull List< String > allowedValues ) {
         this.key = requireNonNull( key, "key must not be null" );
-        this.cliName = requireNonNull( cliName, "cliName must not be null" );
         this.property = requireNonNull( property, "property must not be null" );
         this.allowedValues = List.copyOf( allowedValues );
     }
@@ -79,15 +75,6 @@ public enum WorldModifier {
      */
     public @Nonnull String getKey() {
         return key;
-    }
-
-    /**
-     * Returns the modifier name passed as the first argument of {@code -modifier}.
-     *
-     * @return lower-case command-line name
-     */
-    public @Nonnull String getCliName() {
-        return cliName;
     }
 
     /**

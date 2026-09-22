@@ -122,7 +122,7 @@ class VdeckPropertyTest {
         // the declared settings
 
         // WHEN
-        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults();
+        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults().asMap();
 
         // THEN
         assertThat( defaults ).containsOnlyKeys( VdeckProperty.values() );
@@ -130,12 +130,12 @@ class VdeckPropertyTest {
     }
 
     /**
-     * Verifies that the default value set cannot be modified by a caller.
+     * Verifies that the entries of the default value set cannot be modified through their map view.
      */
     @Test
     void shouldRejectModification_whenDefaultsAreCreated() {
         // GIVEN
-        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults();
+        Map< SystemPropertyIf, String > defaults = VdeckProperty.defaults().asMap();
 
         // WHEN
         Throwable thrown = catchThrowable( () -> defaults.put( underTest, "other" ) );

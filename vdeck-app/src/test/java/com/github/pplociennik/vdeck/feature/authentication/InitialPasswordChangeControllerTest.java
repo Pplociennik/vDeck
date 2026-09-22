@@ -1,8 +1,7 @@
 package com.github.pplociennik.vdeck.feature.authentication;
 
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeResult;
-import com.github.pplociennik.vdeck.feature.authentication.domain.PasswordChangeStatus;
 import com.github.pplociennik.vdeck.feature.authentication.dto.InitialPasswordChangeRequest;
+import com.github.pplociennik.vdeck.feature.authentication.exc.PasswordChangeException;
 import com.github.pplociennik.vdeck.feature.authentication.service.PanelUserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,7 +22,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -76,34 +75,28 @@ class InitialPasswordChangeControllerTest {
     }
 
     /**
-     * Verifies that annotation validation failures are reported as a translation key without calling
-     * password persistence.
+     * Verifies that annotation validation failures end the change with the process exception without
+     * calling password persistence.
      */
     @Test
-    void shouldReturnValidationErrorKey_whenBindingHasErrors() {
+    void shouldThrowInvalidInput_whenBindingHasErrors() {
         // GIVEN
         InitialPasswordChangeRequest passwordRequest = new InitialPasswordChangeRequest( "short", "short" );
         BindingResult bindingResult = bindingResult( passwordRequest );
         bindingResult.addError( new FieldError( "initialPasswordChangeRequest", "newPassword", "too short" ) );
-        ExtendedModelMap model = new ExtendedModelMap();
 
         // WHEN
-        String result = underTest.changeInitialPassword(
+        Throwable thrown = catchThrowable( () -> underTest.changeInitialPassword(
                 passwordRequest,
                 bindingResult,
                 authentication(),
                 new MockHttpServletRequest(),
-                new MockHttpServletResponse(),
-                model );
+                new MockHttpServletResponse() ) );
 
         // THEN
-        assertThat( result ).isEqualTo( "authentication/initial-password-change" );
-        assertThat( model.get( "passwordChangeErrorKey" ) )
-                .isEqualTo( PasswordChangeMessage.INVALID_INPUT.getKey() );
-        assertThat( model.get( "initialPasswordChangeRequest" ) )
-                .isEqualTo( new InitialPasswordChangeRequest( null, null ) );
-        verify( panelUserService, never() ).changeInitialPassword(
-                ArgumentMatchers.any(), ArgumentMatchers.any() );
+        assertThat( thrown ).isInstanceOfSatisfying( PasswordChangeException.class,
+                exception -> assertThat( exception.getMessageKey() ).isEqualTo( PasswordChangeMessage.INVALID_INPUT ) );
+        verify( panelUserService, never() ).changeInitialPassword( ArgumentMatchers.any(), ArgumentMatchers.any() );
     }
 
     /**
@@ -116,52 +109,36 @@ class InitialPasswordChangeControllerTest {
         InitialPasswordChangeRequest passwordRequest = validRequest();
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.getSession();
-        Authentication authentication = authentication();
-        given( panelUserService.changeInitialPassword( "admin", passwordRequest ) )
-                .willReturn( PasswordChangeResult.success() );
 
         // WHEN
-        String result = underTest.changeInitialPassword(
-                passwordRequest,
-                bindingResult( passwordRequest ),
-                authentication,
-                request,
-                new MockHttpServletResponse(),
-                new ExtendedModelMap() );
+        String result = underTest.changeInitialPassword( passwordRequest, bindingResult( passwordRequest ),
+                authentication(), request, new MockHttpServletResponse() );
 
         // THEN
         assertThat( result ).isEqualTo( "redirect:/login" );
         assertThat( request.getSession( false ) ).isNull();
+        verify( panelUserService ).changeInitialPassword( "admin", passwordRequest );
     }
 
     /**
-     * Verifies that the message carried by a rejected result is published to the view unchanged,
-     * together with an empty form.
+     * Verifies that a rejection by the service is left to the controller advice and keeps the session.
      */
     @Test
-    void shouldReturnSafeErrorKeyAndEmptyForm_whenInitialPasswordChangeIsRejected() {
+    void shouldPropagateRejectionAndKeepSession_whenInitialPasswordChangeIsRejected() {
         // GIVEN
         InitialPasswordChangeRequest passwordRequest = validRequest();
-        ExtendedModelMap model = new ExtendedModelMap();
-        given( panelUserService.changeInitialPassword( "admin", passwordRequest ) )
-                .willReturn( PasswordChangeResult.rejected( PasswordChangeStatus.NEW_PASSWORD_TOO_WEAK,
-                        PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK ) );
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.getSession();
+        PasswordChangeException rejection = new PasswordChangeException( PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK );
+        willThrow( rejection ).given( panelUserService ).changeInitialPassword( "admin", passwordRequest );
 
         // WHEN
-        String result = underTest.changeInitialPassword(
-                passwordRequest,
-                bindingResult( passwordRequest ),
-                authentication(),
-                new MockHttpServletRequest(),
-                new MockHttpServletResponse(),
-                model );
+        Throwable thrown = catchThrowable( () -> underTest.changeInitialPassword( passwordRequest,
+                bindingResult( passwordRequest ), authentication(), request, new MockHttpServletResponse() ) );
 
         // THEN
-        assertThat( result ).isEqualTo( "authentication/initial-password-change" );
-        assertThat( model.get( "passwordChangeErrorKey" ) )
-                .isEqualTo( PasswordChangeMessage.NEW_PASSWORD_TOO_WEAK.getKey() );
-        assertThat( model.get( "initialPasswordChangeRequest" ) )
-                .isEqualTo( new InitialPasswordChangeRequest( null, null ) );
+        assertThat( thrown ).isSameAs( rejection );
+        assertThat( request.getSession( false ) ).isNotNull();
     }
 
     /**

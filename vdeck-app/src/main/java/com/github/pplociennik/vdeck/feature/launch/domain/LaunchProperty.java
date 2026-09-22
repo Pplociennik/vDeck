@@ -1,11 +1,8 @@
 package com.github.pplociennik.vdeck.feature.launch.domain;
 
 import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
+import com.github.pplociennik.vdeck.shared.SystemPropertyValues;
 import jakarta.annotation.Nonnull;
-
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
@@ -138,12 +135,6 @@ public enum LaunchProperty implements SystemPropertyIf {
      */
     public static final String FILE_NAME = "valheim-server.properties";
 
-    /**
-     * Name of the bean serving {@link #FILE_NAME}; consumers inject that service with this qualifier,
-     * because every properties file has its own service bean.
-     */
-    public static final String SERVICE_QUALIFIER = "launchProperties";
-
     private final String name;
 
     private final String defaultValue;
@@ -157,18 +148,18 @@ public enum LaunchProperty implements SystemPropertyIf {
     }
 
     /**
-     * Returns the default value of every setting declared by this enum, keyed by the setting itself.
+     * Returns the default value of every setting declared by this enum, as one set of setting values.
      * The result bootstraps a missing {@code valheim-server.properties} file and repairs one that lost a
      * key, so it always describes the complete set of managed settings.
      *
-     * @return unmodifiable map of settings to their default values, in declaration order
+     * @return new set of every setting with its default value, in declaration order
      */
-    public static @Nonnull Map< SystemPropertyIf, String > defaults() {
-        Map< SystemPropertyIf, String > defaults = new LinkedHashMap<>();
+    public static @Nonnull SystemPropertyValues defaults() {
+        SystemPropertyValues defaults = SystemPropertyValues.create();
         for ( LaunchProperty property : values() ) {
-            defaults.put( property, property.defaultValue );
+            defaults.with( property, property.defaultValue );
         }
-        return Collections.unmodifiableMap( defaults );
+        return defaults;
     }
 
     @Override

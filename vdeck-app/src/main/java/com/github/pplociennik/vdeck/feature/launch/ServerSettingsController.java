@@ -1,10 +1,9 @@
 package com.github.pplociennik.vdeck.feature.launch;
 
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
-import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfileUpdateResult;
 import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
-import com.github.pplociennik.vdeck.shared.TranslationKeyIf;
 import jakarta.annotation.Nonnull;
 import jakarta.validation.Valid;
 import org.springframework.stereotype.Controller;
@@ -23,6 +22,9 @@ import static java.util.Objects.requireNonNull;
  *
  * <p>The stored server password is never sent to the browser: the screen only learns whether one is
  * set. A successful update redirects back to the screen, so reloading the page never repeats the post.
+ * A rejected or failed update ends with a {@link LaunchProfileUpdateException}, which
+ * {@link LaunchProfileExceptionHandler} answers by redirecting back with the message and the submitted
+ * values, the password excluded.
  */
 @Controller
 class ServerSettingsController {
@@ -35,11 +37,6 @@ class ServerSettingsController {
      * Model attribute holding the form backing object.
      */
     private static final String FORM_ATTRIBUTE = "serverSettingsForm";
-
-    /**
-     * Model attribute carrying the translation key of the failure message.
-     */
-    private static final String ERROR_KEY_ATTRIBUTE = "serverSettingsErrorKey";
 
     /**
      * Model attribute telling the view whether a server password is stored, without revealing it.
@@ -59,7 +56,8 @@ class ServerSettingsController {
     }
 
     /**
-     * Displays the form filled with the stored settings.
+     * Displays the form filled with the stored settings. After a rejected update the model already holds
+     * the submitted values, flashed by {@link LaunchProfileExceptionHandler}, and they are shown instead.
      *
      * @param model
      *         MVC model receiving the form
@@ -70,8 +68,11 @@ class ServerSettingsController {
     String showServerSettings( @Nonnull Model model ) {
         requireNonNull( model, "model must not be null" );
         LaunchProfile profile = launchProfileService.getProfile();
-        model.addAttribute( FORM_ATTRIBUTE, ServerSettingsForm.from( profile ) );
-        return render( model, profile );
+        if ( !model.containsAttribute( FORM_ATTRIBUTE ) ) {
+            model.addAttribute( FORM_ATTRIBUTE, ServerSettingsForm.from( profile ) );
+        }
+        model.addAttribute( PASSWORD_SET_ATTRIBUTE, profile.passwordSet() );
+        return SERVER_SETTINGS_VIEW;
     }
 
     /**
@@ -81,44 +82,23 @@ class ServerSettingsController {
      *         submitted settings
      * @param bindingResult
      *         validation result produced from the form annotations
-     * @param model
-     *         MVC model receiving the form and the translation key of the failure message
-     * @return redirect to the screen after success, otherwise the server settings template name
+     * @return redirect to the screen with the confirmation flag
+     * @throws LaunchProfileUpdateException
+     *         if the form fails annotation validation, a check of the service rejects it or the settings
+     *         cannot be written; nothing was stored
      */
     @PostMapping( SERVER_SETTINGS_PATH )
     @Nonnull
     String updateServerSettings(
             @Valid @ModelAttribute( FORM_ATTRIBUTE ) @Nonnull ServerSettingsForm serverSettingsForm,
-            @Nonnull BindingResult bindingResult,
-            @Nonnull Model model ) {
+            @Nonnull BindingResult bindingResult ) {
         requireNonNull( serverSettingsForm, "serverSettingsForm must not be null" );
         requireNonNull( bindingResult, "bindingResult must not be null" );
-        requireNonNull( model, "model must not be null" );
 
         if ( bindingResult.hasErrors() ) {
-            return renderFailure( model, serverSettingsForm, LaunchProfileMessage.INVALID_INPUT );
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, serverSettingsForm );
         }
-
-        LaunchProfileUpdateResult result = launchProfileService.updateServerSettings( serverSettingsForm );
-        if ( result.isSuccessful() ) {
-            return "redirect:" + SERVER_SETTINGS_PATH + "?saved";
-        }
-        return renderFailure( model, serverSettingsForm, requireNonNull( result.messageKey() ) );
-    }
-
-    /**
-     * Shows the submitted values again with a single failure message, so the user does not lose the
-     * edits, except for the password, which is never written back into the page.
-     */
-    private @Nonnull String renderFailure( @Nonnull Model model, @Nonnull ServerSettingsForm form,
-                                           @Nonnull TranslationKeyIf messageKey ) {
-        model.addAttribute( FORM_ATTRIBUTE, form.withoutPassword() );
-        model.addAttribute( ERROR_KEY_ATTRIBUTE, messageKey.getKey() );
-        return render( model, launchProfileService.getProfile() );
-    }
-
-    private @Nonnull String render( @Nonnull Model model, @Nonnull LaunchProfile storedProfile ) {
-        model.addAttribute( PASSWORD_SET_ATTRIBUTE, storedProfile.passwordSet() );
-        return SERVER_SETTINGS_VIEW;
+        launchProfileService.updateServerSettings( serverSettingsForm );
+        return "redirect:" + SERVER_SETTINGS_PATH + "?saved";
     }
 }

@@ -1,9 +1,9 @@
 package com.github.pplociennik.vdeck.feature.launch.service;
 
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
-import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfileUpdateResult;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
 import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import jakarta.annotation.Nonnull;
 
 /**
@@ -28,10 +28,10 @@ public interface LaunchProfileService {
      *
      * @param form
      *         submitted server settings that have already passed annotation validation
-     * @return successful result, or a rejection carrying the message to show
+     * @throws LaunchProfileUpdateException
+     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
      */
-    @Nonnull
-    LaunchProfileUpdateResult updateServerSettings( @Nonnull ServerSettingsForm form );
+    void updateServerSettings( @Nonnull ServerSettingsForm form );
 
     /**
      * Validates the submitted game settings and stores them together. Nothing is stored when any check
@@ -39,8 +39,8 @@ public interface LaunchProfileService {
      *
      * @param form
      *         submitted game settings that have already passed annotation validation
-     * @return successful result, or a rejection carrying the message to show
+     * @throws LaunchProfileUpdateException
+     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
      */
-    @Nonnull
-    LaunchProfileUpdateResult updateGameSettings( @Nonnull GameSettingsForm form );
+    void updateGameSettings( @Nonnull GameSettingsForm form );
 }

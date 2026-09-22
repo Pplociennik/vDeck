@@ -9,6 +9,7 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
@@ -17,6 +18,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -195,8 +197,8 @@ class LaunchSettingsViewIntegrationTest {
     }
 
     /**
-     * Verifies that an out-of-range value is rejected with an alert, without echoing the password and
-     * without touching the stored profile.
+     * Verifies that an out-of-range value is rejected by redirecting back to the screen, which then
+     * shows an alert with the submitted edits, never the password, while the stored profile is untouched.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request or the file cannot be read
@@ -209,11 +211,18 @@ class LaunchSettingsViewIntegrationTest {
         MockHttpServletRequestBuilder request = serverSubmission( "80", "Other" );
 
         // WHEN
-        var result = underTest.perform( request );
+        MvcResult rejected = underTest.perform( request ).andReturn();
 
         // THEN
-        result.andExpect( status().isOk() )
+        assertThat( rejected.getResponse().getRedirectedUrl() ).isEqualTo( "/server-settings" );
+        Map< String, Object > flashed = rejected.getFlashMap();
+        assertThat( flashed )
+                .containsEntry( "launchProfileErrorKey", "launchProfile.error.invalidInput" )
+                .containsKey( "serverSettingsForm" );
+        underTest.perform( get( "/server-settings" ).with( administrator() ).flashAttrs( rejected.getFlashMap() ) )
+                .andExpect( status().isOk() )
                 .andExpect( content().string( containsString( "class=\"form-alert" ) ) )
+                .andExpect( content().string( containsString( "value=\"Other\"" ) ) )
                 .andExpect( content().string( not( containsString( SERVER_PASSWORD ) ) ) );
         assertThat( readConfigurationFile( "valheim-server.properties" ) ).isEqualTo( before );
     }

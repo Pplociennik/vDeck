@@ -166,20 +166,21 @@ vdeck/                                           ← parent i agregator Maven
         │   │   ├── DataInitializer
         │   │   ├── PathConfiguration
         │   │   ├── SecurityConfiguration
-        │   │   └── SystemPropertiesConfiguration
+        │   │   └── SystemPropertiesInitializer
         │   ├── feature/                         ← pionowe funkcjonalności aplikacji
         │   │   ├── authentication/              ← konta panelu i zmiana hasła
         │   │   │   ├── PasswordChangeController
         │   │   │   ├── InitialPasswordChangeController
+        │   │   │   ├── PasswordChangeExceptionHandler ← @ControllerAdvice obu ekranów hasła
         │   │   │   ├── PasswordChangeMessage
         │   │   │   ├── domain/
         │   │   │   │   ├── PanelUser
-        │   │   │   │   ├── PanelRole
-        │   │   │   │   ├── PasswordChangeStatus
-        │   │   │   │   └── PasswordChangeResult
+        │   │   │   │   └── PanelRole
         │   │   │   ├── dto/
         │   │   │   │   ├── PasswordChangeRequest
         │   │   │   │   └── InitialPasswordChangeRequest
+        │   │   │   ├── exc/
+        │   │   │   │   └── PasswordChangeException
         │   │   │   ├── persistence/
         │   │   │   │   └── UserRepository
         │   │   │   └── service/
@@ -198,17 +199,19 @@ vdeck/                                           ← parent i agregator Maven
         │   │   ├── launch/                      ← profil uruchomieniowy (plik, AD-011)
         │   │   │   ├── ServerSettingsController ← ekran „Serwer”
         │   │   │   ├── GameSettingsController   ← ekran „Ustawienia gry”
+        │   │   │   ├── LaunchProfileExceptionHandler ← @ControllerAdvice obu ekranów
         │   │   │   ├── LaunchProfileMessage
         │   │   │   ├── domain/
         │   │   │   │   ├── LaunchProperty
         │   │   │   │   ├── LaunchProfile
-        │   │   │   │   ├── LaunchProfileUpdateResult
         │   │   │   │   ├── WorldPreset
         │   │   │   │   ├── WorldModifier
         │   │   │   │   └── WorldKey
         │   │   │   ├── dto/
         │   │   │   │   ├── ServerSettingsForm
         │   │   │   │   └── GameSettingsForm
+        │   │   │   ├── exc/
+        │   │   │   │   └── LaunchProfileUpdateException
         │   │   │   └── service/
         │   │   │       ├── LaunchProfileService
         │   │   │       ├── GameSettingsDisplayService
@@ -259,14 +262,19 @@ vdeck/                                           ← parent i agregator Maven
         │   │   └── PasswordChangeAuthenticationSuccessHandler
         │   ├── persistence/                    ← wspólna konfiguracja JPA i SQLite
         │   └── shared/                          ← wyłącznie elementy faktycznie współdzielone
+        │       ├── PropertyReader               ← statyczny odczyt wartości typowanych
         │       ├── SystemPropertyIf
+        │       ├── SystemPropertyValues
         │       ├── VdeckProperty
         │       ├── exc/
+        │       ├── web/
+        │       │   └── DefaultExceptionHandler  ← domyślna obsługa wyjątków (AD-014)
         │       └── service/
         │           ├── PathService
         │           ├── SystemPropertiesService
         │           └── impl/
         │               ├── PathServiceImpl
+        │               ├── PropertiesFile
         │               └── SystemPropertiesServiceImpl
         ├── main/resources/
         │   ├── application.yaml
@@ -311,9 +319,9 @@ między feature’ami nadal są pilnowane przez ArchUnit i komunikację przez se
 
 Główny pakiet `config` jest composition rootem Springa oraz właścicielem przekrojowej inicjalizacji
 danych podczas startu aplikacji. Wszystkie klasy `@Configuration`, w tym
-`SecurityConfiguration`, `PathConfiguration` i `SystemPropertiesConfiguration`, znajdują się właśnie
-w `config`. `DataInitializer` również pozostaje w `config`, nawet gdy korzysta z repozytorium
-`feature.authentication`. Konfigurowane filtry i handlery nadal należą do głównego `security`, a
+`SecurityConfiguration` i `PathConfiguration`, znajdują się właśnie w `config`. `DataInitializer` i
+`SystemPropertiesInitializer` również pozostają w `config`, nawet gdy korzystają z repozytorium albo
+typów feature'a. Konfigurowane filtry i handlery nadal należą do głównego `security`, a
 implementacje serwisów do `service.impl` swojego właściciela. Mechanizm właściwości systemowych,
 podobnie jak rozwiązywanie ścieżek względem katalogu instalacji, należy do `shared`; jego serwisy są
 udostępniane przez interfejsy w `shared.service` i nie są powielane w feature’ach.
@@ -321,6 +329,14 @@ udostępniane przez interfejsy w `shared.service` i nie są powielane w feature�
 Własne typy wyjątków umieszczamy w podpakiecie `exc` pakietu, który jest ich właścicielem, np.
 `shared/exc`. Nie tworzymy jednego globalnego pakietu wyjątków dla całej aplikacji, ponieważ
 przecinałby granice feature’ów.
+
+Obsługę wyjątków warstwy webowej określa `AD-014`. Każdy główny proces feature'a kończy się przy
+odrzuceniu i przy niepowodzeniu jednym „dużym” wyjątkiem procesu z `exc` tego feature'a, niosącym
+klucz komunikatu oraz — przy niepowodzeniu — przyczynę. Serwisy nie zwracają obiektów wyniku, a
+kontrolery nie przechwytują wyjątków. Wyjątek procesu obsługuje `@ControllerAdvice` w korzeniu
+feature'a, ograniczony do jego kontrolerów i mający pierwszeństwo; przekierowuje na wysłany ekran z
+komunikatem i formularzem bez sekretów w atrybutach flash. Pozostałe wyjątki obsługuje
+`shared.web.DefaultExceptionHandler`: loguje każdy `RuntimeException` na `WARN` i odpowiada `500`.
 
 ---
 
@@ -388,12 +404,18 @@ pierwszym starcie. Brakujące klucze są uzupełniane przy kolejnym starcie, dzi
 dodane w nowym wydaniu pojawiają się w istniejącej instalacji.
 
 Zbiór właściwości pliku opisuje enum implementujący `SystemPropertyIf`; dostęp zapewnia
-`SystemPropertiesService`, tworzony osobno dla każdego obsługiwanego pliku i wstrzykiwany z
-kwalifikatorem deklarowanym przez enum (`SERVICE_QUALIFIER`). Każda właściwość deklaruje, czy jest
+jeden `SystemPropertiesService` dla wszystkich plików (AD-013): każda operacja przyjmuje nazwę pliku
+(`FILE_NAME` enuma), a plik musi zostać wcześniej wczytany przez `loadFile` z kompletem wartości
+domyślnych. Wszystkie pliki wczytuje przy starcie `SystemPropertiesInitializer`, zanim serwer WWW
+przyjmie pierwsze żądanie. Każda właściwość deklaruje, czy jest
 obowiązkowa (`isMandatory()`): obowiązkowa ma niepustą wartość domyślną, która zastępuje także pustą
 wartość w pliku; opcjonalna może być pusta — pusta wartość oznacza „nie używaj”, a przywracany jest
 tylko brakujący klucz. `setValues` zapisuje wiele właściwości jednym atomowym zapisem: wszystkie albo
-żadna. Plik jest kodowany w UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE` — dlatego
+żadna. Zestaw wartości — domyślnych przy `loadFile` i zapisywanych przez `setValues` — przekazuje
+tworzony osobno dla każdego wywołania obiekt `SystemPropertyValues`, nie mapa. Wartości typowane
+(liczby, wartości logiczne, opcje z zamkniętej listy) odczytuje statyczne narzędzie
+`shared.PropertyReader`, które przy wartości niepasującej do ustawienia zwraca wartość zastępczą
+podaną przez wywołującego i loguje nazwę ustawienia na `WARN`. Plik jest kodowany w UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE` — dlatego
 zapis wykonany przez panel zachowuje wpisy nienależące do panelu, ale nie zachowuje komentarzy ani
 kolejności kluczy wpisanych ręcznie.
 

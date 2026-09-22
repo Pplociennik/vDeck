@@ -142,7 +142,7 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 
 ## AD-011 — Profil uruchomieniowy w pliku ustawień
 
-- **Status:** obowiązująca (2026-09-21)
+- **Status:** wycofana (2026-09-22, zastąpiona przez AD-013)
 - **Decyzja:** Profil uruchomieniowy serwera Valheim — opcje wiersza poleceń `valheim_server.exe`
   opisane w instrukcji serwera dedykowanego — jest przechowywany w pliku
   `.vDeck/config/valheim-server.properties`, obsługiwanym przez ten sam mechanizm co `vDeck.properties`
@@ -206,3 +206,18 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
   przejął drugi panel; nie są kopiowane do arkuszy widoków. Każda sekcja zaawansowana ma własne
   ustawienie widoczności w `vDeck.properties`. Ekrany hasła stosują ramę, zachowują własną teksturę i
   jako krótkie formularze jednokolumnowe nie wymagają układu kolumnowego.
+
+## AD-013 — Jeden serwis plików ustawień
+
+- **Status:** obowiązująca (2026-09-22)
+- **Zastępuje:** AD-011
+- **Decyzja:** Jeden bean `SystemPropertiesService` z wstrzykniętym `PathService` obsługuje wszystkie pliki ustawień, przyjmując nazwę pliku w każdej operacji.
+- **Powód:** Osobny bean na plik wymagał kwalifikatora przy każdym konsumencie.
+- **Konsekwencja:** Nie tworzymy beanów per plik — pliki ładuje przy starcie `SystemPropertiesInitializer`; reszta AD-011 obowiązuje.
+
+## AD-014 — Wyjątki procesów i ControllerAdvice
+
+- **Status:** obowiązująca (2026-09-22)
+- **Decyzja:** Odrzucenie lub niepowodzenie głównego procesu kończy wyjątek z `exc` feature'a obsługiwany przez jego `@ControllerAdvice`; resztę loguje na `WARN` `shared.web.DefaultExceptionHandler`.
+- **Powód:** Obiekty wyniku i lokalne `catch` rozpraszały obsługę błędów.
+- **Konsekwencja:** Serwisy i kontrolery nie zwracają wyniku odrzucenia, a wyjątek łapią tylko, by zamienić go na wyjątek procesu.

@@ -19,7 +19,8 @@ public interface GameSettingsDisplayService {
      *
      * @param shown
      *         whether the section is shown
-     * @return {@code true} when the choice was stored, {@code false} when the file could not be written
+     * @throws java.io.UncheckedIOException
+     *         if the settings file cannot be written; the choice is not remembered
      */
-    boolean setAdvancedShown( boolean shown );
+    void setAdvancedShown( boolean shown );
 }

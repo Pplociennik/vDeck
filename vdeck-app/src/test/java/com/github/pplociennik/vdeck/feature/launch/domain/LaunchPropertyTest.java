@@ -126,7 +126,7 @@ class LaunchPropertyTest {
         // the declared settings
 
         // WHEN
-        Map< SystemPropertyIf, String > defaults = LaunchProperty.defaults();
+        Map< SystemPropertyIf, String > defaults = LaunchProperty.defaults().asMap();
 
         // THEN
         assertThat( defaults ).containsOnlyKeys( LaunchProperty.values() );
@@ -134,12 +134,12 @@ class LaunchPropertyTest {
     }
 
     /**
-     * Verifies that the default value set cannot be modified by a caller.
+     * Verifies that the entries of the default value set cannot be modified through their map view.
      */
     @Test
     void shouldRejectModification_whenDefaultsAreCreated() {
         // GIVEN
-        Map< SystemPropertyIf, String > defaults = LaunchProperty.defaults();
+        Map< SystemPropertyIf, String > defaults = LaunchProperty.defaults().asMap();
 
         // WHEN
         Throwable thrown = catchThrowable( () -> defaults.put( underTest, "other" ) );

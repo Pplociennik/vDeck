@@ -31,7 +31,7 @@ class GameSettingsDisplayServiceImplTest {
     // =================================================================================================
 
     @Mock
-    private SystemPropertiesService vdeckProperties;
+    private SystemPropertiesService systemPropertiesService;
 
     private GameSettingsDisplayServiceImpl underTest;
 
@@ -44,7 +44,7 @@ class GameSettingsDisplayServiceImplTest {
      */
     @BeforeEach
     void setUp() {
-        underTest = new GameSettingsDisplayServiceImpl( vdeckProperties );
+        underTest = new GameSettingsDisplayServiceImpl( systemPropertiesService );
     }
 
     // =================================================================================================
@@ -63,7 +63,8 @@ class GameSettingsDisplayServiceImplTest {
     @CsvSource( { "true, true", "TRUE, true", "false, false" } )
     void shouldReadStoredVisibility_whenValueIsBoolean( String stored, boolean expected ) {
         // GIVEN
-        given( vdeckProperties.getValue( VdeckProperty.GAME_SETTINGS_ADVANCED ) ).willReturn( stored );
+        given( systemPropertiesService.getValue( VdeckProperty.FILE_NAME, VdeckProperty.GAME_SETTINGS_ADVANCED ) )
+                .willReturn( stored );
 
         // WHEN
         boolean result = underTest.isAdvancedShown();
@@ -78,7 +79,8 @@ class GameSettingsDisplayServiceImplTest {
     @Test
     void shouldKeepSectionHidden_whenStoredValueIsNotBoolean() {
         // GIVEN
-        given( vdeckProperties.getValue( VdeckProperty.GAME_SETTINGS_ADVANCED ) ).willReturn( "yes" );
+        given( systemPropertiesService.getValue( VdeckProperty.FILE_NAME, VdeckProperty.GAME_SETTINGS_ADVANCED ) )
+                .willReturn( "yes" );
 
         // WHEN
         boolean result = underTest.isAdvancedShown();
@@ -96,27 +98,27 @@ class GameSettingsDisplayServiceImplTest {
         // a writable settings file
 
         // WHEN
-        boolean result = underTest.setAdvancedShown( true );
+        underTest.setAdvancedShown( true );
 
         // THEN
-        assertThat( result ).isTrue();
-        verify( vdeckProperties ).setValue( VdeckProperty.GAME_SETTINGS_ADVANCED, "true" );
+        verify( systemPropertiesService ).setValue( VdeckProperty.FILE_NAME, VdeckProperty.GAME_SETTINGS_ADVANCED, "true" );
     }
 
     /**
-     * Verifies that a failed write is reported as a result instead of an exception.
+     * Verifies that a failed write is not swallowed, so the default exception handler answers it.
      */
     @Test
-    void shouldReportFailure_whenFileCannotBeWritten() {
+    void shouldPropagateFailure_whenFileCannotBeWritten() {
         // GIVEN
-        willThrow( new UncheckedIOException( "disk full", new IOException( "disk full" ) ) )
-                .given( vdeckProperties ).setValue( VdeckProperty.GAME_SETTINGS_ADVANCED, "false" );
+        UncheckedIOException failure = new UncheckedIOException( "disk full", new IOException( "disk full" ) );
+        willThrow( failure ).given( systemPropertiesService )
+                .setValue( VdeckProperty.FILE_NAME, VdeckProperty.GAME_SETTINGS_ADVANCED, "false" );
 
         // WHEN
-        boolean result = underTest.setAdvancedShown( false );
+        Throwable thrown = catchThrowable( () -> underTest.setAdvancedShown( false ) );
 
         // THEN
-        assertThat( result ).isFalse();
+        assertThat( thrown ).isSameAs( failure );
     }
 
     /**
@@ -133,6 +135,6 @@ class GameSettingsDisplayServiceImplTest {
         // THEN
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
-                .hasMessageContaining( "vdeckProperties must not be null" );
+                .hasMessageContaining( "systemPropertiesService must not be null" );
     }
 }

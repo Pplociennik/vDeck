@@ -1,9 +1,9 @@
 package com.github.pplociennik.vdeck.feature.launch;
 
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
-import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfileUpdateResult;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldPreset;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import com.github.pplociennik.vdeck.feature.launch.service.GameSettingsDisplayService;
 import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +18,8 @@ import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -86,22 +89,45 @@ class GameSettingsControllerTest {
     }
 
     /**
-     * Verifies that annotation failures are reported without calling the service.
+     * Verifies that the submitted values flashed after a rejected update are shown instead of the stored
+     * profile, which is then not read at all.
      */
     @Test
-    void shouldReturnValidationErrorKey_whenBindingHasErrors() {
+    void shouldKeepFlashedForm_whenPageIsOpenedAfterRejection() {
+        // GIVEN
+        GameSettingsForm flashed = submittedForm();
+        ExtendedModelMap model = new ExtendedModelMap();
+        model.addAttribute( "gameSettingsForm", flashed );
+
+        // WHEN
+        String result = underTest.showGameSettings( model );
+
+        // THEN
+        assertThat( result ).isEqualTo( VIEW );
+        assertThat( model.get( "gameSettingsForm" ) ).isSameAs( flashed );
+        assertThat( model ).containsKeys( "advancedShown", "worldPresets", "worldModifiers", "worldKeys" );
+        verify( launchProfileService, never() ).getProfile();
+    }
+
+    /**
+     * Verifies that annotation failures end the update with the process exception, carrying the submitted
+     * values, without calling the service.
+     */
+    @Test
+    void shouldThrowInvalidInput_whenBindingHasErrors() {
         // GIVEN
         GameSettingsForm form = submittedForm();
         BindingResult bindingResult = new BeanPropertyBindingResult( form, "gameSettingsForm" );
         bindingResult.addError( new FieldError( "gameSettingsForm", "preset", "too long" ) );
-        ExtendedModelMap model = new ExtendedModelMap();
 
         // WHEN
-        String result = underTest.updateGameSettings( form, bindingResult, model );
+        Throwable thrown = catchThrowable( () -> underTest.updateGameSettings( form, bindingResult ) );
 
         // THEN
-        assertThat( result ).isEqualTo( VIEW );
-        assertThat( model.get( "gameSettingsErrorKey" ) ).isEqualTo( LaunchProfileMessage.INVALID_INPUT.getKey() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class, exception -> {
+            assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT );
+            assertThat( exception.getSubmittedForm() ).isEqualTo( form );
+        } );
         verify( launchProfileService, never() ).updateGameSettings( any() );
     }
 
@@ -112,33 +138,33 @@ class GameSettingsControllerTest {
     void shouldRedirectWithConfirmation_whenSettingsAreStored() {
         // GIVEN
         GameSettingsForm form = submittedForm();
-        given( launchProfileService.updateGameSettings( form ) ).willReturn( LaunchProfileUpdateResult.success() );
 
         // WHEN
-        String result = underTest.updateGameSettings( form, new BeanPropertyBindingResult( form, "form" ),
-                new ExtendedModelMap() );
+        String result = underTest.updateGameSettings( form, new BeanPropertyBindingResult( form, "form" ) );
 
         // THEN
         assertThat( result ).isEqualTo( "redirect:/game-settings?saved" );
+        verify( launchProfileService ).updateGameSettings( form );
     }
 
     /**
-     * Verifies that a rejection by the service shows its message.
+     * Verifies that a failure reported by the service is left to the controller advice instead of being
+     * handled here.
      */
     @Test
-    void shouldShowServiceMessage_whenUpdateIsRejected() {
+    void shouldPropagateException_whenServiceFailsUpdate() {
         // GIVEN
         GameSettingsForm form = submittedForm();
-        given( launchProfileService.updateGameSettings( form ) )
-                .willReturn( LaunchProfileUpdateResult.rejected( LaunchProfileMessage.SAVE_FAILED ) );
-        ExtendedModelMap model = new ExtendedModelMap();
+        LaunchProfileUpdateException failure = LaunchProfileUpdateException.saveFailed( form,
+                new UncheckedIOException( "disk full", new IOException( "disk full" ) ) );
+        willThrow( failure ).given( launchProfileService ).updateGameSettings( form );
 
         // WHEN
-        String result = underTest.updateGameSettings( form, new BeanPropertyBindingResult( form, "form" ), model );
+        Throwable thrown = catchThrowable(
+                () -> underTest.updateGameSettings( form, new BeanPropertyBindingResult( form, "form" ) ) );
 
         // THEN
-        assertThat( result ).isEqualTo( VIEW );
-        assertThat( model.get( "gameSettingsErrorKey" ) ).isEqualTo( LaunchProfileMessage.SAVE_FAILED.getKey() );
+        assertThat( thrown ).isSameAs( failure );
     }
 
     /**
@@ -147,28 +173,31 @@ class GameSettingsControllerTest {
     @Test
     void shouldReturnNoContent_whenAdvancedVisibilityIsStored() {
         // GIVEN
-        given( displayService.setAdvancedShown( true ) ).willReturn( true );
+        // a writable display state
 
         // WHEN
         ResponseEntity< Void > result = underTest.updateAdvancedShown( true );
 
         // THEN
         assertThat( result.getStatusCode() ).isEqualTo( HttpStatus.NO_CONTENT );
+        verify( displayService ).setAdvancedShown( true );
     }
 
     /**
-     * Verifies that a visibility choice which could not be written is reported as a server error.
+     * Verifies that a visibility choice which could not be written is left to the default exception
+     * handler instead of being answered here.
      */
     @Test
-    void shouldReturnServerError_whenAdvancedVisibilityCannotBeStored() {
+    void shouldPropagateFailure_whenAdvancedVisibilityCannotBeStored() {
         // GIVEN
-        given( displayService.setAdvancedShown( false ) ).willReturn( false );
+        UncheckedIOException failure = new UncheckedIOException( "disk full", new IOException( "disk full" ) );
+        willThrow( failure ).given( displayService ).setAdvancedShown( false );
 
         // WHEN
-        ResponseEntity< Void > result = underTest.updateAdvancedShown( false );
+        Throwable thrown = catchThrowable( () -> underTest.updateAdvancedShown( false ) );
 
         // THEN
-        assertThat( result.getStatusCode() ).isEqualTo( HttpStatus.INTERNAL_SERVER_ERROR );
+        assertThat( thrown ).isSameAs( failure );
     }
 
     /**
@@ -197,8 +226,7 @@ class GameSettingsControllerTest {
         BindingResult bindingResult = new BeanPropertyBindingResult( submittedForm(), "form" );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateGameSettings( null, bindingResult,
-                new ExtendedModelMap() ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateGameSettings( null, bindingResult ) );
 
         // THEN
         assertThat( thrown )

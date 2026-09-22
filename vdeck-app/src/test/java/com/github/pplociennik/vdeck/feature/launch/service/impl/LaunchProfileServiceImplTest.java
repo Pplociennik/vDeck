@@ -2,14 +2,15 @@ package com.github.pplociennik.vdeck.feature.launch.service.impl;
 
 import com.github.pplociennik.vdeck.feature.launch.LaunchProfileMessage;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
-import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfileUpdateResult;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProperty;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldKey;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldModifier;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldPreset;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
 import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
+import com.github.pplociennik.vdeck.shared.SystemPropertyValues;
 import com.github.pplociennik.vdeck.shared.exc.PathResolutionException;
 import com.github.pplociennik.vdeck.shared.service.PathService;
 import com.github.pplociennik.vdeck.shared.service.SystemPropertiesService;
@@ -30,6 +31,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
@@ -53,7 +55,7 @@ class LaunchProfileServiceImplTest {
             .toAbsolutePath().resolve( "vdeck-installation" );
 
     @Mock
-    private SystemPropertiesService launchProperties;
+    private SystemPropertiesService systemPropertiesService;
 
     @Mock
     private PathService pathService;
@@ -76,12 +78,12 @@ class LaunchProfileServiceImplTest {
         for ( LaunchProperty property : LaunchProperty.values() ) {
             storedValues.put( property, property.getDefaultValue() );
         }
-        lenient().when( launchProperties.getValue( any() ) )
-                .thenAnswer( invocation -> storedValues.get( ( LaunchProperty ) invocation.getArgument( 0 ) ) );
+        lenient().when( systemPropertiesService.getValue( eq( LaunchProperty.FILE_NAME ), any() ) )
+                .thenAnswer( invocation -> storedValues.get( ( LaunchProperty ) invocation.getArgument( 1 ) ) );
         lenient().when( pathService.getBaseDirectory() ).thenReturn( BASE_DIRECTORY );
         lenient().when( pathService.getAbsolutePath( any() ) )
                 .thenAnswer( invocation -> BASE_DIRECTORY.resolve( ( String ) invocation.getArgument( 0 ) ).normalize() );
-        underTest = new LaunchProfileServiceImpl( launchProperties, pathService );
+        underTest = new LaunchProfileServiceImpl( systemPropertiesService, pathService );
     }
 
     // =================================================================================================
@@ -164,10 +166,9 @@ class LaunchProfileServiceImplTest {
         ServerSettingsForm form = form( "My server", "Secret1", false, "worlds/main" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateServerSettings( form );
+        underTest.updateServerSettings( form );
 
         // THEN
-        assertThat( result.isSuccessful() ).isTrue();
         Map< SystemPropertyIf, String > written = capturedWrite();
         assertThat( written ).containsOnlyKeys( LaunchProperty.SERVER_NAME, LaunchProperty.SERVER_PORT,
                 LaunchProperty.SERVER_WORLD, LaunchProperty.SERVER_PASSWORD, LaunchProperty.SERVER_PUBLIC,
@@ -194,10 +195,9 @@ class LaunchProfileServiceImplTest {
         GameSettingsForm form = gameForm( "hard", "veryhard" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateGameSettings( form );
+        underTest.updateGameSettings( form );
 
         // THEN
-        assertThat( result.isSuccessful() ).isTrue();
         Map< SystemPropertyIf, String > written = capturedWrite();
         assertThat( written ).hasSize( 10 ).doesNotContainKeys( LaunchProperty.SERVER_NAME,
                 LaunchProperty.SERVER_PASSWORD, LaunchProperty.SERVER_SAVE_DIRECTORY );
@@ -267,11 +267,13 @@ class LaunchProfileServiceImplTest {
         ServerSettingsForm form = form( "Vikings of the North", "viking", false, "valheim-data" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateServerSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME );
-        verify( launchProperties, never() ).setValues( any() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
@@ -284,11 +286,13 @@ class LaunchProfileServiceImplTest {
         ServerSettingsForm form = form( "Vikings of the North", "", false, "valheim-data" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateServerSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME );
-        verify( launchProperties, never() ).setValues( any() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
@@ -300,11 +304,12 @@ class LaunchProfileServiceImplTest {
         GameSettingsForm form = gameForm( "legendary", "" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateGameSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateGameSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT );
-        verify( launchProperties, never() ).setValues( any() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
@@ -316,11 +321,12 @@ class LaunchProfileServiceImplTest {
         GameSettingsForm form = gameForm( "", "most" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateGameSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateGameSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT );
-        verify( launchProperties, never() ).setValues( any() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
@@ -334,11 +340,12 @@ class LaunchProfileServiceImplTest {
                 "", "valheim-data", 1800, 4, 7200, 43200 );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateServerSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT );
-        verify( launchProperties, never() ).setValues( any() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
@@ -352,11 +359,13 @@ class LaunchProfileServiceImplTest {
         ServerSettingsForm form = form( "My server", "", false, "../outside" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateServerSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.INVALID_SAVE_DIRECTORY );
-        verify( launchProperties, never() ).setValues( any() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( LaunchProfileMessage.INVALID_SAVE_DIRECTORY ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
@@ -369,28 +378,57 @@ class LaunchProfileServiceImplTest {
         ServerSettingsForm form = form( "My server", "", false, "." );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateServerSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.INVALID_SAVE_DIRECTORY );
-        verify( launchProperties, never() ).setValues( any() );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() )
+                        .isEqualTo( LaunchProfileMessage.INVALID_SAVE_DIRECTORY ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
-     * Verifies that a failed write of the file is reported as a result instead of an exception.
+     * Verifies that a failed write of the file ends the update with the process exception, which keeps
+     * the write failure as its cause and the submitted values without the password.
      */
     @Test
-    void shouldReportSaveFailure_whenFileCannotBeWritten() {
+    void shouldThrowSaveFailure_whenFileCannotBeWritten() {
         // GIVEN
-        willThrow( new UncheckedIOException( "disk full", new IOException( "disk full" ) ) )
-                .given( launchProperties ).setValues( any() );
-        ServerSettingsForm form = form( "My server", "", false, "valheim-data" );
+        UncheckedIOException failure = new UncheckedIOException( "disk full", new IOException( "disk full" ) );
+        willThrow( failure ).given( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+        ServerSettingsForm form = form( "My server", "Secret1", false, "valheim-data" );
 
         // WHEN
-        LaunchProfileUpdateResult result = underTest.updateServerSettings( form );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
 
         // THEN
-        assertThat( result.messageKey() ).isEqualTo( LaunchProfileMessage.SAVE_FAILED );
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class, exception -> {
+            assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.SAVE_FAILED );
+            assertThat( exception.getCause() ).isSameAs( failure );
+            assertThat( exception.getSubmittedForm() ).isEqualTo( form.withoutPassword() );
+        } );
+    }
+
+    /**
+     * Verifies that a failed write of the game settings ends the update with the process exception
+     * keeping the write failure as its cause.
+     */
+    @Test
+    void shouldThrowSaveFailure_whenGameSettingsCannotBeWritten() {
+        // GIVEN
+        UncheckedIOException failure = new UncheckedIOException( "disk full", new IOException( "disk full" ) );
+        willThrow( failure ).given( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+        GameSettingsForm form = gameForm( "hard", "" );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateGameSettings( form ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class, exception -> {
+            assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.SAVE_FAILED );
+            assertThat( exception.getCause() ).isSameAs( failure );
+            assertThat( exception.getSubmittedForm() ).isEqualTo( form );
+        } );
     }
 
     /**
@@ -408,14 +446,14 @@ class LaunchProfileServiceImplTest {
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "form must not be null" );
-        verify( launchProperties, never() ).setValues( any() );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
     }
 
     /**
      * Verifies that the constructor rejects a missing properties service.
      */
     @Test
-    void shouldThrowException_whenLaunchPropertiesAreNull() {
+    void shouldThrowException_whenPropertiesServiceIsNull() {
         // GIVEN
         // no properties service at all
 
@@ -425,7 +463,7 @@ class LaunchProfileServiceImplTest {
         // THEN
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
-                .hasMessageContaining( "launchProperties must not be null" );
+                .hasMessageContaining( "systemPropertiesService must not be null" );
     }
 
     /**
@@ -437,7 +475,7 @@ class LaunchProfileServiceImplTest {
         // no path service at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new LaunchProfileServiceImpl( launchProperties, null ) );
+        Throwable thrown = catchThrowable( () -> new LaunchProfileServiceImpl( systemPropertiesService, null ) );
 
         // THEN
         assertThat( thrown )
@@ -466,10 +504,9 @@ class LaunchProfileServiceImplTest {
         return new GameSettingsForm( preset, combatModifier, "", "", "", "", null, null, null, true );
     }
 
-    @SuppressWarnings( "unchecked" )
     private Map< SystemPropertyIf, String > capturedWrite() {
-        ArgumentCaptor< Map< SystemPropertyIf, String > > captor = ArgumentCaptor.forClass( Map.class );
-        verify( launchProperties, times( 1 ) ).setValues( captor.capture() );
-        return captor.getValue();
+        ArgumentCaptor< SystemPropertyValues > captor = ArgumentCaptor.forClass( SystemPropertyValues.class );
+        verify( systemPropertiesService, times( 1 ) ).setValues( eq( LaunchProperty.FILE_NAME ), captor.capture() );
+        return captor.getValue().asMap();
     }
 }

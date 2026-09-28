@@ -282,6 +282,29 @@ argument zamiast luźnego zestawu wartości.
 Nie grupujemy przypadkowych, niezwiązanych parametrów tylko po to, aby spełnić limit. Jeżeli parametry
 nie tworzą jednego pojęcia, należy ponownie ocenić odpowiedzialność metody albo podzielić operację.
 
+### Niemutowalne typy wartościowe: rekord albo klasa z fabrykami
+
+Wymagania obiektu parametrów obowiązują **każdy** niemutowalny typ wartościowy, nie tylko argument
+metody. Dotyczą więc także wyników, migawek stanu i zdarzeń. O wyborze konstrukcji decyduje liczba
+poprawnych kształtów obiektu:
+
+- **Java `record`** — gdy typ ma **jeden poprawny kształt**: wszystkie komponenty są zawsze obecne, a
+  każda kombinacja wartości przechodząca walidację jest sensowna. Rekord pozostaje wtedy domyślnym
+  wyborem (§11), a walidacja i defensive copy trafiają do konstruktora zwartego, jak w `LaunchProfile`.
+- **Klasa `final` z prywatnym konstruktorem i wyłącznie nazwanymi fabrykami** — gdy typ ma **kilka
+  poprawnych kształtów**, a część pól ma znaczenie tylko w niektórych z nich. Publiczny konstruktor
+  pozwoliłby wtedy zbudować obiekt wewnętrznie sprzeczny, a rekord zawsze udostępnia konstruktor
+  kanoniczny o widoczności typu, więc nie da się tego zablokować.
+
+Przykładem drugiego przypadku jest `ServerStatus`: identyfikator procesu i czas startu mają znaczenie
+wyłącznie w stanach `STARTING` i `RUNNING`, a w `STOPPED` muszą pozostać puste. Fabryki `stopped()`,
+`starting(...)`, `running(...)`, `startFailed(...)` i `crashed(...)` nazywają dozwolone kombinacje, a
+prywatny konstruktor sprawia, że żadna inna nie powstanie. Nazwa fabryki opisuje wariant domenowy,
+nie kolejność argumentów.
+
+Taka klasa spełnia wszystkie wymagania obiektu parametrów wymienione wyżej. Jej akcesory, `equals`,
+`hashCode` i `toString` generuje Lombok — nie piszemy ich ręcznie (§11).
+
 ## 4. Kompozycja zamiast dziedziczenia
 
 Preferujemy kompozycję i delegację. Dziedziczenie stosujemy wyłącznie wtedy, gdy relacja „is-a” jest
@@ -524,9 +547,22 @@ Nie używamy `@SneakyThrows`, ponieważ ukrywa kontrakt błędów. Nie używamy 
 językowa deklaracja `var` zapewnia ten sam efekt. Wygenerowany builder, konstruktor lub akcesor nie
 może zastępować walidacji domenowej.
 
+**Klasa korzystająca z Lomboka nie miesza elementów generowanych z ręcznie napisanymi
+odpowiednikami.** Jeżeli typ ma `@Getter`, to wszystkie jego akcesory pochodzą z adnotacji; dopisanie
+obok choćby jednego gettera „bo potrzebował adnotacji albo własnego Javadoc" jest błędem, a nie
+uzasadnionym wyjątkiem. To samo dotyczy `equals`, `hashCode` i `toString`: albo generuje je adnotacja,
+albo — gdy kontrakt wymaga czegoś innego, np. redakcji sekretu — zapisujemy je ręcznie i wtedy nie
+dodajemy odpowiadającej im adnotacji.
+
+Kontrakt wygenerowanego akcesora opisuje Javadoc pola, zgodnie z `documentation.md` §4, i to właśnie
+tam trafia informacja o dopuszczalnym `null`. Adnotacji nullability **nie** umieszczamy na polach
+prywatnych: §8 obejmuje publiczne konstruktory, metody i pola, a adnotacja na polu prywatnym niczego
+nie dokumentuje czytelnikowi publicznego API.
+
 Jeżeli publiczny konstruktor wymaga jawnego `@Nonnull`, wywołania `requireNonNull`, dodatkowej
 walidacji albo szczegółowego Javadoc, zapisujemy go ręcznie. Oszczędność kilku linii nie ma
-pierwszeństwa przed kontraktem publicznego API. Wygenerowane elementy dokumentujemy zgodnie z
+pierwszeństwa przed kontraktem publicznego API. Ten wyjątek dotyczy wyłącznie konstruktora i nie
+otwiera drogi do ręcznych akcesorów. Wygenerowane elementy dokumentujemy zgodnie z
 `documentation.md` poprzez dokumentację typu i pól będących źródłem kontraktu.
 
 ## 12. HTML, CSS i JavaScript
@@ -718,6 +754,10 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
 - czy Lombok usunął możliwy do bezpiecznego wygenerowania boilerplate bez ukrycia walidacji,
   zachowania, sekretów ani kontraktu encji;
 - czy dla prostego niemutowalnego modelu danych wybrano `record` zamiast równoważnej klasy Lombok;
+- czy niemutowalny typ o kilku poprawnych kształtach jest klasą `final` z prywatnym konstruktorem i
+  wyłącznie nazwanymi fabrykami, zamiast rekordu wystawiającego konstruktor kanoniczny;
+- czy klasa używająca Lomboka nie zawiera ręcznie napisanych akcesorów obok wygenerowanych, a
+  informacja o dopuszczalnym `null` stoi w Javadoc pola, nie w adnotacji na polu prywatnym;
 - czy klasa wymagająca loggera używa `@Log4j2`, chyba że jawne pole loggera ma konkretną przewagę;
 - czy HTML i CSS są zrozumiałe dzięki semantycznej strukturze oraz krótkim, jednoznacznym nazwom;
 - czy logiczne sekcje, kontrakty komponentów i nieoczywiste reguły frontendu mają krótki angielski

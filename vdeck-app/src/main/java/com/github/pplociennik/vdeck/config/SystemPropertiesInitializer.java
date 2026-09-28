@@ -1,6 +1,7 @@
 package com.github.pplociennik.vdeck.config;
 
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProperty;
+import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import com.github.pplociennik.vdeck.shared.VdeckProperty;
 import com.github.pplociennik.vdeck.shared.service.SystemPropertiesService;
 import jakarta.annotation.Nonnull;
@@ -24,15 +25,21 @@ class SystemPropertiesInitializer implements SmartInitializingSingleton {
 
     private final SystemPropertiesService systemPropertiesService;
 
+    private final LaunchProfileService launchProfileService;
+
     /**
      * Creates the initializer loading the files into the given service.
      *
      * @param systemPropertiesService
      *         service every properties file is loaded into
+     * @param launchProfileService
+     *         owner publishing the typed configuration after the files are loaded
      */
-    SystemPropertiesInitializer( @Nonnull SystemPropertiesService systemPropertiesService ) {
+    SystemPropertiesInitializer( @Nonnull SystemPropertiesService systemPropertiesService,
+                                 @Nonnull LaunchProfileService launchProfileService ) {
         this.systemPropertiesService = requireNonNull( systemPropertiesService,
                 "systemPropertiesService must not be null" );
+        this.launchProfileService = requireNonNull( launchProfileService, "launchProfileService must not be null" );
     }
 
     /**
@@ -43,6 +50,7 @@ class SystemPropertiesInitializer implements SmartInitializingSingleton {
     public void afterSingletonsInstantiated() {
         systemPropertiesService.loadFile( VdeckProperty.FILE_NAME, VdeckProperty.defaults() );
         systemPropertiesService.loadFile( LaunchProperty.FILE_NAME, LaunchProperty.defaults() );
+        launchProfileService.reload();
         log.info( "vDeck settings files loaded" );
     }
 }

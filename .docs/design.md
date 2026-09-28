@@ -1,6 +1,6 @@
-﻿# vDeck — główne założenia projektowe
+# vDeck — główne założenia projektowe
 
-> Data: 2026-08-17 · Aktualizacja: 2026-09-21 · Status: żywy opis uzgodnionej architektury
+> Data: 2026-08-17 · Aktualizacja: 2026-09-29 · Status: żywy opis uzgodnionej architektury
 
 vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim. Aplikacja jest
 dystrybuowana razem z instalacją serwera, uruchamiana lokalnie, a następnie obsługiwana z poziomu
@@ -83,6 +83,9 @@ Drzewo opisuje organizację odpowiedzialności, a nie kolejność implementacji.
 i mogą zostać doprecyzowane podczas planowania danego feature’a, ale kierunek zależności oraz granice
 modułów i pakietów pozostają obowiązującym założeniem.
 
+Poddrzewa `vdeck-runtime` i `feature.server` pokazują stan zaimplementowany. Pozostałe planowane
+obszary runtime, w tym snapshoty, RCON i łagodne zatrzymanie, opisują dalsze sekcje dokumentu.
+
 ```text
 vdeck/                                           ← parent i agregator Maven
 ├── pom.xml
@@ -94,6 +97,7 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── README.md
 │       ├── clean-code.md
 │       ├── documentation.md
+│       ├── formating.md
 │       ├── integration-tests.md
 │       ├── maven.md
 │       ├── security.md
@@ -116,45 +120,15 @@ vdeck/                                           ← parent i agregator Maven
 │       │   │   ├── ServerState
 │       │   │   ├── ServerStatus
 │       │   │   ├── RunningServer
-│       │   │   ├── LaunchSpec
-│       │   │   └── StopOutcome
+│       │   │   └── LaunchSpec
 │       │   ├── spi/                             ← wymienne granice zewnętrzne
-│       │   │   ├── GameProcessLauncher
-│       │   │   ├── GracefulSignal
-│       │   │   ├── ProcessReattacher
-│       │   │   ├── ProcessDiscovery
-│       │   │   ├── WorldPersistenceChannel
-│       │   │   └── SaveConfirmation
-│       │   ├── lifecycle/                       ← cykl życia i polityka zatrzymania
-│       │   │   ├── ServerStateMachine
-│       │   │   ├── StopOrchestrator
-│       │   │   ├── StopPolicy
-│       │   │   └── StopStage
-│       │   ├── ownership/                       ← własność i odzyskiwanie procesu
-│       │   │   ├── PanelLock
-│       │   │   ├── PidTokenStore
-│       │   │   ├── ProcessToken
-│       │   │   ├── RecoveryCandidate
-│       │   │   └── ProcessRecoveryService
-│       │   ├── logs/                            ← logi i zdarzenia serwera
-│       │   │   ├── LogTailer
-│       │   │   ├── LogEventParser
-│       │   │   └── LogEvent
-│       │   ├── snapshot/                        ← snapshoty i retencja
-│       │   │   ├── Snapshot
-│       │   │   ├── SnapshotTrustLevel
-│       │   │   ├── WorldSnapshotStore
-│       │   │   ├── SnapshotValidator
-│       │   │   └── RetentionPolicy
-│       │   ├── rcon/                            ← opcjonalny kanał RCON
-│       │   │   ├── RconClient
-│       │   │   └── RconControlChannel
+│       │   │   └── GameProcessLauncher
+│       │   ├── lifecycle/                       ← serializowane zmiany stanu
+│       │   │   └── ServerStateMachine
 │       │   └── windows/                         ← adapter Windows; moduł dopiero przy 2. OS
 │       │       ├── Win32
-│       │       ├── WindowsProcessLauncher
-│       │       ├── WindowsConsoleCtrlSignal
-│       │       ├── WindowsProcessDiscovery
-│       │       └── CtrlSender
+│       │       ├── WindowsCommandLine
+│       │       └── WindowsProcessLauncher
 │       └── test/java/…                          ← testy runtime bez Springa i Valheim
 │
 └── vdeck-app/                                   ← aplikacja Spring Boot
@@ -166,6 +140,7 @@ vdeck/                                           ← parent i agregator Maven
         │   │   ├── DataInitializer
         │   │   ├── PathConfiguration
         │   │   ├── SecurityConfiguration
+        │   │   ├── ServerRuntimeConfiguration
         │   │   └── SystemPropertiesInitializer
         │   ├── feature/                         ← pionowe funkcjonalności aplikacji
         │   │   ├── authentication/              ← konta panelu i zmiana hasła
@@ -191,12 +166,20 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │   └── HomeController
         │   │   ├── server/                      ← sterowanie i prezentacja stanu runtime
         │   │   │   ├── ServerController
-        │   │   │   ├── ServerShutdownLifecycle
+        │   │   │   ├── ServerExceptionHandler
+        │   │   │   ├── ServerStatusAdvice
+        │   │   │   ├── ServerMessage
+        │   │   │   ├── exc/ServerStartException
         │   │   │   └── service/
         │   │   │       ├── ServerService
+        │   │   │       ├── LaunchCommandService
+        │   │   │       ├── ServerLogService
         │   │   │       └── impl/
-        │   │   │           └── ServerServiceImpl
-        │   │   ├── launch/                      ← profil uruchomieniowy (plik, AD-011)
+        │   │   │           ├── ServerServiceImpl
+        │   │   │           ├── LaunchCommandServiceImpl
+        │   │   │           ├── ServerLogServiceImpl
+        │   │   │           └── ServerStartValidator
+        │   │   ├── launch/                      ← profil uruchomieniowy (plik, AD-013)
         │   │   │   ├── ServerSettingsController ← ekran „Serwer”
         │   │   │   ├── GameSettingsController   ← ekran „Ustawienia gry”
         │   │   │   ├── LaunchProfileExceptionHandler ← @ControllerAdvice obu ekranów
@@ -204,6 +187,7 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │   ├── domain/
         │   │   │   │   ├── LaunchProperty
         │   │   │   │   ├── LaunchProfile
+        │   │   │   │   ├── LaunchConfiguration
         │   │   │   │   ├── WorldPreset
         │   │   │   │   ├── WorldModifier
         │   │   │   │   └── WorldKey
@@ -395,7 +379,7 @@ Konfiguracja vDeck jest rozdzielona według właściciela i nie miesza się w je
 |---|---|---|---|
 | `application.yaml` w jarze | Aplikacja | Infrastruktura Spring Boot: datasource, port, poziomy logowania, cykl życia kontekstu. | Tylko przez nowe wydanie. |
 | `.vDeck/config/vDeck.properties` w katalogu instalacji | Użytkownik | Ustawienia aplikacyjne panelu, docelowo edytowalne z GUI. | Ręcznie oraz z panelu. |
-| `.vDeck/config/valheim-server.properties` w katalogu instalacji | Użytkownik | Profil uruchomieniowy serwera Valheim (AD-011). | Ręcznie oraz z ekranów „Serwer” i „Ustawienia gry”. |
+| `.vDeck/config/valheim-server.properties` w katalogu instalacji | Użytkownik | Profil uruchomieniowy serwera Valheim (AD-013). | Ręcznie oraz z ekranów „Serwer” i „Ustawienia gry”. |
 
 Zgodnie z `AD-010` wszystkie pliki ustawień leżą w podkatalogu `.vDeck/config` katalogu instalacji,
 nigdy w `src/main/resources` ani bezpośrednio obok `vdeck.jar`. Ich lokalizację wyznacza wyłącznie
@@ -419,12 +403,27 @@ podaną przez wywołującego i loguje nazwę ustawienia na `WARN`. Plik jest kod
 zapis wykonany przez panel zachowuje wpisy nienależące do panelu, ale nie zachowuje komentarzy ani
 kolejności kluczy wpisanych ręcznie.
 
+Zapisy jednego pliku są serializowane. Zmienione wartości powstają w osobnym zestawie;
+`PropertiesFile` publikuje cały zestaw w pamięci dopiero po udanym zapisie pliku. Błąd zapisu
+pozostawia poprzedni zestaw bez zmian i nie wymaga odtwarzania wcześniejszych wartości.
+
+Po załadowaniu plików `SystemPropertiesInitializer` wywołuje `LaunchProfileService.reload()`.
+Serwis tworzy jedną niemutowalną `LaunchConfiguration`: typowany `LaunchProfile` oraz hasło
+pochodzące z tej samej wersji ustawień. Kolejne odczyty zwracają gotowy obiekt. Zapis ustawień
+serwera i gry oraz ponowne zbudowanie konfiguracji są serializowane przez serwis profilu;
+nowa konfiguracja jest publikowana po udanym zapisie. Profile zmieniamy przez serwis właściciela,
+aby zapis i odświeżenie konfiguracji pozostały jednym procesem. Widoki otrzymują wyłącznie
+bezsekretny `LaunchProfile`; walidator startu i generator komendy otrzymują tę samą
+`LaunchConfiguration`. `reload()` mapuje wartości już obecne w pamięci, nie czyta ponownie dysku.
+Ręczna zmiana pliku wymaga restartu panelu. Błędny profil nie blokuje dostępu do ekranu jego edycji;
+gotowość do startu, w tym pliki, katalogi i porty, jest sprawdzana dopiero przed startem serwera.
+
 Teksty interfejsu nie są kanałem konfiguracji i nie leżą w katalogu instalacji. Zgodnie z `AD-009`
 panel jest jednojęzyczny, a jego teksty pochodzą z pliku `resources/messages.properties` dołączonego
 do aplikacji i czytanego przez domyślny `MessageSource` Spring Boota.
 
 Pierwszą właściwością jest `game.log.directory` — względna ścieżka katalogu logów serwera gry,
-domyślnie `vdeck-logs`. Każda skonfigurowana ścieżka przechodzi przez `PathService`: musi być
+domyślnie `.vDeck/log` (AD-016). Każda skonfigurowana ścieżka przechodzi przez `PathService`: musi być
 względna, jest normalizowana i po rozwiązaniu do postaci rzeczywistej musi pozostać wewnątrz katalogu
 instalacji. Ścieżka absolutna, wychodząca poza katalog instalacji albo prowadząca poza niego przez
 dowiązanie lub punkt reparsowania jest odrzucana.
@@ -433,6 +432,12 @@ Druga właściwość, `panel.game.settings.advanced` (domyślnie `false`), zapam
 „Ustawienia gry” pokazuje sekcję „Zaawansowane” (AD-012). To preferencja wyświetlania panelu, a nie
 część profilu uruchomieniowego: jej zmiana nie wpływa na opcje przekazywane serwerowi.
 
+`game.log.retention.days` (domyślnie `14`) określa retencję dziennych katalogów logów; przed startem
+usuwane są katalogi starsze niż bieżąca data minus tę liczbę dni. `server.start.script` (domyślnie
+`start_headless_server.bat`) wskazuje skrypt producenta czytany wyłącznie po `SteamAppId` (AD-015).
+Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
+`.vDeck/vDeck-server-start.bat` bez zapisanego hasła, ale nigdy go nie uruchamia.
+
 Podstawowy układ danych:
 
 ```text
@@ -440,15 +445,17 @@ Podstawowy układ danych:
 ├── valheim_server.exe
 ├── vdeck.jar
 ├── .vDeck/
-│   └── config/                        ← wszystkie pliki ustawień (AD-010)
-│       ├── vDeck.properties
-│       └── valheim-server.properties
+│   ├── config/                        ← wszystkie pliki ustawień (AD-010)
+│   │   ├── vDeck.properties
+│   │   └── valheim-server.properties
+│   ├── vDeck-server-start.bat          ← regenerowany skrypt lustrzany bez hasła
+│   └── log/                           ← domyślny `game.log.directory`
+│       └── 2026-09-29/
+│           └── 2026-09-29_12-00-00.log ← osobny plik na start
 ├── valheim-data/                      ← katalog domyślny; zmienia go `server.save.directory`
 ├── vdeck.lock
 ├── server.pid
-├── vdeck.db
-└── vdeck-logs/                        ← katalog domyślny; zmienia go `game.log.directory`
-    └── valheim-server.log
+└── vdeck.db
 
 <katalog danych Valheim>/
 └── światy i listy graczy
@@ -468,16 +475,25 @@ Panel jest właścicielem zarządzanego procesu Valheim i przechowuje go jako `R
 Serwer jest uruchamiany przez `CreateProcessW` wywoływane przez FFM z flagą `CREATE_NO_WINDOW`.
 Oddzielna konsola procesu izoluje zdarzenia CTRL+C od panelu i terminala, z którego uruchomiono vDeck.
 
+Zgodnie z AD-015 `CreateProcessW` otrzymuje argumenty z profilu, jawny katalog roboczy i własny blok
+środowiska. `SteamAppId` jest odczytywany ze skryptu producenta; brak wpisu lub pliku oraz błąd odczytu
+dają ostrzeżenie i wartość zastępczą `892970`. Hasło znajduje się wyłącznie w rzeczywistym argumencie
+procesu; skrypt lustrzany używa `"%VDECK_SERVER_PASSWORD%"`. Błąd zapisu skryptu nie blokuje startu.
+`LaunchCommandService.build()` tworzy bezpośrednio `LaunchSpec` z przechwyconej konfiguracji
+i nowej ścieżki logu. `renderScript(launchSpec)` renderuje skrypt z tej samej specyfikacji,
+bez ponownego czytania ustawień i bez pośredniego obiektu komendy.
+
 Panel nie przekierowuje strumieni konsoli serwera. Plik logu wskazuje jawnie opcja
-`-logFile <ścieżka>` przekazana w wierszu poleceń, kierująca zapis do `valheim-server.log` w
-katalogu wskazanym przez właściwość `game.log.directory` (domyślnie `vdeck-logs`). Ścieżka jest
+`-logFile <ścieżka>` przekazana w wierszu poleceń, kierująca zapis do
+`<game.log.directory>/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>.log` (AD-016). Domyślny katalog to
+`.vDeck/log`; przy istniejącym pliku dodawany jest przyrostek `-1`, `-2` itd. Ścieżka jest
 rozwiązywana przez `PathService` i przekazywana jako absolutna. Właścicielem pliku jest proces
 serwera, a panel jedynie go śledzi, dzięki czemu logowanie nie zależy od życia procesu panelu.
 
 Launcher nie dziedziczy więc żadnych uchwytów: `stdout` i `stderr` procesu pozostają domyślne, a
 `STARTUPINFO` nie ustawia `STARTF_USESTDHANDLES`. Uchwyty `PROCESS_INFORMATION` są zamykane
-bezpośrednio po uruchomieniu procesu. Serwer tworzy plik logu na nowo przy każdym starcie, więc
-`LogTailer` musi wykrywać podmianę pliku i wznawiać śledzenie od początku nowej zawartości.
+bezpośrednio po uruchomieniu procesu. Każdy start otrzymuje nową ścieżkę logu; przyszły `LogTailer`
+wiąże śledzenie z konkretnym uruchomieniem zamiast zakładać nadpisywanie stałego pliku przy restarcie.
 
 Łagodne zatrzymanie odbywa się przez osobny, krótkotrwały proces-helper wykonujący:
 

@@ -221,3 +221,17 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** Odrzucenie lub niepowodzenie głównego procesu kończy wyjątek z `exc` feature'a obsługiwany przez jego `@ControllerAdvice`; resztę loguje na `WARN` `shared.web.DefaultExceptionHandler`.
 - **Powód:** Obiekty wyniku i lokalne `catch` rozpraszały obsługę błędów.
 - **Konsekwencja:** Serwisy i kontrolery nie zwracają wyniku odrzucenia, a wyjątek łapią tylko, by zamienić go na wyjątek procesu.
+
+## AD-015 — Bezpośredni start i skrypt lustrzany
+
+- **Status:** obowiązująca (2026-09-29)
+- **Decyzja:** Panel uruchamia `valheim_server.exe` przez FFM `CreateProcessW` z własnym środowiskiem, a `.vDeck/vDeck-server-start.bat` generuje bez sekretu.
+- **Powód:** Uruchomienie nie zależy od interpretacji skryptu przez powłokę.
+- **Konsekwencja:** Skrypt lustrzany nie jest kanałem startu ani elementem GUI, a skrypt z `server.start.script` jest wyłącznie czytany po `SteamAppId`.
+
+## AD-016 — Układ i retencja logów gry
+
+- **Status:** obowiązująca (2026-09-29)
+- **Decyzja:** Każdy start zapisuje przez `-logFile` osobny log w `<game.log.directory>/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>.log`.
+- **Powód:** Historia uruchomień nie ginie przy ponownym starcie.
+- **Konsekwencja:** Panel nie przechwytuje konsoli, domyślny katalog to `.vDeck/log`, a dzienną retencją steruje `game.log.retention.days` z wartością domyślną 14.

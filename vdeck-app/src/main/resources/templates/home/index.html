@@ -13,7 +13,13 @@
 -->
 <div th:replace="~{common/island :: island}"></div>
 
-<main class="page-content"></main>
+<main class="page-content">
+    <!-- Outcome of the last server control action, flashed here by the server feature. -->
+    <p class="form-success settings-message" role="status"
+       th:if="${serverStarted}" th:text="#{server.started}"></p>
+    <p class="form-alert settings-message" role="alert"
+       th:if="${serverErrorKey}" th:text="#{${serverErrorKey}}"></p>
+</main>
 
 <div th:replace="~{common/side-menu :: sideMenu}"></div>
 </body>

@@ -323,6 +323,29 @@ Weryfikujemy tylko interakcje stanowiące część kontraktu lub istotny skutek 
 mechanizmów. Kod wymagający statycznego mocka należy przeprojektować przez wstrzyknięcie zależności,
 opakowanie granicy zewnętrznej albo przekazanie deterministycznej funkcji.
 
+### Ścisłe stubbing i zakaz `lenient`
+
+Obowiązuje domyślna, ścisła kontrola stubów Mockito. **Nie wyłączamy jej przez
+`@MockitoSettings( strictness = Strictness.LENIENT )`, `Mockito.lenient()` ani `lenient().when(...)`,
+dopóki nie wyczerpiemy prostszych rozwiązań.** `UnnecessaryStubbingException` jest informacją, a nie
+przeszkodą: mówi, że test przygotowuje zachowanie, którego badany przepływ nie używa — czyli albo stub
+jest zbędny, albo test nie sprawdza tego, co deklaruje.
+
+Typową przyczyną jest przygotowanie w `@BeforeEach` kompletu stubów „dla wszystkich testów". Stuby
+wspólne dla **każdego** testu w klasie mogą zostać w metodzie `@BeforeEach`; stub potrzebny tylko
+części testów przenosimy do tych testów albo do nazwanego prywatnego helpera wywoływanego w sekcji
+`GIVEN`. Helper pozostaje czytelny i nie wymaga rozluźnienia kontroli.
+
+Druga typowa przyczyna nie jest nadmiarowym stubem, tylko błędem zapisu: wywołanie mocka **wewnątrz**
+niezakończonego `given(...)`, na przykład `given( a.b() ).willReturn( buildUsingAnotherMock() )`.
+Mockito zgłasza wtedy `UnfinishedStubbingException`. Wartość budujemy przed rozpoczęciem stubowania i
+dopiero ją przekazujemy do `willReturn`.
+
+`lenient` dopuszczamy wyjątkowo, gdy rozluźnienie daje realną przewagę — na przykład we wspólnej
+konfiguracji klasy bazowej testów integracyjnych, gdzie rozbicie stubów na pojedyncze testy istotnie
+pogorszyłoby czytelność. Użycie wymaga krótkiego komentarza wyjaśniającego, dlaczego stub jest
+świadomie nieużywany w części testów.
+
 ## 11. Jakość i niezależność testów
 
 Test jednostkowy musi być:
@@ -356,4 +379,6 @@ Przed uznaniem nowej lub zmodyfikowanej klasy za kompletną należy sprawdzić:
 - czy wszystkie asercje używają AssertJ zamiast `org.junit.jupiter.api.Assertions`;
 - czy mocki są rzeczywiście konieczne;
 - czy test nie używa statycznego mockowania;
+- czy zachowano ścisły stubbing, a `lenient` nie posłużył do uciszenia zbędnego stubu zamiast
+  przeniesienia go do testów, które faktycznie go używają;
 - czy testy jednostkowe dla zmienionego obszaru zostały uruchomione i zakończyły się powodzeniem.

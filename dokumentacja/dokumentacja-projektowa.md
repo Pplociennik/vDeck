@@ -1,6 +1,6 @@
-﻿# vDeck — dokumentacja projektowa
+# vDeck — dokumentacja projektowa
 
-> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-09-21
+> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-09-29
 
 Dokument opisuje, **co system robi i jak to realizuje**. Uzasadnienia decyzji projektowych znajdują się
 w [`.docs/architectural_decisions.md`](../.docs/architectural_decisions.md) oraz
@@ -43,6 +43,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.4 Ekrany panelu](#54-ekrany-panelu)
   - [5.5 Menu boczne](#55-menu-boczne)
   - [5.6 Serwer i Ustawienia gry](#56-serwer-i-ustawienia-gry)
+  - [5.7 Uruchamianie serwera](#57-uruchamianie-serwera)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -60,7 +61,7 @@ dystrybuowana razem z instalacją serwera, uruchamiana na tej samej maszynie i o
 przeglądarki. Docelowy zakres produktu obejmuje sterowanie cyklem życia serwera, konfigurację profilu
 uruchomieniowego, zarządzanie światami i kopiami bezpieczeństwa, podgląd logów, listy graczy oraz
 opcjonalne RCON i mody. Obecnie zaimplementowana jest infrastruktura konfiguracji, uwierzytelnianie
-dostępu do panelu oraz definiowanie profilu uruchomieniowego serwera (bez samego uruchamiania).
+dostępu do panelu, definiowanie profilu uruchomieniowego oraz uruchamianie serwera Valheim.
 
 Wspierany jest wyłącznie Windows.
 
@@ -68,8 +69,8 @@ Wspierany jest wyłącznie Windows.
 
 | Moduł Maven | Odpowiedzialność | Stan |
 |---|---|---|
-| `vdeck-runtime` | Czysta Java: cykl życia serwera, procesy, sygnały, logi. Bez Springa. | Pusty — brak katalogu `src` |
-| `vdeck-app` | Aplikacja Spring Boot: web, bezpieczeństwo, konfiguracja, persystencja. | Zawiera cały istniejący kod |
+| `vdeck-runtime` | Czysta Java: proces serwera i jego stan. Bez Springa. | Fasada runtime, kolejka zdarzeń i launcher Windows przez FFM |
+| `vdeck-app` | Aplikacja Spring Boot: web, bezpieczeństwo, konfiguracja, persystencja. | Feature'y panelu, w tym walidacja i przygotowanie startu |
 
 Zależność jest jednostronna: `vdeck-app` zależy od `vdeck-runtime`.
 
@@ -79,14 +80,14 @@ Lombok, JUnit 5 + AssertJ + Mockito.
 
 ### 1.3 Uruchomienie panelu
 
-Panel nasłuchuje na `127.0.0.1` i domyślnym porcie serwera osadzonego (`8080`); adres jest ustawiony
-w `application.yaml`, więc panel nie jest wystawiony poza maszynę lokalną.
+Port panelu w `application.yaml` wynosi `8085`. Plik nie ustawia adresu nasłuchu; uruchomienie
+przeznaczone wyłącznie do obsługi lokalnej wymaga `--server.address=127.0.0.1`.
 
 Uruchomienie produkcyjne:
 
 ```powershell
 .\mvnw.cmd package
-java -jar vdeck-app\target\vdeck-app-0.0.1-SNAPSHOT.jar
+java --enable-native-access=ALL-UNNAMED -jar vdeck-app\target\vdeck-app-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1
 ```
 
 Nazwa artefaktu buildu to `vdeck-app-<wersja>.jar`; dokumenty projektowe mówią o `vdeck.jar` jako
@@ -101,7 +102,7 @@ bez niego `ApplicationHome` wskazuje na `vdeck-app/target/classes`:
 ```powershell
 .\mvnw.cmd install -DskipTests
 .\mvnw.cmd -pl vdeck-app spring-boot:run `
-  "-Dspring-boot.run.jvmArguments=-Dvdeck.server-directory=D:\sciezka\do\sandboxa"
+  "-Dspring-boot.run.jvmArguments=--enable-native-access=ALL-UNNAMED -Dvdeck.server-directory=D:\sciezka\do\sandboxa"
 ```
 
 ---
@@ -121,7 +122,8 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SecurityConfiguration` oraz inicjalizacja startowa `SystemPropertiesInitializer` i `DataInitializer` |
 | `feature.authentication` | Pionowy feature uwierzytelniania: kontrolery i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `persistence`, `service` i `service.impl` |
 | `feature.home` | Strona główna panelu: `HomeController` |
-| `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery ekranów „Serwer” i „Ustawienia gry” i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-011) |
+| `feature.server` | Start serwera, walidacja, polecenie startowe, logi i udostępnienie stanu runtime widokom; wiring w `config.ServerRuntimeConfiguration` |
+| `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery ekranów „Serwer” i „Ustawienia gry” i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-013) |
 | `security` | Przekrojowe filtry i handlery Spring Security, niezwiązane z jednym feature'em |
 | `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc`, domyślna obsługa wyjątków w `shared.web` |
 
@@ -141,13 +143,14 @@ bazowego przerywa start, zamiast pozwolić aplikacji działać z niepoprawną ko
 ### 2.3 Obsługa wyjątków
 
 Obowiązuje [`AD-014`](../.docs/architectural_decisions.md). Każdy główny proces panelu — zapis
-profilu uruchomieniowego i zmiana hasła — kończy się przy odrzuceniu **albo** niepowodzeniu własnym
+profilu uruchomieniowego, start serwera i zmiana hasła — kończy się przy odrzuceniu **albo** niepowodzeniu własnym
 wyjątkiem z podpakietu `exc` swojego feature'a. Serwisy nie zwracają obiektów wyniku, a kontrolery
 nie sprawdzają wyniku ani nie przechwytują wyjątków; błąd walidacji adnotacji kontroler zgłasza tym
 samym wyjątkiem procesu.
 
 | Wyjątek procesu | Rzucany przez | Obsługuje | Co trafia do przekierowania |
 |---|---|---|---|
+| `feature.server.exc.ServerStartException` | `ServerStartValidator`, `ServerServiceImpl` | `ServerExceptionHandler` | klucz `ServerMessage` w `serverErrorKey`, zawsze na `/` |
 | `feature.launch.exc.LaunchProfileUpdateException` | `ServerSettingsController`, `GameSettingsController`, `LaunchProfileServiceImpl` | `LaunchProfileExceptionHandler` | klucz `LaunchProfileMessage` i przesłany formularz (ekranu „Serwer” zawsze bez hasła) |
 | `feature.authentication.exc.PasswordChangeException` | oba kontrolery zmiany hasła, `PanelUserServiceImpl` | `PasswordChangeExceptionHandler` | wyłącznie klucz `PasswordChangeMessage` — formularz hasła jest zawsze pusty |
 
@@ -155,7 +158,8 @@ Wyjątek procesu niesie komunikat jako enum kluczy tłumaczeń, nigdy jako tekst
 nie ma przyczyny; niepowodzenie, np. nieudany zapis pliku, zachowuje ją jako `cause`. `@ControllerAdvice`
 feature'a jest ograniczony do jego kontrolerów (`assignableTypes`) i ma pierwszeństwo przed obsługą
 domyślną. Przekierowuje na ekran, który wysłał formularz, a komunikat i ewentualny formularz przekazuje
-atrybutami flash, więc odświeżenie strony nie ponawia wysłania. Kontroler przy `GET` wypełnia formularz
+atrybutami flash, więc odświeżenie strony nie ponawia wysłania. Start serwera z dowolnej wyspy akcji
+wraca zawsze na stronę główną. Kontroler przy `GET` wypełnia formularz
 z zapisanego profilu tylko wtedy, gdy model nie zawiera już formularza przekazanego po odrzuceniu.
 
 Każdy inny wyjątek, który opuści kontroler, trafia do `shared.web.DefaultExceptionHandler` o najniższym
@@ -168,7 +172,7 @@ do tej obsługi nie trafiają i zachowują swój status.
 
 `catch` pozostaje tylko tam, gdzie zmienia znaczenie błędu, a nie tylko go loguje: przy zamianie
 wyjątku technicznego na wyjątek procesu, przy zamianie `IOException` na `UncheckedIOException`, przy
-przywracaniu stanu w pamięci po nieudanym zapisie, przy sprzątaniu pliku tymczasowego oraz przy
+sprzątaniu pliku tymczasowego oraz przy
 odczycie wartości z pliku, która po ręcznej edycji nie jest liczbą i zostaje zastąpiona domyślną.
 
 ![Diagram przepływu: obsługa wyjątku rzuconego podczas obsługi żądania](diagramy/wspolne/img/przeplyw-obsluga-wyjatkow.svg)
@@ -196,7 +200,7 @@ instalacyjnym przez wcześniejszą wersję deweloperską nie jest czytany ani pr
 Bieżąca zawartość `application.yaml` obejmuje nazwę aplikacji, źródło danych SQLite
 (`jdbc:sqlite:vdeck.db`), dialekt Hibernate `SQLiteDialect` z `ddl-auto: update`, zachowanie
 `MessageSource` (`spring.messages.use-code-as-default-message`) oraz ustawienia serwera:
-`address: 127.0.0.1` i ciasteczko sesji z `http-only: true` i `same-site: lax`.
+`port: 8085` i ciasteczko sesji z `http-only: true` i `same-site: lax`.
 
 ### 3.2 Ustawienia panelu w vDeck.properties
 
@@ -205,7 +209,9 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 
 | Klucz | Znaczenie | Obowiązkowe | Wartość domyślna |
 |---|---|---|---|
-| `game.log.directory` | Katalog z plikiem logu serwera gry, względny wobec katalogu instalacyjnego | tak | `vdeck-logs` |
+| `game.log.directory` | Katalog dziennych podkatalogów logów gry, względny wobec instalacji | tak | `.vDeck/log` |
+| `game.log.retention.days` | Liczba dni retencji logów gry; zalecana wartość nieujemna | tak | `14` |
+| `server.start.script` | Skrypt producenta czytany po `SteamAppId`, nigdy wykonywany przez panel | tak | `start_headless_server.bat` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 
 Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obowiązkowe. Wartość
@@ -251,7 +257,7 @@ Zasady obsługi plików:
 - `setValues` zmienia wiele ustawień naraz: najpierw sprawdza wszystkie wpisy, potem zapisuje plik
   **jeden raz** — zmieniają się wszystkie wartości albo żadna;
 - zapis jest atomowy: dane trafiają do pliku tymczasowego, są wypychane na urządzenie (`FileChannel.force`),
-  a następnie podmieniane przez `ATOMIC_MOVE`; nieudany zapis przywraca poprzednie wartości w pamięci,
+  a następnie podmieniane przez `ATOMIC_MOVE`; nowy zestaw jest publikowany w pamięci po udanym zapisie,
   więc pamięć i dysk nie mogą się rozjechać;
 - do logu trafiają wyłącznie nazwy kluczy i ich liczba, nigdy wartości, ponieważ plik ustawień może
   zawierać sekrety.
@@ -583,7 +589,7 @@ Wyspa dzieli się na trzy grupy akcji rozdzielone pionowymi liniami o wysokości
 
 | Grupa | Szerokość | Akcje | Stan |
 |---|---|---|---|
-| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Przyciski bez akcji — funkcjonalność nie jest zaimplementowana |
+| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Start wysyła `POST /server/start`; pozostałe akcje nie są zaimplementowane |
 | Kopie bezpieczeństwa | nieco węższa | utworzenie kopii świata, utworzenie kopii serwera | Przyciski bez akcji — funkcjonalność nie jest zaimplementowana |
 | Zarządzanie panelem | wąska | zmiana hasła, wylogowanie | Działa: odnośnik do `/change-password` oraz formularz `POST /logout` obsługiwany przez domyślne wylogowanie Spring Security |
 
@@ -591,7 +597,11 @@ Przyciski są kwadratowe i zawierają wyłącznie ikonę, więc każdy ma `aria-
 Na wąskich ekranach grupy zawijają się do kolejnych wierszy, a separatory — które nie leżałyby już
 między sąsiadami — są ukrywane.
 
-Formularz wylogowania korzysta z `th:action`, więc Thymeleaf dokłada do niego ukryty token CSRF
+Pod wyspą znajduje się znacznik stanu (`island-status`). `ServerStatusAdvice` dostarcza aktualny
+`serverStatus` przy każdym renderowaniu. Start jest wyłączony podczas `STARTING` i `RUNNING`.
+Stan wymaga odświeżenia strony; nie ma automatycznego odpytywania ani SSE dla tego komponentu.
+
+Formularze startu i wylogowania korzystają z `th:action`, więc Thymeleaf dokłada do nich ukryty token CSRF
 wymagany przez łańcuch bezpieczeństwa. Wyspa nie jest osadzana na ekranie wymuszonej zmiany hasła
 początkowego — konto przed zmianą hasła nie może wykonać żadnej z jej akcji.
 
@@ -697,10 +707,9 @@ technologie asystujące. Stan otwarcia nie jest zapamiętywany między stronami.
 ### 5.6 Serwer i Ustawienia gry
 
 Feature `launch` pozwala zdefiniować profil uruchomieniowy serwera Valheim — opcje wiersza poleceń
-`valheim_server.exe` opisane w instrukcji serwera dedykowanego. Profil jest tylko **zapisywany**:
-panel nie uruchamia jeszcze serwera, więc zmiany zaczną działać wraz z implementacją sterowania
-serwerem, zawsze od jego następnego startu. Profil leży w pliku
-`.vDeck/config/valheim-server.properties` (`AD-011`, `AD-013`), obsługiwanym przez ten sam mechanizm co
+`valheim_server.exe` opisane w instrukcji serwera dedykowanego. Zapis nie uruchamia ani nie restartuje
+procesu; feature `server` odczytuje profil przy następnym użyciu Start. Profil leży w pliku
+`.vDeck/config/valheim-server.properties` (`AD-013`), obsługiwanym przez ten sam mechanizm co
 `vDeck.properties` ([3.2](#32-ustawienia-panelu-w-vdeckproperties)). Edytują go dwa ekrany, a każdy
 zapisuje wyłącznie własne ustawienia, nie zmieniając ustawień drugiego.
 
@@ -810,17 +819,101 @@ Komponenty:
 | `LaunchProfileExceptionHandler` | `@ControllerAdvice` obu kontrolerów: loguje odrzucenie (`INFO`) albo niepowodzenie (`ERROR` ze stack trace) i przekierowuje na wysłany ekran z komunikatem i formularzem jako atrybutami flash |
 | `LaunchProfileMessage` | Zamknięty zbiór kluczy komunikatów: `INVALID_INPUT`, `INVALID_SAVE_DIRECTORY`, `PASSWORD_PART_OF_NAME`, `SAVE_FAILED` |
 | `domain.LaunchProperty` | Enum ustawień pliku `valheim-server.properties`: klucz, wartość domyślna i obowiązkowość |
-| `domain.LaunchProfile` | Typowany widok zapisanego profilu; hasło reprezentuje wyłącznie `passwordSet` |
+| `domain.LaunchProfile` | Gotowy, bezsekretny widok profilu dla ekranów; hasło reprezentuje wyłącznie `passwordSet` |
+| `domain.LaunchConfiguration` | Jedna niemutowalna wersja profilu i hasła dla walidacji oraz budowania komendy; nigdy nie trafia do modelu webowego |
 | `domain.WorldPreset`, `WorldModifier`, `WorldKey` | Zamknięte zbiory presetów, modyfikatorów z ich dozwolonymi wartościami i kluczy `-setkey` |
 | `exc.LaunchProfileUpdateException` | Wyjątek procesu zapisu: klucz `LaunchProfileMessage`, przesłany formularz (ekranu „Serwer” bez hasła) i — przy nieudanym zapisie — przyczyna |
 | `dto.ServerSettingsForm` | Rekord formularza ekranu „Serwer” z walidacją; `toString()` redaguje hasło, `withoutPassword()` usuwa je przed ponownym wyświetleniem |
 | `dto.GameSettingsForm` | Rekord formularza ekranu „Ustawienia gry”: preset, modyfikatory i klucze świata |
-| `service.LaunchProfileService` / `impl.LaunchProfileServiceImpl` | Odczyt profilu przez `PropertyReader` oraz osobny zapis ustawień każdego ekranu (`updateServerSettings`, `updateGameSettings`) przez `SystemPropertiesService` z nazwą pliku `LaunchProperty.FILE_NAME` |
+| `service.LaunchProfileService` / `impl.LaunchProfileServiceImpl` | Mapowanie przez `PropertyReader` przy inicjalizacji i po zapisie, odczyt gotowej konfiguracji oraz osobny zapis ustawień każdego ekranu (`updateServerSettings`, `updateGameSettings`) przez `SystemPropertiesService` z nazwą pliku `LaunchProperty.FILE_NAME` |
 | `service.GameSettingsDisplayService` / `impl.GameSettingsDisplayServiceImpl` | Odczyt (`PropertyReader.readBoolean`) i zapis widoczności sekcji „Zaawansowane” przez `SystemPropertiesService` z nazwą pliku `VdeckProperty.FILE_NAME`; wartość inna niż `true`/`false` oznacza sekcję ukrytą |
+
+Konfigurację startową publikuje `LaunchProfileService.reload()` po wczytaniu plików przez
+`SystemPropertiesInitializer` oraz po każdym udanym zapisie z obu ekranów. `getProfile()` i
+`getConfiguration()` zwracają gotowe obiekty, bez ponownego parsowania propertiesów. Zapis i
+odświeżenie są serializowane; równoległy Start zachowuje przechwyconą, kompletną wersję.
+Błąd zapisu pozostawia poprzednią konfigurację. `PropertiesFile` również publikuje nowe wartości
+dopiero po zapisie i serializuje własnych zapisujących. Ręczna edycja pliku nadal wymaga restartu
+panelu; `reload()` odczytuje pamięć, nie dysk. Kontrole gotowości do startu nie blokują otwarcia
+panelu w celu poprawienia profilu.
 
 Wartość zapisana w pliku, która nie pasuje do ustawienia — np. po ręcznej edycji — jest przy odczycie
 przez `PropertyReader` zastępowana wartością domyślną, a nieznany preset albo wartość modyfikatora są
 pomijane; oba przypadki są odnotowywane w logu na poziomie `WARN`. Plik nie jest wtedy przepisywany.
+
+### 5.7 Uruchamianie serwera
+
+Feature `server` uruchamia zapisany profil przez `POST /server/start`, wymagający roli `ADMIN` i CSRF.
+`ServerController` deleguje do `service.ServerService`; implementacja `service.impl.ServerServiceImpl`
+pobiera gotową `LaunchConfiguration` przez `LaunchProfileService.getConfiguration()`, waliduje ją,
+wybiera nową ścieżkę logu i buduje bezpośrednio `LaunchSpec`. Z tej samej specyfikacji renderuje
+skrypt lustrzany, zapisuje go i przekazuje specyfikację do `runtime.api.ServerRuntime`.
+Walidator i generator komendy nie pobierają ponownie hasła ani pozostałych ustawień profilu.
+
+Po przyjęciu startu następuje przekierowanie na `/` z atrybutem flash `serverStarted`.
+Odrzucenie lub błąd kończy się `exc.ServerStartException`; `ServerExceptionHandler` loguje go
+i przekierowuje na `/` z `serverErrorKey`. Przeglądarka otrzymuje przetłumaczony komunikat bez
+przyczyny technicznej i bez hasła. Przyjęcie startu oznacza utworzenie procesu, a nie gotowość gry.
+
+Walidacja przed utworzeniem procesu:
+
+| Sprawdzenie | Komunikat (`ServerMessage`) | Znaczenie dla administratora |
+|---|---|---|
+| Stan pozwala na start | `ALREADY_RUNNING` | Serwer już startuje lub działa |
+| Zwykły plik `valheim_server.exe` istnieje | `EXECUTABLE_MISSING` | Brak pliku wykonywalnego serwera |
+| Nazwa serwera, świata i katalog zapisu są niepuste | `PROFILE_INCOMPLETE` | Uzupełnij profil |
+| Niepuste hasło ma co najmniej 5 znaków | `PASSWORD_TOO_SHORT` | Hasło jest za krótkie |
+| Hasło nie występuje w nazwie, niezależnie od wielkości liter | `PASSWORD_PART_OF_NAME` | Zmień hasło lub nazwę serwera |
+| Publiczny serwer ma hasło | `PUBLIC_REQUIRES_PASSWORD` | Ustaw hasło albo wyłącz publiczność |
+| Port UDP i port +1 są wolne | `PORT_IN_USE` | Zwolnij porty albo zmień port profilu |
+| Katalog świata jest dozwolony i zapisywalny | `SAVE_DIRECTORY_NOT_WRITABLE` | Popraw ścieżkę lub uprawnienia |
+| Można przygotować katalog logu | `LOG_DIRECTORY_NOT_WRITABLE` | Popraw katalog logów lub jego uprawnienia |
+
+Stan jest sprawdzany ponownie w kolejce runtime, więc dwa równoległe żądania nie tworzą dwóch
+zarządzanych procesów. Utrata wyścigu daje `ALREADY_RUNNING`; błąd tworzenia procesu daje
+`START_FAILED` z zachowaną przyczyną techniczną. Próbne bindowanie portów nie rezerwuje ich aż do startu.
+
+![Diagram sekwencji: uruchomienie serwera Valheim](diagramy/server/img/przeplyw-uruchomienie-serwera.svg)
+
+Źródło diagramu: [`diagramy/server/przeplyw-uruchomienie-serwera.mmd`](diagramy/server/przeplyw-uruchomienie-serwera.mmd)
+
+`LaunchCommandServiceImpl` dodaje stałe `-nographics -batchmode`, opcje profilu i absolutne `-logFile`.
+Hasło trafia wyłącznie do rzeczywistego argumentu procesu. Środowisko potomka zawiera środowisko
+panelu oraz `SteamAppId` odczytany ze skryptu producenta wskazanego przez `server.start.script`.
+Brak pliku lub wpisu oraz błąd odczytu dają ostrzeżenie i wartość zastępczą `892970`.
+Panel nie uruchamia ani nie zmienia skryptu producenta.
+
+Metoda `LaunchCommandService.renderScript(launchSpec)` nie czyta ustawień ani plików.
+Skrypt `.vDeck/vDeck-server-start.bat` jest regenerowanym, atomowo zapisywanym artefaktem
+diagnostycznym, bez własnego ekranu. Zamiast hasła zawiera `-password "%VDECK_SERVER_PASSWORD%"`.
+Błąd zapisu skryptu jest logowany i nie blokuje właściwego startu. Panel uruchamia plik exe
+bezpośrednio, przez `WindowsProcessLauncher` i FFM `CreateProcessW`, w katalogu instalacji.
+
+`ServerLogServiceImpl` wybiera `<game.log.directory>/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>.log`.
+Domyślny katalog to `.vDeck/log`; gdy plik już istnieje, nazwa dostaje przyrostek `-1`, `-2` itd.
+Plik tworzy serwer przez `-logFile`; panel nie przekierowuje konsoli. Przed startem usuwa katalogi
+dzienne starsze niż bieżąca data minus `game.log.retention.days` (domyślnie 14); dzień graniczny
+i katalogi o nazwach innych niż daty zostają. Błąd retencji jest ostrzeżeniem i nie blokuje startu.
+
+`ServerStateMachine` jest pojedynczym właścicielem procesu i stanu. Zmiany serializuje jedna kolejka;
+odczyt zwraca opublikowany `ServerStatus`. Po 5 sekundach życia proces przechodzi z `STARTING`
+do `RUNNING`; nie jest to potwierdzenie gotowości na podstawie logu. Wyjście podczas startu daje
+`START_FAILED`, późniejsze — `CRASHED`. Powiadomienia ze starego uruchomienia są odrzucane przez
+`operationId`. Błąd samego tworzenia procesu pozostawia poprzedni stan.
+
+![Diagram stanów: bieżący cykl życia serwera](diagramy/server/img/przeplyw-stany-serwera.svg)
+
+Źródło diagramu: [`diagramy/server/przeplyw-stany-serwera.mmd`](diagramy/server/przeplyw-stany-serwera.mmd)
+
+Obecna implementacja wiąże proces z panelem przez job object Windows z
+`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Awaria panelu kończy serwer wymuszenie. Normalne zamknięcie
+kontekstu wywołuje `ServerStateMachine.close()`, które również kończy proces bez drabiny zapisu
+świata i CTRL+C. Może to utracić niezapisany postęp. Stop, Restart i Kill z GUI, snapshoty,
+łagodne zatrzymanie, odzyskiwanie i adopcja nie są zaimplementowane.
+
+![Diagram klas: komponenty uruchamiania serwera](diagramy/server/img/klasy-komponenty.svg)
+
+Źródło diagramu: [`diagramy/server/klasy-komponenty.mmd`](diagramy/server/klasy-komponenty.mmd)
 
 ## 6. Bezpieczeństwo
 
@@ -840,13 +933,14 @@ Zaimplementowane mechanizmy przekrojowe:
   odrzuca takie żądanie również wtedy, gdy trafi do niego z pominięciem łańcucha. Konto z hasłem
   początkowym poza tym adresem osiąga tylko katalogi zasobów statycznych `/css/`, `/icons/`
   i `/img/`; wyjątek jest dopasowywany po początku ścieżki i nie zdejmuje wymagania roli.
-- **Ekspozycja sieciowa.** Panel nasłuchuje wyłącznie na `127.0.0.1`.
+- **Ekspozycja sieciowa.** Adres nasłuchu nie jest ograniczony w pliku aplikacji; lokalne uruchomienie
+  wymaga jawnego `--server.address=127.0.0.1`.
 - **Granice systemu plików.** Każda skonfigurowana ścieżka przechodzi przez `PathService` i nie może
   opuścić katalogu instalacyjnego — także przez dowiązania i junction (patrz [3.3](#33-rozwiązywanie-ścieżek)).
 - **Trwałość ustawień.** Zapis pliku ustawień jest atomowy i wymuszony na urządzenie, więc utrata
   zasilania nie zostawia pustego pliku konfiguracji.
 - **Hasło serwera Valheim.** Serwer wymaga hasła w wierszu poleceń, więc jest ono przechowywane
-  jawnym tekstem w `.vDeck/config/valheim-server.properties` (`AD-011`). Chronią je wyłącznie
+  jawnym tekstem w `.vDeck/config/valheim-server.properties` (`AD-013`). Chronią je wyłącznie
   uprawnienia konta systemowego do katalogu instalacyjnego. Plik trafia do każdej kopii katalogu
   instalacyjnego i jest usuwany razem z nim. Hasło nigdy nie jest odsyłane do przeglądarki — ani po
   zapisie, ani po odrzuceniu formularza. Nie trafia do logu, a `ServerSettingsForm.toString()` je
@@ -880,17 +974,22 @@ Zdarzenia rejestrowane obecnie:
 Żaden komunikat nie zawiera hasła, hasha ani wartości ustawień. Wpis o odrzuconej zmianie hasła
 zawiera wyłącznie nazwę komunikatu, a nie wprowadzone wartości ani nazwę konta.
 
+Feature `server` loguje żądanie i przyjęcie startu, ścieżkę logu, retencję oraz zmiany stanu na `INFO`.
+Przyczyny walidacji trafiają na `DEBUG`, a odrzucenie obsługiwane przez `ServerExceptionHandler`
+na `INFO`. Błąd tworzenia procesu zachowuje stack trace na `ERROR`; błąd zapisu skryptu lustrzanego
+lub retencji jest ostrzeżeniem `WARN`. `LaunchSpec.toString()` redaguje argumenty i środowisko.
+
 ## 9. Stan implementacji i znane ograniczenia
 
 Zaimplementowane: infrastruktura konfiguracji (`shared`), rozwiązywanie ścieżek, uwierzytelnianie
 panelu wraz z oboma wariantami zmiany hasła, teksty interfejsu w resource bundle oraz warstwa
 interfejsu — arkusze stylów, sprite ikon, komponenty wspólne wyspy akcji, wymagań dla hasła i menu
 bocznego, strona główna panelu, oba ostylowane ekrany hasła oraz ekrany „Serwer” i „Ustawienia gry”
-zapisujące profil uruchomieniowy.
+zapisujące profil uruchomieniowy. Działa również Start, przygotowanie polecenia i logów oraz runtime
+Windows ze stanem procesu opisanym w [5.7](#57-uruchamianie-serwera).
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
-sterowanie cyklem życia serwera Valheim (w tym budowanie wiersza poleceń z profilu uruchomieniowego),
-moduł `vdeck-runtime` (nie ma katalogu `src`), światy i kopie bezpieczeństwa, podgląd logów, listy
+łagodne zatrzymanie, Stop/Restart/Kill z GUI, światy i kopie bezpieczeństwa, podgląd logów, listy
 graczy, RCON, mody, harmonogramy i aktualizacje serwera.
 
 Znane ograniczenia stanu bieżącego:
@@ -898,13 +997,11 @@ Znane ograniczenia stanu bieżącego:
 - panel nie ma własnej strony logowania — używana jest strona generowana przez Spring Security;
 - panel nie ma własnej strony błędu — odpowiedź `500` z `DefaultExceptionHandler` renderuje domyślna
   strona błędu Spring Boota, bez treści wyjątku;
-- strona główna jest pusta poza wyspą akcji: pokazuje tło i wyspę, ale nie prezentuje jeszcze żadnych
-  danych ani stanu serwera;
-- przyciski sterowania serwerem i kopii bezpieczeństwa na wyspie są elementami interfejsu bez
-  akcji — odpowiadające funkcjonalności nie są zaimplementowane;
+- strona główna pokazuje wyspę, stan serwera i komunikaty startu; stan wymaga ręcznego odświeżenia;
+- poza Startem przyciski sterowania serwerem i kopii bezpieczeństwa nie wykonują jeszcze akcji;
+- zamknięcie lub awaria panelu wymuszenie kończy serwer, bez gwarancji zapisu świata;
 - menu boczne ma dwie działające pozycje — „Serwer” i „Ustawienia gry”; pozostałe są przykładowe
   (etykieta „Test”), pokazują trzy poziomy drzewa i nie otwierają żadnego panelu;
-- profil uruchomieniowy jest zapisywany, ale jeszcze nieużywany, bo panel nie uruchamia serwera;
 - hasło serwera Valheim leży w pliku ustawień jawnym tekstem, chronione wyłącznie uprawnieniami
   systemu plików;
 - panel jest jednojęzyczny i nie ma mechanizmu zmiany języka; zmiana brzmienia tekstu wymaga nowego
@@ -946,3 +1043,6 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Menu boczne | przepływ | [`img/przeplyw-menu-boczne.svg`](diagramy/wspolne/img/przeplyw-menu-boczne.svg) | [`diagramy/wspolne/przeplyw-menu-boczne.mmd`](diagramy/wspolne/przeplyw-menu-boczne.mmd) | [5.5](#55-menu-boczne) |
 | Zapis profilu uruchomieniowego | sekwencja | [`img/przeplyw-zapis-profilu.svg`](diagramy/launch/img/przeplyw-zapis-profilu.svg) | [`diagramy/launch/przeplyw-zapis-profilu.mmd`](diagramy/launch/przeplyw-zapis-profilu.mmd) | [5.6](#56-serwer-i-ustawienia-gry) |
 | Sekcja „Zaawansowane” | sekwencja | [`img/przeplyw-sekcja-zaawansowana.svg`](diagramy/launch/img/przeplyw-sekcja-zaawansowana.svg) | [`diagramy/launch/przeplyw-sekcja-zaawansowana.mmd`](diagramy/launch/przeplyw-sekcja-zaawansowana.mmd) | [5.6](#56-serwer-i-ustawienia-gry) |
+| Uruchomienie serwera | sekwencja | [`img/przeplyw-uruchomienie-serwera.svg`](diagramy/server/img/przeplyw-uruchomienie-serwera.svg) | [`diagramy/server/przeplyw-uruchomienie-serwera.mmd`](diagramy/server/przeplyw-uruchomienie-serwera.mmd) | [5.7](#57-uruchamianie-serwera) |
+| Stany serwera | stany | [`img/przeplyw-stany-serwera.svg`](diagramy/server/img/przeplyw-stany-serwera.svg) | [`diagramy/server/przeplyw-stany-serwera.mmd`](diagramy/server/przeplyw-stany-serwera.mmd) | [5.7](#57-uruchamianie-serwera) |
+| Feature server i runtime | klasy | [`img/klasy-komponenty.svg`](diagramy/server/img/klasy-komponenty.svg) | [`diagramy/server/klasy-komponenty.mmd`](diagramy/server/klasy-komponenty.mmd) | [5.7](#57-uruchamianie-serwera) |

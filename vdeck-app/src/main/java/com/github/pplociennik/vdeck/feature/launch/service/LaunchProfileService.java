@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.feature.launch.service;
 
+import com.github.pplociennik.vdeck.feature.launch.domain.LaunchConfiguration;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
 import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
@@ -14,10 +15,30 @@ import jakarta.annotation.Nonnull;
 public interface LaunchProfileService {
 
     /**
-     * Returns the stored launch profile. A value that no longer matches its setting, for example after a
-     * manual edit of the file, is replaced by the setting's default in the returned profile.
+     * Publishes a typed configuration from the already loaded properties, without rereading disk.
+     * Called at startup after file loading and after successful profile updates. Malformed typed
+     * values use PropertyReader fallbacks; server readiness is checked only when starting the server.
+     */
+    void reload();
+
+    /**
+     * Returns one immutable configuration for both validation and command generation.
+     * This value contains the password and must never be passed to a web model or serialized.
+     *
+     * @return current launch configuration, replaced only after successful updates
+     * @throws IllegalStateException
+     *         if startup has not initialized the configuration
+     */
+    @Nonnull
+    LaunchConfiguration getConfiguration();
+
+    /**
+     * Returns the cached, secret-free launch profile. Values are interpreted during publication,
+     * using defaults for malformed typed settings. Manual file edits take effect after panel restart.
      *
      * @return typed launch profile; the password is represented only by whether it is set
+     * @throws IllegalStateException
+     *         if startup has not initialized the configuration
      */
     @Nonnull
     LaunchProfile getProfile();

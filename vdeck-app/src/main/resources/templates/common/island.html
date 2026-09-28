@@ -7,75 +7,97 @@
 <body>
 <!--
     Reusable action island of the panel: a single header strip grouping server control, backup and
-    panel management actions. Embedded by every view that needs the panel actions; the file is a
-    Thymeleaf fragment and is never rendered as a standalone page.
+    panel management actions, together with the diamond showing the server's state. Embedded by every
+    view that needs the panel actions; the file is a Thymeleaf fragment and is never rendered as a
+    standalone page.
 
     Every control carries the same text as its accessible name and as its tooltip, so a pointer user
     and a screen reader user get the same wording from the translation file.
 -->
 <header class="island-header" th:fragment="island">
-    <div class="island surface surface--island">
-        <div class="island-section island-section--server-control" role="group"
-             th:attr="aria-label=#{island.group.serverControl}">
-            <button class="action-button" type="button"
-                    th:attr="aria-label=#{island.action.start},title=#{island.action.start}">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                    <use th:href="@{/icons/icons.svg#icon-play}"></use>
-                </svg>
-            </button>
-            <button class="action-button" type="button"
-                    th:attr="aria-label=#{island.action.stop},title=#{island.action.stop}">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                    <use th:href="@{/icons/icons.svg#icon-stop}"></use>
-                </svg>
-            </button>
-            <button class="action-button" type="button"
-                    th:attr="aria-label=#{island.action.restart},title=#{island.action.restart}">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                    <use th:href="@{/icons/icons.svg#icon-restart}"></use>
-                </svg>
-            </button>
-            <button class="action-button" type="button"
-                    th:attr="aria-label=#{island.action.forceStop},title=#{island.action.forceStop}">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                    <use th:href="@{/icons/icons.svg#icon-power}"></use>
-                </svg>
-            </button>
-        </div>
-
-        <div class="island-section island-section--backups" role="group"
-             th:attr="aria-label=#{island.group.backups}">
-            <button class="action-button" type="button"
-                    th:attr="aria-label=#{island.action.worldBackup},title=#{island.action.worldBackup}">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                    <use th:href="@{/icons/icons.svg#icon-world-backup}"></use>
-                </svg>
-            </button>
-            <button class="action-button" type="button"
-                    th:attr="aria-label=#{island.action.serverBackup},title=#{island.action.serverBackup}">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                    <use th:href="@{/icons/icons.svg#icon-server-backup}"></use>
-                </svg>
-            </button>
-        </div>
-
-        <div class="island-section island-section--panel-management" role="group"
-             th:attr="aria-label=#{island.group.panelManagement}">
-            <a class="action-button" th:href="@{/change-password}"
-               th:attr="aria-label=#{island.action.changePassword},title=#{island.action.changePassword}">
-                <svg class="icon" aria-hidden="true" focusable="false">
-                    <use th:href="@{/icons/icons.svg#icon-key}"></use>
-                </svg>
-            </a>
-            <form class="island-action-form" th:action="@{/logout}" method="post">
-                <button class="action-button" type="submit"
-                        th:attr="aria-label=#{island.action.logout},title=#{island.action.logout}">
+    <!--
+        The island and the status diamond are one component. The diamond is a sibling rather than a
+        child because the island clips its own overflow, and the wrapper reserves the height the
+        diamond hangs below it.
+    -->
+    <div class="island-stack">
+        <div class="island surface surface--island">
+            <div class="island-section island-section--server-control" role="group"
+                 th:attr="aria-label=#{island.group.serverControl}">
+                <!-- Start is disabled while a server is already starting or running; the status
+                     diamond below the island shows which of the two it is. -->
+                <form class="island-action-form" th:action="@{/server/start}" method="post">
+                    <button class="action-button" type="submit"
+                            th:disabled="${!serverStatus.state.startable}"
+                            th:attr="aria-label=#{island.action.start},title=#{island.action.start}">
+                        <svg class="icon" aria-hidden="true" focusable="false">
+                            <use th:href="@{/icons/icons.svg#icon-play}"></use>
+                        </svg>
+                    </button>
+                </form>
+                <button class="action-button" type="button"
+                        th:attr="aria-label=#{island.action.stop},title=#{island.action.stop}">
                     <svg class="icon" aria-hidden="true" focusable="false">
-                        <use th:href="@{/icons/icons.svg#icon-logout}"></use>
+                        <use th:href="@{/icons/icons.svg#icon-stop}"></use>
                     </svg>
                 </button>
-            </form>
+                <button class="action-button" type="button"
+                        th:attr="aria-label=#{island.action.restart},title=#{island.action.restart}">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-restart}"></use>
+                    </svg>
+                </button>
+                <button class="action-button" type="button"
+                        th:attr="aria-label=#{island.action.forceStop},title=#{island.action.forceStop}">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="island-section island-section--backups" role="group"
+                 th:attr="aria-label=#{island.group.backups}">
+                <button class="action-button" type="button"
+                        th:attr="aria-label=#{island.action.worldBackup},title=#{island.action.worldBackup}">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-world-backup}"></use>
+                    </svg>
+                </button>
+                <button class="action-button" type="button"
+                        th:attr="aria-label=#{island.action.serverBackup},title=#{island.action.serverBackup}">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-server-backup}"></use>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="island-section island-section--panel-management" role="group"
+                 th:attr="aria-label=#{island.group.panelManagement}">
+                <a class="action-button" th:href="@{/change-password}"
+                   th:attr="aria-label=#{island.action.changePassword},title=#{island.action.changePassword}">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-key}"></use>
+                    </svg>
+                </a>
+                <form class="island-action-form" th:action="@{/logout}" method="post">
+                    <button class="action-button" type="submit"
+                            th:attr="aria-label=#{island.action.logout},title=#{island.action.logout}">
+                        <svg class="icon" aria-hidden="true" focusable="false">
+                            <use th:href="@{/icons/icons.svg#icon-logout}"></use>
+                        </svg>
+                    </button>
+                </form>
+            </div>
         </div>
+
+        <!-- Status trapezoid: a coloured dot and, beside it, the same state in words, so the state is
+             never carried by colour alone. -->
+        <span class="island-status"
+              th:classappend="'is-' + ${#strings.replace( #strings.toLowerCase( serverStatus.state ), '_', '-' )}">
+            <span class="island-status__indicator" aria-hidden="true"></span>
+            <span class="island-status__label"
+                  th:text="#{${'server.state.' + serverStatus.state}}">Zatrzymany</span>
+        </span>
     </div>
 </header>
 </body>

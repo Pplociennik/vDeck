@@ -71,7 +71,7 @@ classDiagram
         -read() void
         -restoreMissingValues() boolean
         -applyAndSave(Map) void
-        -save() void
+        -save(Properties) void
     }
 
     class PathService {
@@ -102,6 +102,13 @@ classDiagram
         +afterSingletonsInstantiated() void
     }
 
+    class LaunchProfileService {
+        <<interface>>
+        +reload() void
+        +getConfiguration() LaunchConfiguration
+    }
+
+    SystemPropertiesInitializer --> LaunchProfileService : reload po wczytaniu plików
     SystemPropertyIf <|.. VdeckProperty
     SystemPropertyIf <|.. LaunchProperty
     SystemPropertiesService <|.. SystemPropertiesServiceImpl

@@ -76,6 +76,24 @@
     --island-section-inline-size-narrow: 10rem;
 
     /*
+     * Server status badge: a downward-narrowing trapezoid hanging from behind the island's lower edge.
+     * The block size is the whole tab; --island-status-protrusion is how much of it shows, so the
+     * difference is the part tucked behind the island. The taper is how far each lower corner comes in.
+     */
+    --island-status-inline-size: 7.5rem;
+    --island-status-block-size: 1.9rem;
+    --island-status-protrusion: 1.4rem;
+    --island-status-taper: 10%;
+    --island-status-surface: #0d0b08;
+    --island-status-dot-size: 0.45rem;
+    --island-status-gap: 0.4rem;
+    --island-status-font-size: 0.7rem;
+    --island-status-color: var(--color-text-muted);
+    --island-status-color-pending: var(--color-accent);
+    --island-status-color-running: #6fbf73;
+    --island-status-color-failed: #d9534f;
+
+    /*
      * Side menu. The round toggle sits inside the panel's bottom-left corner: the corner lies the
      * toggle depth beyond the toggle's centre, towards the screen corner, so more than half of the
      * button is set into the menu. A circle slightly larger than the toggle is cut out around it,

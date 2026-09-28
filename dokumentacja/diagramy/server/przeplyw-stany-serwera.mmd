@@ -1,0 +1,19 @@
+%% Diagram stanów: bieżący cykl życia serwera
+stateDiagram-v2
+    [*] --> STOPPED
+    STOPPED --> STARTING: utworzenie procesu
+    STARTING --> RUNNING: proces żyje po 5 sekundach
+    STARTING --> START_FAILED: proces zakończył się podczas startu
+    RUNNING --> CRASHED: proces zakończył się samodzielnie
+    START_FAILED --> STARTING: ponowne utworzenie procesu
+    CRASHED --> STARTING: ponowne utworzenie procesu
+    STARTING --> STOPPED: zamknięcie runtime i zakończenie procesu
+    RUNNING --> STOPPED: zamknięcie runtime i zakończenie procesu
+    note right of STOPPED
+        Błąd tworzenia procesu pozostawia poprzedni stan.
+        Nie ma jeszcze obsługi Stop, Restart i Kill z GUI.
+    end note
+    note right of RUNNING
+        Stan potwierdza przeżycie procesu, nie gotowość gry.
+        Widok aktualizuje się po odświeżeniu strony.
+    end note

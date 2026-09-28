@@ -30,7 +30,8 @@ import static java.util.Objects.requireNonNull;
  * construction time. {@link SystemPropertiesServiceImpl} keeps one instance per loaded file.
  *
  * <p>The file is read once, during construction, and kept in memory afterwards. vDeck runs as a
- * single user in at most one session, so no locking or reload is needed: a file edited by hand while
+ * single user in at most one session, but requests may overlap. Writers are serialized and publish
+ * complete contents only after persistence succeeds. A file edited by hand while
  * the panel is running is picked up on the next start.
  *
  * <p>Construction has side effects on disk. A missing file is created with default values, together
@@ -57,7 +58,8 @@ final class PropertiesFile {
 
     private final Map< SystemPropertyIf, String > defaults;
 
-    private final Properties properties = new Properties();
+    /** Published contents are never mutated after startup; writers replace the whole reference. */
+    private volatile Properties properties = new Properties();
 
     /**
      * Creates the handler of one properties file, loading it or creating it with default values.
@@ -104,8 +106,8 @@ final class PropertiesFile {
     /**
      * Changes a setting and persists the whole file immediately.
      * The file is replaced atomically, so a failure never leaves a partially written settings file.
-     * When persisting fails the previous value is restored in memory before the exception is
-     * propagated, so memory and disk cannot diverge.
+     * The updated contents are published in memory only after persistence succeeds; a failure leaves
+     * the previous contents available to readers.
      *
      * @param property
      *         setting to change
@@ -116,7 +118,7 @@ final class PropertiesFile {
      * @throws UncheckedIOException
      *         if the file cannot be written
      */
-    void setValue( @Nonnull SystemPropertyIf property, @Nonnull String value ) {
+    synchronized void setValue( @Nonnull SystemPropertyIf property, @Nonnull String value ) {
         String name = requireManaged( property );
         requireNonNull( value, "value must not be null" );
 
@@ -126,9 +128,8 @@ final class PropertiesFile {
 
     /**
      * Changes several settings and persists the whole file once.
-     * Every entry is validated before anything changes, and when persisting fails every previous value
-     * is restored in memory before the exception is propagated, so the file and memory always hold
-     * either all of the new values or none of them.
+     * Every entry is validated before anything changes. Writers are serialized, and a complete new
+     * in-memory version is published only after the atomic file replacement succeeds.
      *
      * @param values
      *         new values of the settings; surrounding whitespace is removed
@@ -137,7 +138,7 @@ final class PropertiesFile {
      * @throws UncheckedIOException
      *         if the file cannot be written
      */
-    void setValues( @Nonnull SystemPropertyValues values ) {
+    synchronized void setValues( @Nonnull SystemPropertyValues values ) {
         requireNonNull( values, "values must not be null" );
 
         Map< String, String > changes = new LinkedHashMap<>();
@@ -154,17 +155,11 @@ final class PropertiesFile {
     }
 
     private void applyAndSave( @Nonnull Map< String, String > changes ) {
-        Map< String, String > previousValues = new LinkedHashMap<>();
-        for ( Map.Entry< String, String > change : changes.entrySet() ) {
-            previousValues.put( change.getKey(), properties.getProperty( change.getKey() ) );
-            properties.setProperty( change.getKey(), change.getValue() );
-        }
-        try {
-            save();
-        } catch ( RuntimeException exception ) {
-            previousValues.forEach( properties::setProperty );
-            throw exception;
-        }
+        Properties updated = new Properties();
+        updated.putAll( properties );
+        changes.forEach( updated::setProperty );
+        save( updated );
+        properties = updated;
     }
 
     private static @Nonnull String normalize( @Nonnull SystemPropertyIf property, @Nonnull String value ) {
@@ -180,14 +175,14 @@ final class PropertiesFile {
         if ( !Files.exists( propertiesFile ) ) {
             createParentDirectories();
             defaults.forEach( ( property, defaultValue ) -> properties.setProperty( property.getName(), defaultValue ) );
-            save();
+            save( properties );
             log.info( "Created vDeck settings file {} with {} default values", propertiesFile, properties.size() );
             return;
         }
 
         read();
         if ( restoreMissingValues() ) {
-            save();
+            save( properties );
             log.info( "Loaded vDeck settings from {} and restored missing values", propertiesFile );
             return;
         }
@@ -231,12 +226,12 @@ final class PropertiesFile {
         return restored;
     }
 
-    private void save() {
+    private void save( @Nonnull Properties values ) {
         Path temporaryFile = null;
         try {
             temporaryFile = Files.createTempFile( propertiesFile.getParent(), "vDeck", ".properties.tmp" );
             try ( BufferedWriter writer = Files.newBufferedWriter( temporaryFile, StandardCharsets.UTF_8 ) ) {
-                properties.store( writer, FILE_HEADER );
+                values.store( writer, FILE_HEADER );
             }
             // Flush to the device before publishing, so a power loss cannot leave an empty settings file.
             try ( FileChannel channel = FileChannel.open( temporaryFile, StandardOpenOption.WRITE ) ) {

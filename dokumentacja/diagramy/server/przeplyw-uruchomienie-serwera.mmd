@@ -1,0 +1,53 @@
+%% Diagram sekwencji: uruchomienie serwera Valheim
+sequenceDiagram
+    actor Admin as Administrator
+    participant Web as ServerController
+    participant Service as ServerServiceImpl
+    participant Profile as LaunchProfileService
+    participant Validator as ServerStartValidator
+    participant Logs as ServerLogService
+    participant Command as LaunchCommandService
+    participant Runtime as ServerRuntime
+    participant Advice as ServerExceptionHandler
+    Admin->>Web: POST /server/start (ADMIN i CSRF)
+    Web->>Service: start()
+    Service->>Runtime: status()
+    alt Stan nie pozwala na start
+        Service-->>Web: ServerStartException (ALREADY_RUNNING)
+        Web->>Advice: obsługa wyjątku
+        Advice-->>Admin: przekierowanie / z serverErrorKey
+    else Stan pozwala na start
+        Service->>Profile: getConfiguration()
+        Profile-->>Service: gotowa LaunchConfiguration (profil i hasło)
+        Service->>Validator: validate(configuration, executable)
+        Note over Validator: Plik exe, kompletność profilu, hasło,<br/>dwa porty UDP i katalog zapisu
+        alt Walidacja odrzuca profil
+            Validator-->>Advice: ServerStartException przez kontroler
+            Advice-->>Admin: przekierowanie / z serverErrorKey
+        else Walidacja zakończona
+            Service->>Logs: createLogFileForNewStart()
+            Note over Logs: Retencja według Clock (pomijana przy game.log.retention.enabled=false)<br/>i wybór ścieżki logu. Ujemna retencja używa 14 dni, zero zachowuje dziś.<br/>Katalog dnia tworzony tylko, gdy nie istnieje
+            alt Nie można przygotować katalogu logów
+                Logs-->>Service: UncheckedIOException
+                Service-->>Advice: LOG_DIRECTORY_NOT_WRITABLE przez kontroler
+                Advice-->>Admin: przekierowanie / z serverErrorKey
+            else Log przygotowany
+                Service->>Command: build(configuration, logFile)
+                Command-->>Service: LaunchSpec
+                Service->>Command: renderScript(launchSpec)
+                Command-->>Service: skrypt bez hasła (bez odczytu ustawień)
+                Note over Service: Atomowy zapis skryptu UTF-8 bez hasła.<br/>Cytowanie operatorów, literalne procenty.<br/>Błąd zapisu pliku nie blokuje startu
+                Service->>Runtime: start(launchSpec)
+                Note over Runtime: Proces zawieszony przed przypisaniem do joba.<br/>Błąd przypisania: TerminateProcess.<br/>Inna awaria: zamknięcie joba i uchwytów
+                alt Proces utworzony
+                    Runtime-->>Service: STARTING
+                    Service-->>Web: sukces
+                    Web-->>Admin: przekierowanie / z serverStarted
+                else Inny start wygrał wyścig lub błąd procesu
+                    Runtime-->>Service: wyjątek
+                    Service-->>Advice: ALREADY_RUNNING lub START_FAILED przez kontroler
+                    Advice-->>Admin: przekierowanie / z serverErrorKey
+                end
+            end
+        end
+    end

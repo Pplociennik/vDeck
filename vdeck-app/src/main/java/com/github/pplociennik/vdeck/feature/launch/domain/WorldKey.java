@@ -2,6 +2,8 @@ package com.github.pplociennik.vdeck.feature.launch.domain;
 
 import jakarta.annotation.Nonnull;
 
+import java.util.Locale;
+
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -46,6 +48,17 @@ public enum WorldKey {
      */
     public @Nonnull String getKey() {
         return key;
+    }
+
+    /**
+     * Returns the name this key has on the server's command line, as in {@code -setkey nobuildcost}.
+     * The server spells these names as one lower-case word, while the screen needs a camel-case
+     * identifier, so the command-line form is the key in lower case.
+     *
+     * @return lower-case name understood by {@code valheim_server.exe}
+     */
+    public @Nonnull String getCliName() {
+        return key.toLowerCase( Locale.ROOT );
     }
 
     /**

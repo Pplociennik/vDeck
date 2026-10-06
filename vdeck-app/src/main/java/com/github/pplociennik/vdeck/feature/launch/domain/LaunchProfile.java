@@ -3,6 +3,7 @@ package com.github.pplociennik.vdeck.feature.launch.domain;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -73,5 +74,29 @@ public record LaunchProfile(
         requireNonNull( saveDirectory, "saveDirectory must not be null" );
         modifiers = Map.copyOf( requireNonNull( modifiers, "modifiers must not be null" ) );
         enabledKeys = Set.copyOf( requireNonNull( enabledKeys, "enabledKeys must not be null" ) );
+    }
+
+    /**
+     * Mirrors the Valheim server's own rule: it refuses to start when the server name contains the
+     * password. The comparison ignores letter case, so the panel is never more permissive than the
+     * server.
+     *
+     * <p>The rule lives here rather than in one of the services because both of them need it — the
+     * settings screen rejects such a pair when it is saved, and the start refuses to launch a profile
+     * that was written into the file by hand.
+     *
+     * @param password
+     *         server password; an empty password is never part of a name
+     * @param serverName
+     *         server name shown in the server list
+     * @return {@code true} when the server would refuse this combination
+     * @throws NullPointerException
+     *         if either argument is {@code null}
+     */
+    public static boolean isPasswordPartOfName( @Nonnull String password, @Nonnull String serverName ) {
+        requireNonNull( password, "password must not be null" );
+        requireNonNull( serverName, "serverName must not be null" );
+        return !password.isEmpty()
+                && serverName.toLowerCase( Locale.ROOT ).contains( password.toLowerCase( Locale.ROOT ) );
     }
 }

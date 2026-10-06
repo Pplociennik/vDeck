@@ -1,5 +1,19 @@
 package com.github.pplociennik.vdeck.feature.launch.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+
 import com.github.pplociennik.vdeck.feature.launch.LaunchProfileMessage;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProperty;
@@ -24,25 +38,18 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willThrow;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Verifies that {@link LaunchProfileServiceImpl} maps the stored launch profile to its typed view,
  * validates submitted profiles and stores an accepted profile with a single write, without the server
- * password ever leaving the service.
+ * password ever entering the web profile.
  */
 @ExtendWith( MockitoExtension.class )
 class LaunchProfileServiceImplTest {
@@ -70,7 +77,8 @@ class LaunchProfileServiceImplTest {
 
     /**
      * Creates a fresh service backed by an in-memory copy of the default launch profile file and an
-     * installation directory that accepts every relative save directory.
+     * installation directory that accepts every relative save directory. The configuration is published
+     * as at startup, because an update builds the new configuration on the current one.
      */
     @BeforeEach
     void setUp() {
@@ -84,11 +92,154 @@ class LaunchProfileServiceImplTest {
         lenient().when( pathService.getAbsolutePath( any() ) )
                 .thenAnswer( invocation -> BASE_DIRECTORY.resolve( ( String ) invocation.getArgument( 0 ) ).normalize() );
         underTest = new LaunchProfileServiceImpl( systemPropertiesService, pathService );
+        underTest.reload();
     }
 
     // =================================================================================================
     // TESTS
     // =================================================================================================
+
+    /** Verifies that profile reads reuse the published version without consulting raw settings. */
+    @Test
+    void shouldReuseConfiguration_whenSettingsHaveNotChanged() {
+        // GIVEN
+        underTest.reload();
+        var configuration = underTest.getConfiguration();
+        clearInvocations( systemPropertiesService );
+
+        // WHEN
+        var result = underTest.getConfiguration();
+        var profile = underTest.getProfile();
+
+        // THEN
+        assertThat( result ).isSameAs( configuration );
+        assertThat( profile ).isSameAs( configuration.profile() );
+        verifyNoInteractions( systemPropertiesService );
+    }
+
+    /** Verifies that accessing settings before startup initialization reports a lifecycle error. */
+    @Test
+    void shouldRejectRead_whenConfigurationHasNotBeenLoaded() {
+        // GIVEN
+        var notLoaded = new LaunchProfileServiceImpl( systemPropertiesService, pathService );
+
+        // WHEN
+        var thrown = catchThrowable( notLoaded::getConfiguration );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( IllegalStateException.class );
+    }
+
+    /**
+     * Verifies that server edits publish the stored server settings and password together with the
+     * unchanged game settings, built from the submitted values without reading the settings back.
+     */
+    @Test
+    void shouldPublishConfiguration_whenServerSettingsAreSaved() {
+        // GIVEN
+        storedValues.put( LaunchProperty.WORLD_PRESET, "hard" );
+        underTest.reload();
+        var previous = underTest.getConfiguration();
+        clearInvocations( systemPropertiesService );
+
+        // WHEN
+        underTest.updateServerSettings( form( "Changed server", "ChangedSecret", false, "worlds" ) );
+
+        // THEN
+        var result = underTest.getConfiguration();
+        assertThat( result ).isNotSameAs( previous );
+        assertThat( result.profile().serverName() ).isEqualTo( "Changed server" );
+        assertThat( result.profile().saveDirectory() ).isEqualTo( "worlds" );
+        assertThat( result.password() ).isEqualTo( "ChangedSecret" );
+        assertThat( result.profile().passwordSet() ).isTrue();
+        assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
+        assertThat( previous.profile().serverName() ).isEqualTo( "vDeck" );
+        assertThat( previous.password() ).isEmpty();
+        verify( systemPropertiesService, never() ).getValue( any(), any() );
+    }
+
+    /**
+     * Verifies that game edits publish the stored world settings and keep the server settings and
+     * credentials, built from the submitted values without reading the settings back.
+     */
+    @Test
+    void shouldRefreshGameSettings_whenGameFormIsSaved() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "UnchangedSecret" );
+        storedValues.put( LaunchProperty.SERVER_NAME, "Unchanged server" );
+        underTest.reload();
+        clearInvocations( systemPropertiesService );
+
+        // WHEN
+        underTest.updateGameSettings( gameForm( "hard", "veryhard" ) );
+
+        // THEN
+        var result = underTest.getConfiguration();
+        assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
+        assertThat( result.profile().modifiers() ).containsOnly( Map.entry( WorldModifier.COMBAT, "veryhard" ) );
+        assertThat( result.profile().enabledKeys() ).containsExactly( WorldKey.NO_MAP );
+        assertThat( result.profile().serverName() ).isEqualTo( "Unchanged server" );
+        assertThat( result.password() ).isEqualTo( "UnchangedSecret" );
+        verify( systemPropertiesService, never() ).getValue( any(), any() );
+    }
+
+    /** Verifies that failed persistence never replaces the configuration available to Start. */
+    @Test
+    void shouldKeepConfiguration_whenSettingsCannotBeSaved() {
+        // GIVEN
+        underTest.reload();
+        var previous = underTest.getConfiguration();
+        willThrow( new UncheckedIOException( new IOException( "Unwritable" ) ) )
+                .given( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+
+        // WHEN
+        var thrown = catchThrowable( () -> underTest.updateGameSettings( gameForm( "hard", "veryhard" ) ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( LaunchProfileUpdateException.class );
+        assertThat( underTest.getConfiguration() ).isSameAs( previous );
+    }
+
+    /**
+     * Verifies that concurrent Start reads keep the old complete version while a write is in progress.
+     *
+     * @throws Exception
+     *         if the coordinated worker fails or exceeds its bounded wait
+     */
+    @Test
+    void shouldPublishOnlyAfterPersistence_whenUpdateOverlapsRead() throws Exception {
+        // GIVEN
+        underTest.reload();
+        var previous = underTest.getConfiguration();
+        var writing = new CountDownLatch( 1 );
+        var finishWrite = new CountDownLatch( 1 );
+        doAnswer( invocation -> {
+            writing.countDown();
+            if ( !finishWrite.await( 5, TimeUnit.SECONDS ) ) {
+                throw new IllegalStateException( "Timed out waiting to finish the test write" );
+            }
+            applyStoredValues( invocation.getArgument( 1 ) );
+            return null;
+        } ).when( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+
+        try ( var executor = Executors.newSingleThreadExecutor() ) {
+            // WHEN
+            var update = executor.submit( () -> underTest.updateServerSettings(
+                    form( "New server", "NewSecret", false, "worlds" ) ) );
+            try {
+                assertThat( writing.await( 5, TimeUnit.SECONDS ) ).isTrue();
+                var duringWrite = underTest.getConfiguration();
+
+                // THEN
+                assertThat( duringWrite ).isSameAs( previous );
+            } finally {
+                finishWrite.countDown();
+            }
+            update.get( 5, TimeUnit.SECONDS );
+            assertThat( underTest.getConfiguration().profile().serverName() ).isEqualTo( "New server" );
+            assertThat( underTest.getConfiguration().password() ).isEqualTo( "NewSecret" );
+        }
+    }
 
     /**
      * Verifies that a file holding the defaults is mapped to the documented default profile, with no
@@ -100,6 +251,7 @@ class LaunchProfileServiceImplTest {
         // the default values set up in setUp
 
         // WHEN
+        underTest.reload();
         LaunchProfile result = underTest.getProfile();
 
         // THEN
@@ -122,6 +274,7 @@ class LaunchProfileServiceImplTest {
         storedValues.put( LaunchProperty.WORLD_KEY_NO_MAP, "true" );
 
         // WHEN
+        underTest.reload();
         LaunchProfile result = underTest.getProfile();
 
         // THEN
@@ -147,6 +300,7 @@ class LaunchProfileServiceImplTest {
         storedValues.put( LaunchProperty.WORLD_MODIFIER_COMBAT, "impossible" );
 
         // WHEN
+        underTest.reload();
         LaunchProfile result = underTest.getProfile();
 
         // THEN
@@ -483,9 +637,122 @@ class LaunchProfileServiceImplTest {
                 .hasMessageContaining( "pathService must not be null" );
     }
 
+    /** Verifies removal is reflected in both the captured secret and the web profile flag. */
+    @Test
+    void shouldPublishPasswordRemoval_whenRemovalIsSaved() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "SyntheticSecret" );
+        underTest.reload();
+        var previous = underTest.getConfiguration();
+
+        // WHEN
+        underTest.updateServerSettings( form( "Changed", "", true, "worlds" ) );
+
+        // THEN
+        assertThat( underTest.getConfiguration().password() ).isEmpty();
+        assertThat( underTest.getProfile().passwordSet() ).isFalse();
+        assertThat( previous.password() ).isEqualTo( "SyntheticSecret" );
+        assertThat( previous.profile().passwordSet() ).isTrue();
+    }
+
+    /** Verifies leaving the password field blank preserves the secret in the newly published version. */
+    @Test
+    void shouldPublishKeptPassword_whenPasswordFieldIsBlank() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "SyntheticSecret" );
+        underTest.reload();
+
+        // WHEN
+        underTest.updateServerSettings( form( "Changed", "", false, "worlds" ) );
+
+        // THEN
+        assertThat( underTest.getConfiguration().password() ).isEqualTo( "SyntheticSecret" );
+        assertThat( underTest.getProfile().passwordSet() ).isTrue();
+        assertThat( underTest.getProfile().serverName() ).isEqualTo( "Changed" );
+    }
+
+    /** Verifies a failed server write cannot publish the submitted replacement password. */
+    @Test
+    void shouldKeepSecretAndConfiguration_whenServerWriteFails() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "OriginalSyntheticSecret" );
+        underTest.reload();
+        var previous = underTest.getConfiguration();
+        var failure = new UncheckedIOException( new IOException( "Synthetic write failure" ) );
+        willThrow( failure ).given( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+
+        // WHEN
+        var thrown = catchThrowable( () -> underTest.updateServerSettings(
+                form( "Changed", "ReplacementSyntheticSecret", false, "worlds" ) ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( LaunchProfileUpdateException.class ).hasCause( failure );
+        assertThat( underTest.getConfiguration() ).isSameAs( previous );
+        assertThat( previous.password() ).isEqualTo( "OriginalSyntheticSecret" );
+    }
+
+    /**
+     * Verifies overlapping writes from the two settings screens publish both changes together.
+     *
+     * @throws Exception
+     *         if coordinated writers fail or exceed their bounded waits
+     */
+    @Test
+    void shouldPreserveBothScreens_whenServerAndGameUpdatesOverlap() throws Exception {
+        // GIVEN
+        storedValues = Collections.synchronizedMap( storedValues );
+        underTest.reload();
+        var writingServer = new CountDownLatch( 1 );
+        var releaseServer = new CountDownLatch( 1 );
+        var gameRequested = new CountDownLatch( 1 );
+        doAnswer( invocation -> {
+            SystemPropertyValues values = invocation.getArgument( 1 );
+            if ( values.asMap().containsKey( LaunchProperty.SERVER_NAME ) ) {
+                writingServer.countDown();
+                if ( !releaseServer.await( 5, TimeUnit.SECONDS ) ) {
+                    throw new IllegalStateException( "Server write was not released" );
+                }
+            }
+            applyStoredValues( values );
+            return null;
+        } ).when( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+        try ( var executor = Executors.newFixedThreadPool( 2 ) ) {
+            var serverUpdate = executor.submit( () -> underTest.updateServerSettings(
+                    form( "New server", "SyntheticSecret", false, "worlds" ) ) );
+            try {
+                assertThat( writingServer.await( 5, TimeUnit.SECONDS ) ).isTrue();
+                var gameUpdate = executor.submit( () -> {
+                    gameRequested.countDown();
+                    underTest.updateGameSettings( gameForm( "hard", "veryhard" ) );
+                } );
+
+                // WHEN
+                assertThat( gameRequested.await( 5, TimeUnit.SECONDS ) ).isTrue();
+                releaseServer.countDown();
+                serverUpdate.get( 5, TimeUnit.SECONDS );
+                gameUpdate.get( 5, TimeUnit.SECONDS );
+
+                // THEN
+                var result = underTest.getConfiguration();
+                assertThat( result.profile().serverName() ).isEqualTo( "New server" );
+                assertThat( result.password() ).isEqualTo( "SyntheticSecret" );
+                assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
+                assertThat( result.profile().modifiers() ).containsEntry( WorldModifier.COMBAT, "veryhard" );
+                assertThat( storedValues ).containsEntry( LaunchProperty.SERVER_NAME, "New server" )
+                        .containsEntry( LaunchProperty.WORLD_PRESET, "hard" );
+            } finally {
+                releaseServer.countDown();
+            }
+        }
+    }
+
     // =================================================================================================
     // HELPER METHODS
     // =================================================================================================
+
+    private void applyStoredValues( SystemPropertyValues values ) {
+        values.asMap().forEach( ( property, value ) -> storedValues.put( ( LaunchProperty ) property, value.strip() ) );
+    }
 
     /**
      * Creates valid server settings varying only the fields the tests are about; the server is private,

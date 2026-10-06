@@ -120,6 +120,13 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- vdeck-runtime reaches kernel32 through FFM to create and own the server
+                         process. Without this flag the JVM prints a restricted-method warning that a
+                         future release turns into an error. A packaged jar needs the same flag on its
+                         java command line. -->
+                    <jvmArguments>--enable-native-access=ALL-UNNAMED</jvmArguments>
+                </configuration>
             </plugin>
         </plugins>
     </build>

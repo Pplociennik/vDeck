@@ -31,10 +31,13 @@ sequenceDiagram
             S->>F: setValues(FILE_NAME,<br/>wyłącznie ustawienia tego ekranu)
             F->>F: plik tymczasowy, force, ATOMIC_MOVE
             alt zapis nieudany
-                F-->>S: UncheckedIOException<br/>(pamięć przywrócona)
+                F-->>S: UncheckedIOException<br/>(poprzednia pamięć bez zmian)
                 S-)H: LaunchProfileUpdateException(SAVE_FAILED)<br/>z przyczyną, ERROR ze stack trace
                 H-->>A: redirect na ten sam ekran,<br/>flash: komunikat i wartości bez hasła
             else zapis udany
+                F->>F: publikacja pełnego zestawu wartości w pamięci
+                S->>S: nowa LaunchConfiguration z zapisanych wartości<br/>i niezmienionych ustawień drugiego ekranu
+                Note over S: Bez ponownego odczytu ustawień. Zapisy są serializowane.<br/>Start odczytuje kompletną starą albo nową wersję
                 S-->>C: powrót bez wyjątku
                 C-->>A: redirect na ten sam ekran z ?saved
             end

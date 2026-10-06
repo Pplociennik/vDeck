@@ -1,5 +1,8 @@
 package com.github.pplociennik.vdeck.shared.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+
 import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
 import com.github.pplociennik.vdeck.shared.SystemPropertyValues;
 import com.github.pplociennik.vdeck.shared.VdeckProperty;
@@ -18,9 +21,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Properties;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Verifies that {@link PropertiesFile} loads, repairs and atomically persists one external properties file.
@@ -57,6 +60,45 @@ class PropertiesFileTest {
     // =================================================================================================
     // TESTS
     // =================================================================================================
+
+    /**
+     * Verifies that concurrent writers preserve each other's changes in memory and on disk.
+     *
+     * @throws Exception
+     *         if a worker fails or the persisted settings cannot be read
+     */
+    @Test
+    void shouldKeepBothUpdates_whenRequestsWriteDifferentSettingsConcurrently() throws Exception {
+        // GIVEN
+        var start = new CountDownLatch( 1 );
+        try ( var executor = Executors.newFixedThreadPool( 2 ) ) {
+            var first = executor.submit( () -> {
+                if ( !start.await( 5, TimeUnit.SECONDS ) ) {
+                    throw new IllegalStateException( "Test write was not released" );
+                }
+                underTest.setValue( TestProperty.FIRST, "new-first" );
+                return null;
+            } );
+            var second = executor.submit( () -> {
+                if ( !start.await( 5, TimeUnit.SECONDS ) ) {
+                    throw new IllegalStateException( "Test write was not released" );
+                }
+                underTest.setValues( SystemPropertyValues.create().with( TestProperty.SECOND, "new-second" ) );
+                return null;
+            } );
+
+            // WHEN
+            start.countDown();
+            first.get( 5, TimeUnit.SECONDS );
+            second.get( 5, TimeUnit.SECONDS );
+        }
+
+        // THEN
+        assertThat( underTest.getValue( TestProperty.FIRST ) ).isEqualTo( "new-first" );
+        assertThat( underTest.getValue( TestProperty.SECOND ) ).isEqualTo( "new-second" );
+        assertThat( readSettingsFile() ).containsEntry( TestProperty.FIRST.getName(), "new-first" )
+                .containsEntry( TestProperty.SECOND.getName(), "new-second" );
+    }
 
     /**
      * Verifies that a missing settings file is created with every managed key set to its default.

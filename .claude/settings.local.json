@@ -26,7 +26,8 @@
       "PowerShell(.\\\\mvnw.cmd -q test 2>&1 | Select-Object -Last 60)",
       "PowerShell(Set-Content *)",
       "PowerShell(.\\\\mvnw.cmd -q compile)",
-      "PowerShell($files = @\\(\"przeplyw-zmiana-hasla\",\"przeplyw-logowanie\",\"klasy-komponenty\"\\); foreach \\($f in $files\\) { npx -y @mermaid-js/mermaid-cli -i \"dokumentacja\\\\diagramy\\\\authentication\\\\$f.mmd\" -o \"dokumentacja\\\\diagramy\\\\authentication\\\\img\\\\$f.svg\" -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json })"
+      "PowerShell($files = @\\(\"przeplyw-zmiana-hasla\",\"przeplyw-logowanie\",\"klasy-komponenty\"\\); foreach \\($f in $files\\) { npx -y @mermaid-js/mermaid-cli -i \"dokumentacja\\\\diagramy\\\\authentication\\\\$f.mmd\" -o \"dokumentacja\\\\diagramy\\\\authentication\\\\img\\\\$f.svg\" -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json })",
+      "Bash(cd *)"
     ]
   }
 }

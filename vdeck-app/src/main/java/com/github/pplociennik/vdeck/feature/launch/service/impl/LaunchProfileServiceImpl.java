@@ -1,6 +1,12 @@
 package com.github.pplociennik.vdeck.feature.launch.service.impl;
 
+import static com.github.pplociennik.vdeck.shared.PropertyReader.read;
+import static com.github.pplociennik.vdeck.shared.PropertyReader.readBoolean;
+import static com.github.pplociennik.vdeck.shared.PropertyReader.readInt;
+import static com.github.pplociennik.vdeck.shared.PropertyReader.readOptional;
+
 import com.github.pplociennik.vdeck.feature.launch.LaunchProfileMessage;
+import com.github.pplociennik.vdeck.feature.launch.domain.LaunchConfiguration;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProperty;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldKey;
@@ -24,16 +30,11 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-import static com.github.pplociennik.vdeck.shared.PropertyReader.read;
-import static com.github.pplociennik.vdeck.shared.PropertyReader.readBoolean;
-import static com.github.pplociennik.vdeck.shared.PropertyReader.readInt;
-import static com.github.pplociennik.vdeck.shared.PropertyReader.readOptional;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -45,11 +46,13 @@ import static java.util.Objects.requireNonNull;
  * and the settings are then stored with a single atomic write of the file. A rejected or failed update ends
  * with a {@link LaunchProfileUpdateException}, which the launch feature's controller advice answers. The
  * save directory is stored normalised, relative to the installation directory, after {@link PathService}
- * has confirmed that it stays inside it.
+ * has confirmed that it stays inside it. After a successful write the new configuration is built from the
+ * values just stored and the unchanged settings of the other screen, so nothing is read back.
  *
  * <p>The server password is a secret: it is stored because the server needs it on its command line, but
- * it never leaves this class towards the web layer and is never logged. Log entries name only the
- * outcome, never submitted values.
+ * only the internal launch configuration carries it. The web layer receives the secret-free profile.
+ * Updates and reloads share one monitor; readers capture one immutable configuration without blocking.
+ * Log entries name only the outcome, never submitted values.
  */
 @Log4j2
 @Service
@@ -58,6 +61,9 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
     private final SystemPropertiesService systemPropertiesService;
 
     private final PathService pathService;
+
+    /** Current complete configuration; published at startup and after each successful update. */
+    private volatile LaunchConfiguration configuration;
 
     /**
      * Creates the service storing the launch profile.
@@ -74,37 +80,89 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
         this.pathService = requireNonNull( pathService, "pathService must not be null" );
     }
 
-    /**
-     * Returns the stored launch profile. Reads the in-memory state of the properties file only, through
-     * {@link PropertyReader}: a number or boolean that does not match its setting is replaced by the
-     * setting's default, and an unknown preset or modifier value is ignored; both are logged.
-     *
-     * @return typed launch profile; the password is represented only by whether it is set
-     */
     @Override
     public @Nonnull LaunchProfile getProfile() {
-        Map< WorldModifier, String > modifiers = new EnumMap<>( WorldModifier.class );
-        for ( WorldModifier modifier : WorldModifier.values() ) {
-            readOptional( systemPropertiesService, LaunchProperty.FILE_NAME, modifier.getProperty(),
-                    value -> Optional.of( value ).filter( modifier::isAllowed ) )
-                    .ifPresent( value -> modifiers.put( modifier, value ) );
-        }
-        Set< WorldKey > enabledKeys = EnumSet.noneOf( WorldKey.class );
-        for ( WorldKey key : WorldKey.values() ) {
-            LaunchProperty property = key.getProperty();
-            if ( readBoolean( systemPropertiesService, LaunchProperty.FILE_NAME, property, property.getDefaultValue() ) ) {
-                enabledKeys.add( key );
-            }
-        }
-        WorldPreset preset = readOptional( systemPropertiesService, LaunchProperty.FILE_NAME,
-                LaunchProperty.WORLD_PRESET, WorldPreset::fromCliValue ).orElse( null );
+        return getConfiguration().profile();
+    }
 
+    @Override
+    public @Nonnull LaunchConfiguration getConfiguration() {
+        LaunchConfiguration current = configuration;
+        if ( current == null ) {
+            throw new IllegalStateException( "Launch configuration has not been loaded" );
+        }
+        return current;
+    }
+
+    @Override
+    public synchronized void reload() {
+        String password = read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PASSWORD );
+        publish( new LaunchConfiguration( readProfile( password ), password ) );
+    }
+
+    /**
+     * Validates the submitted server settings and stores them with one atomic write of the properties
+     * file. Nothing is stored when any check fails or the file cannot be written.
+     *
+     * @param form
+     *         submitted server settings that have already passed annotation validation
+     * @throws LaunchProfileUpdateException
+     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
+     */
+    @Override
+    public synchronized void updateServerSettings( @Nonnull ServerSettingsForm form ) {
+        requireNonNull( form, "form must not be null" );
+        log.info( "Server settings update requested" );
+
+        if ( !isComplete( form ) ) {
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
+        }
+        String saveDirectory = toStoredSaveDirectory( form );
+        String password = effectivePassword( form );
+        if ( LaunchProfile.isPasswordPartOfName( password, form.serverName() ) ) {
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME, form );
+        }
+        store( "Server settings", toServerValues( form, saveDirectory, password ),
+                cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+
+        LaunchProfile profile = withServerSettings( getProfile(), form, saveDirectory, !password.isEmpty() );
+        publish( new LaunchConfiguration( profile, password ) );
+    }
+
+    /**
+     * Validates the submitted game settings and stores them with one atomic write of the properties file.
+     * Nothing is stored when any check fails or the file cannot be written.
+     *
+     * @param form
+     *         submitted game settings that have already passed annotation validation
+     * @throws LaunchProfileUpdateException
+     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
+     */
+    @Override
+    public synchronized void updateGameSettings( @Nonnull GameSettingsForm form ) {
+        requireNonNull( form, "form must not be null" );
+        log.info( "Game settings update requested" );
+
+        if ( !hasKnownOptions( form ) ) {
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
+        }
+        store( "Game settings", toGameValues( form ), cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+
+        LaunchConfiguration current = getConfiguration();
+        publish( new LaunchConfiguration( withGameSettings( current.profile(), form ), current.password() ) );
+    }
+
+    /**
+     * Maps loaded values once per publication, retaining PropertyReader's documented fallbacks. Used only at
+     * startup: an update builds the new profile from the values it has just stored.
+     */
+    private @Nonnull LaunchProfile readProfile( @Nonnull String password ) {
         return new LaunchProfile(
                 read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_NAME ),
                 readInt( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PORT,
                         LaunchProperty.SERVER_PORT.getDefaultValue() ),
                 read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_WORLD ),
-                !read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PASSWORD ).isEmpty(),
+                !password.isEmpty(),
                 readBoolean( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PUBLIC,
                         LaunchProperty.SERVER_PUBLIC.getDefaultValue() ),
                 readBoolean( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_CROSSPLAY,
@@ -119,55 +177,38 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
                         LaunchProperty.SERVER_BACKUP_SHORT.getDefaultValue() ),
                 readInt( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_BACKUP_LONG,
                         LaunchProperty.SERVER_BACKUP_LONG.getDefaultValue() ),
-                preset,
-                modifiers,
-                enabledKeys );
+                readPreset(),
+                readModifiers(),
+                readEnabledKeys() );
     }
 
-    /**
-     * Validates the submitted server settings and stores them with one atomic write of the properties
-     * file. Nothing is stored when any check fails or the file cannot be written.
-     *
-     * @param form
-     *         submitted server settings that have already passed annotation validation
-     * @throws LaunchProfileUpdateException
-     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
-     */
-    @Override
-    public void updateServerSettings( @Nonnull ServerSettingsForm form ) {
-        requireNonNull( form, "form must not be null" );
-        log.info( "Server settings update requested" );
-
-        if ( !isComplete( form ) ) {
-            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
-        }
-        String saveDirectory = toStoredSaveDirectory( form );
-        String password = effectivePassword( form );
-        if ( isPartOfName( password, form.serverName() ) ) {
-            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME, form );
-        }
-        store( "Server settings", toServerValues( form, saveDirectory, password ),
-                cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+    /** Reads the world preset; an unknown stored value is skipped as if no preset were applied. */
+    private @Nullable WorldPreset readPreset() {
+        return readOptional( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.WORLD_PRESET,
+                WorldPreset::fromCliValue ).orElse( null );
     }
 
-    /**
-     * Validates the submitted game settings and stores them with one atomic write of the properties file.
-     * Nothing is stored when any check fails or the file cannot be written.
-     *
-     * @param form
-     *         submitted game settings that have already passed annotation validation
-     * @throws LaunchProfileUpdateException
-     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
-     */
-    @Override
-    public void updateGameSettings( @Nonnull GameSettingsForm form ) {
-        requireNonNull( form, "form must not be null" );
-        log.info( "Game settings update requested" );
-
-        if ( !hasKnownOptions( form ) ) {
-            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
+    /** Reads the modifiers that are set; an empty or unknown stored value leaves the modifier out. */
+    private @Nonnull Map< WorldModifier, String > readModifiers() {
+        Map< WorldModifier, String > modifiers = new EnumMap<>( WorldModifier.class );
+        for ( WorldModifier modifier : WorldModifier.values() ) {
+            readOptional( systemPropertiesService, LaunchProperty.FILE_NAME, modifier.getProperty(),
+                    value -> Optional.of( value ).filter( modifier::isAllowed ) )
+                    .ifPresent( value -> modifiers.put( modifier, value ) );
         }
-        store( "Game settings", toGameValues( form ), cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+        return modifiers;
+    }
+
+    /** Reads the enabled world keys; a stored value that is not a boolean falls back to the key's default. */
+    private @Nonnull Set< WorldKey > readEnabledKeys() {
+        Set< WorldKey > enabledKeys = EnumSet.noneOf( WorldKey.class );
+        for ( WorldKey key : WorldKey.values() ) {
+            LaunchProperty property = key.getProperty();
+            if ( readBoolean( systemPropertiesService, LaunchProperty.FILE_NAME, property, property.getDefaultValue() ) ) {
+                enabledKeys.add( key );
+            }
+        }
+        return enabledKeys;
     }
 
     /**
@@ -183,6 +224,81 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
             throw saveFailure.apply( exception );
         }
         log.info( "{} stored ({} settings)", scope, values.asMap().size() );
+    }
+
+    private void publish( @Nonnull LaunchConfiguration published ) {
+        configuration = published;
+        log.debug( "Published the current launch configuration" );
+    }
+
+    /**
+     * Returns the profile with the "Serwer" screen's settings replaced by the values just stored; the game
+     * settings are kept from {@code current}, because the other screen did not change them.
+     */
+    private static @Nonnull LaunchProfile withServerSettings( @Nonnull LaunchProfile current,
+                                                             @Nonnull ServerSettingsForm form,
+                                                             @Nonnull String saveDirectory, boolean passwordSet ) {
+        return new LaunchProfile(
+                form.serverName(),
+                form.port(),
+                form.worldName(),
+                passwordSet,
+                Boolean.TRUE.equals( form.publicServer() ),
+                Boolean.TRUE.equals( form.crossplay() ),
+                emptyIfNull( form.instanceId() ),
+                saveDirectory,
+                form.saveInterval(),
+                form.backupCount(),
+                form.backupShort(),
+                form.backupLong(),
+                current.preset(),
+                current.modifiers(),
+                current.enabledKeys() );
+    }
+
+    /**
+     * Returns the profile with the "Ustawienia gry" screen's settings replaced by the values just stored;
+     * the server settings are kept from {@code current}, because the other screen did not change them.
+     */
+    private static @Nonnull LaunchProfile withGameSettings( @Nonnull LaunchProfile current,
+                                                           @Nonnull GameSettingsForm form ) {
+        return new LaunchProfile(
+                current.serverName(),
+                current.port(),
+                current.worldName(),
+                current.passwordSet(),
+                current.publicServer(),
+                current.crossplay(),
+                current.instanceId(),
+                current.saveDirectory(),
+                current.saveInterval(),
+                current.backupCount(),
+                current.backupShort(),
+                current.backupLong(),
+                form.presetValue(),
+                toModifiers( form ),
+                toEnabledKeys( form ) );
+    }
+
+    private static @Nonnull Map< WorldModifier, String > toModifiers( @Nonnull GameSettingsForm form ) {
+        Map< WorldModifier, String > modifiers = new EnumMap<>( WorldModifier.class );
+        for ( WorldModifier modifier : WorldModifier.values() ) {
+            String value = form.modifierValue( modifier );
+            if ( !isBlank( value ) ) {
+                modifiers.put( modifier, value );
+            }
+        }
+        return modifiers;
+    }
+
+    private static @Nonnull Set< WorldKey > toEnabledKeys( @Nonnull GameSettingsForm form ) {
+        Set< WorldKey > enabledKeys = EnumSet.noneOf( WorldKey.class );
+        for ( WorldKey key : WorldKey.values() ) {
+            if ( form.isKeyEnabled( key ) ) {
+                enabledKeys.add( key );
+            }
+        }
+        return enabledKeys;
     }
 
     private static boolean isComplete( @Nonnull ServerSettingsForm form ) {
@@ -242,15 +358,6 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
             return read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PASSWORD );
         }
         return form.password();
-    }
-
-    /**
-     * Mirrors the Valheim server's own rule: it refuses to start when the server name contains the
-     * password. The comparison ignores letter case, so the panel is never more permissive than the server.
-     */
-    private static boolean isPartOfName( @Nonnull String password, @Nonnull String serverName ) {
-        return !password.isEmpty()
-                && serverName.toLowerCase( Locale.ROOT ).contains( password.toLowerCase( Locale.ROOT ) );
     }
 
     private static @Nonnull SystemPropertyValues toServerValues( @Nonnull ServerSettingsForm form,

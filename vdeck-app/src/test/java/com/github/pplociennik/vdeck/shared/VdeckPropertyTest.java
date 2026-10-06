@@ -52,8 +52,62 @@ class VdeckPropertyTest {
 
         // THEN
         assertThat( name ).isEqualTo( "game.log.directory" );
-        assertThat( underTest.getDefaultValue() ).isEqualTo( "vdeck-logs" );
+        assertThat( underTest.getDefaultValue() ).isEqualTo( ".vDeck/log" );
         assertThat( underTest.isMandatory() ).isTrue();
+    }
+
+    /**
+     * Verifies that removing old game server logs is switched on by default and can be switched off to
+     * keep every log.
+     */
+    @Test
+    void shouldExposeEnabledDefault_whenServerLogRetentionSwitchIsDeclared() {
+        // GIVEN
+        VdeckProperty property = VdeckProperty.GAME_LOG_RETENTION_ENABLED;
+
+        // WHEN
+        String name = property.getName();
+
+        // THEN
+        assertThat( name ).isEqualTo( "game.log.retention.enabled" );
+        assertThat( property.getDefaultValue() ).isEqualTo( "true" );
+        assertThat( property.isMandatory() ).isTrue();
+    }
+
+    /**
+     * Verifies that game server logs have a retention window by default, so one file per launch cannot
+     * accumulate without bound.
+     */
+    @Test
+    void shouldExposeDocumentedKeyAndDefault_whenServerLogRetentionIsDeclared() {
+        // GIVEN
+        VdeckProperty property = VdeckProperty.GAME_LOG_RETENTION_DAYS;
+
+        // WHEN
+        String name = property.getName();
+
+        // THEN
+        assertThat( name ).isEqualTo( "game.log.retention.days" );
+        assertThat( property.getDefaultValue() ).isEqualTo( "14" );
+        assertThat( property.isMandatory() ).isTrue();
+    }
+
+    /**
+     * Verifies that the publisher's start script is named by a setting, so an installation whose script
+     * has a different name can still be read.
+     */
+    @Test
+    void shouldExposeDocumentedKeyAndDefault_whenStartScriptIsDeclared() {
+        // GIVEN
+        VdeckProperty property = VdeckProperty.SERVER_START_SCRIPT;
+
+        // WHEN
+        String name = property.getName();
+
+        // THEN
+        assertThat( name ).isEqualTo( "server.start.script" );
+        assertThat( property.getDefaultValue() ).isEqualTo( "start_headless_server.bat" );
+        assertThat( property.isMandatory() ).isTrue();
     }
 
     /**
@@ -126,7 +180,7 @@ class VdeckPropertyTest {
 
         // THEN
         assertThat( defaults ).containsOnlyKeys( VdeckProperty.values() );
-        assertThat( defaults ).containsEntry( underTest, "vdeck-logs" );
+        assertThat( defaults ).containsEntry( underTest, ".vDeck/log" );
     }
 
     /**

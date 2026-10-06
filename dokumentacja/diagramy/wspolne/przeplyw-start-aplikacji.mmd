@@ -17,7 +17,8 @@ flowchart TD
     missing -- nie --> ready[Ustawienia gotowe w pamięci]
     create --> ready
     restore --> ready
-    ready --> init[DataInitializer.run]
+    ready --> profile[LaunchProfileService.reload:<br/>publikacja LaunchConfiguration z profilu i hasła]
+    profile --> init[DataInitializer.run]
     init --> adminExists{Konto 'admin'<br/>istnieje?}
     adminExists -- tak --> skip[Pominięcie inicjalizacji]
     adminExists -- nie --> createAdmin[Zapis PanelUser 'admin'<br/>z zahaszowanym hasłem 'admin'<br/>i passwordChangeRequired = true]

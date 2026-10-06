@@ -178,16 +178,93 @@ body::before {
 }
 
 /*
+ * Wrapper holding the island together with the status diamond hanging below it. The two form one
+ * component, but the diamond cannot be a child of the island, whose overflow: hidden would clip it.
+ * The wrapper's bottom padding reserves exactly the height the diamond sticks out, so the badge never
+ * overlaps whatever the view puts underneath.
+ */
+.island-stack {
+    position: relative;
+    display: flex;
+    max-inline-size: 100%;
+    padding-block-end: var(--island-status-protrusion);
+}
+
+/*
  * The island is a header element, not a content block: its height is capped so it stays a strip
- * even when a section grows. overflow: hidden keeps the texture inside the rounded frame.
+ * even when a section grows. overflow: hidden keeps the texture inside the rounded frame, and the
+ * stacking order keeps it in front of the status diamond.
  */
 .island {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: stretch;
     block-size: var(--island-block-size);
     max-block-size: var(--island-max-block-size);
     max-inline-size: 100%;
     overflow: hidden;
+}
+
+/*
+ * Server status badge: a trapezoid narrowing towards the bottom, hanging from behind the island's
+ * lower edge. Its upper part is tucked behind the island, so it reads as one shape with it.
+ *
+ * The outline is a clipped polygon rather than a border-radius, because a trapezoid is not a
+ * rectangle; the extra pair of points at each lower corner chamfers it, which at this size reads as
+ * the same soft edge the rest of the interface uses.
+ */
+.island-status {
+    position: absolute;
+    z-index: 0;
+    inset-inline-start: 50%;
+    inset-block-end: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--island-status-gap);
+    inline-size: var(--island-status-inline-size);
+    block-size: var(--island-status-block-size);
+    /* Keeps the dot and the label inside the part that shows below the island. */
+    padding-block-start: calc(var(--island-status-block-size) - var(--island-status-protrusion));
+    translate: -50% 0;
+    background-color: var(--island-status-surface);
+    clip-path: polygon(
+            0 0,
+            100% 0,
+            calc(100% - var(--island-status-taper) + 3%) 82%,
+            calc(100% - var(--island-status-taper)) 100%,
+            var(--island-status-taper) 100%,
+            calc(var(--island-status-taper) - 3%) 82%);
+}
+
+/* Indicator dot; its colour is the state, which the label states in words beside it. */
+.island-status__indicator {
+    flex: 0 0 auto;
+    inline-size: var(--island-status-dot-size);
+    block-size: var(--island-status-dot-size);
+    border-radius: 50%;
+    background-color: var(--island-status-color);
+}
+
+.island-status__label {
+    color: var(--island-status-color);
+    font-size: var(--island-status-font-size);
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.island-status.is-starting {
+    --island-status-color: var(--island-status-color-pending);
+}
+
+.island-status.is-running {
+    --island-status-color: var(--island-status-color-running);
+}
+
+.island-status.is-start-failed,
+.island-status.is-crashed {
+    --island-status-color: var(--island-status-color-failed);
 }
 
 /*

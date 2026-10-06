@@ -1,4 +1,4 @@
-﻿# CLAUDE.md
+# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2:
 
-- `vdeck-runtime` — pure Java, no Spring. **Currently empty and has no `src/` directory at all**, so
-  the build prints a `JAR will be empty` warning for it. That is expected, not a defect.
+- `vdeck-runtime` — pure Java, no Spring. Contains the runtime API, serialized lifecycle state
+  machine and Windows process launcher using FFM, including the job object binding server lifetime
+  to the panel. Normal shutdown currently terminates the server forcibly; graceful stop is not implemented.
 - `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, shared path/configuration
   infrastructure and the first implemented features: panel authentication (persisted admin account,
   Spring Security's generated login page, and two separate password screens — the forced
@@ -15,8 +16,13 @@ vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2
   that does) plus a `home` feature serving `/` with the action island only, and a `launch` feature
   whose two screens — `/server-settings` ("Serwer") and `/game-settings` ("Ustawienia gry", with a
   hidden-by-default "Zaawansowane" section whose visibility is remembered in `vDeck.properties`) —
-  edit the Valheim launch profile stored in `valheim-server.properties`; it only stores the profile,
-  nothing launches the server yet. Views with navigation also embed the markup-only side menu
+  edit the Valheim launch profile stored in `valheim-server.properties`. The `server` feature starts
+  that profile through `POST /server/start`, validates it, prepares per-launch logs and a secret-free
+  mirror script, and supplies the action island with runtime status. `LaunchProfileService` publishes an immutable
+  `LaunchConfiguration` (secret-free profile plus password) after settings initialization and every
+  successful profile save. Start captures it once for validation and command generation. The builder
+  returns `LaunchSpec` directly; the mirror script is rendered from that same specification. Start works; Stop, Restart and
+  Kill are not implemented. Status updates require a page refresh. Views with navigation embed the side menu
   (`templates/common/side-menu.html` + `static/js/side-menu.js`); `static/js/game-settings.js` is the
   only other ES module.
 
@@ -59,7 +65,7 @@ Configuration is split by owner (see `AD-002`):
   Not user-editable.
 - User-editable `.properties` files, **all** in `<installation>/.vDeck/config/` (`AD-010`), never
   directly next to `vdeck.jar`: `vDeck.properties` (the panel's own settings) and
-  `valheim-server.properties` (the Valheim launch profile, `AD-011`). Each file is described by an
+  `valheim-server.properties` (the Valheim launch profile, `AD-013`). Each file is described by an
   enum implementing `shared.SystemPropertyIf` (key + `isMandatory()`, set through the enum
   constructor). A single `shared.service.SystemPropertiesService` bean serves every file (`AD-013`):
   each call takes the file name (the enum's `FILE_NAME`), and `config.SystemPropertiesInitializer`
@@ -88,11 +94,16 @@ normalized, and after resolution must stay inside the installation directory.
 Without it `ApplicationHome.getDir()` resolves to `vdeck-app/target/classes`, so the settings file
 would be written into a directory devtools watches, causing a restart loop.
 
+Native Windows calls require `--enable-native-access=ALL-UNNAMED` when running with `java -jar`
+or from an IDE. Surefire and `spring-boot:run` set it in their POM configuration; when overriding
+`spring-boot.run.jvmArguments`, include this flag along with the installation-directory override.
+
 ## Exception handling
 
 Web-layer errors follow `AD-014`. Every main process of a feature ends a rejection **and** a failure with
 one process exception in the feature's `exc` package (`LaunchProfileUpdateException`,
-`PasswordChangeException`) carrying a `TranslationKeyIf` enum constant and, for a failure, the cause.
+`PasswordChangeException`, `ServerStartException`) carrying a `TranslationKeyIf` enum constant and,
+for a failure, the cause.
 Services return no result objects and controllers do not catch; an annotation-validation failure is
 thrown as the same process exception. The feature's `@ControllerAdvice` (in the feature root, limited
 by `assignableTypes`, `@Order( Ordered.HIGHEST_PRECEDENCE )`) logs once and redirects back to the
@@ -181,16 +192,19 @@ Use the wrapper (`.\mvnw.cmd` in PowerShell, `./mvnw` in Bash) — it guarantees
 # ("Unable to find a suitable main class"). Run install once so vdeck-runtime is resolvable.
 .\mvnw.cmd install -DskipTests
 .\mvnw.cmd -pl vdeck-app spring-boot:run `
-  "-Dspring-boot.run.jvmArguments=-Dvdeck.server-directory=D:\path\to\sandbox"
+  "-Dspring-boot.run.jvmArguments=--enable-native-access=ALL-UNNAMED -Dvdeck.server-directory=D:\path\to\sandbox"
+
+# Run a packaged panel against an explicit installation directory.
+java --enable-native-access=ALL-UNNAMED "-Dvdeck.server-directory=D:\path\to\sandbox" `
+  -jar vdeck-app\target\vdeck-app-0.0.1-SNAPSHOT.jar
 ```
 
 There is no linter or formatter configured.
 
 ## Known warnings during the build
 
-Both are expected and must not be "fixed" by adding code:
+The following warning is expected:
 
-- `JAR will be empty - no content was marked for inclusion!` for `vdeck-runtime`, which has no sources yet.
 - `Mockito is currently self-attaching to enable the inline-mock-maker.` Mockito 5 self-attaches on
   JDK 25. Harmless today; it needs a `-javaagent` entry in the surefire configuration before a future
   JDK turns it into an error.

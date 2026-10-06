@@ -12,9 +12,31 @@ import static java.util.Objects.requireNonNull;
 public enum VdeckProperty implements SystemPropertyIf {
 
     /**
-     * Directory holding the game server log file, relative to the installation directory.
+     * Directory holding the game server log files, relative to the installation directory. Each launch
+     * writes its own file below a directory named after the day, so a restart never overwrites the log
+     * that would explain why the previous run ended.
      */
-    GAME_LOG_DIRECTORY( "game.log.directory", "vdeck-logs", true ),
+    GAME_LOG_DIRECTORY( "game.log.directory", ".vDeck/log", true ),
+
+    /**
+     * Whether old game server logs are removed at all; {@code true} or {@code false}. With {@code false}
+     * every log is kept and {@link #GAME_LOG_RETENTION_DAYS} is ignored (AD-016).
+     */
+    GAME_LOG_RETENTION_ENABLED( "game.log.retention.enabled", "true", true ),
+
+    /**
+     * How many days of game server logs are kept while {@link #GAME_LOG_RETENTION_ENABLED} is on. Older
+     * day directories are removed before a launch, so one log file per start cannot grow without bound
+     * (AD-016).
+     */
+    GAME_LOG_RETENTION_DAYS( "game.log.retention.days", "14", true ),
+
+    /**
+     * Name of the Valheim start script shipped with the dedicated server, in the installation
+     * directory. vDeck only reads it, to pick up the environment the publisher's script sets, and never
+     * writes to it — Steam would overwrite the change anyway.
+     */
+    SERVER_START_SCRIPT( "server.start.script", "start_headless_server.bat", true ),
 
     /**
      * Whether the "Ustawienia gry" screen shows its advanced section; {@code true} or {@code false}.

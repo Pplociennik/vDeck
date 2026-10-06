@@ -4,6 +4,7 @@ import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Objects.requireNonNull;
 
@@ -75,6 +76,17 @@ public enum WorldModifier {
      */
     public @Nonnull String getKey() {
         return key;
+    }
+
+    /**
+     * Returns the name this modifier has on the server's command line, as in
+     * {@code -modifier deathpenalty hard}. The server spells these names as one lower-case word, while
+     * the screen needs a camel-case identifier, so the command-line form is the key in lower case.
+     *
+     * @return lower-case name understood by {@code valheim_server.exe}
+     */
+    public @Nonnull String getCliName() {
+        return key.toLowerCase( Locale.ROOT );
     }
 
     /**

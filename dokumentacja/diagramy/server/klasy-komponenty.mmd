@@ -1,0 +1,58 @@
+%% Diagram klas: komponenty uruchamiania serwera
+classDiagram
+    direction TB
+    namespace vdeck_app {
+        class ServerController
+        class ServerExceptionHandler
+        class ServerStatusAdvice
+        class ServerService {
+            <<interface>>
+            start()
+            getStatus()
+        }
+        class ServerServiceImpl
+        class ServerStartValidator
+        class LaunchProfileService {
+            <<interface>>
+        }
+        class LaunchCommandService {
+            <<interface>>
+        }
+        class ServerLogService {
+            <<interface>>
+        }
+        class LaunchConfiguration
+    }
+    namespace vdeck_runtime {
+        class ServerRuntime {
+            <<interface>>
+            start(LaunchSpec)
+            status()
+        }
+        class ServerStateMachine
+        class LaunchSpec
+        class ServerStatus
+        class GameProcessLauncher {
+            <<interface>>
+        }
+        class WindowsProcessLauncher
+        class Win32
+    }
+    ServerController --> ServerService : start
+    ServerExceptionHandler ..> ServerController : obsługa błędu
+    ServerStatusAdvice --> ServerService : stan widoku
+    ServerServiceImpl ..|> ServerService
+    ServerServiceImpl --> ServerStartValidator : walidacja
+    ServerServiceImpl --> LaunchProfileService : gotowa konfiguracja
+    ServerServiceImpl --> LaunchCommandService : polecenie
+    ServerServiceImpl --> ServerLogService : log
+    LaunchProfileService ..> LaunchConfiguration : publikuje po zapisie
+    ServerStartValidator ..> LaunchConfiguration : waliduje
+    LaunchCommandService ..> LaunchConfiguration : odczytuje
+    LaunchCommandService ..> LaunchSpec : tworzy i renderuje skrypt
+    ServerServiceImpl --> ServerRuntime : granica modułów
+    ServerStateMachine ..|> ServerRuntime
+    ServerRuntime ..> ServerStatus : publikuje
+    ServerStateMachine --> GameProcessLauncher : uruchamia
+    WindowsProcessLauncher ..|> GameProcessLauncher
+    WindowsProcessLauncher --> Win32 : wstrzykiwana granica Windows

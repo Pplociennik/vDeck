@@ -234,4 +234,4 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Status:** obowiązująca (2026-09-29)
 - **Decyzja:** Każdy start zapisuje przez `-logFile` osobny log w `<game.log.directory>/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>.log`.
 - **Powód:** Historia uruchomień nie ginie przy ponownym starcie.
-- **Konsekwencja:** Panel nie przechwytuje konsoli, domyślny katalog to `.vDeck/log`, a dzienną retencją steruje `game.log.retention.days` z wartością domyślną 14.
+- **Konsekwencja:** Panel nie przechwytuje konsoli, domyślny katalog to `.vDeck/log`, a dzienną retencją steruje `game.log.retention.days` z wartością domyślną 14; `game.log.retention.enabled=false` (domyślnie `true`) wyłącza retencję i zachowuje wszystkie logi.

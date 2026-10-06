@@ -1,6 +1,7 @@
 package com.github.pplociennik.vdeck.feature.server.service.impl;
 
 import static com.github.pplociennik.vdeck.shared.PropertyReader.read;
+import static com.github.pplociennik.vdeck.shared.PropertyReader.readBoolean;
 import static com.github.pplociennik.vdeck.shared.PropertyReader.readInt;
 
 import com.github.pplociennik.vdeck.feature.server.service.ServerLogService;
@@ -12,29 +13,24 @@ import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
-import java.util.Comparator;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
 /**
  * Lays out the game server logs as one file per launch, grouped into a directory per day, and applies
- * the configured retention before each launch.
+ * the configured retention before each launch. Directory actions are delegated to
+ * {@link ServerLogDirectories} and the removal of old days to {@link ServerLogRetention}; this service reads
+ * the panel settings that drive them.
  */
 @Log4j2
 @Service
 class ServerLogServiceImpl implements ServerLogService {
-
-    private static final DateTimeFormatter DAY_FORMAT = DateTimeFormatter.ofPattern( "yyyy-MM-dd" );
 
     private static final DateTimeFormatter FILE_FORMAT = DateTimeFormatter.ofPattern( "yyyy-MM-dd_HH-mm-ss" );
 
@@ -87,8 +83,8 @@ class ServerLogServiceImpl implements ServerLogService {
 
         applyRetention( baseDirectory, now.toLocalDate() );
 
-        Path dayDirectory = baseDirectory.resolve( DAY_FORMAT.format( now ) );
-        createDirectory( dayDirectory );
+        Path dayDirectory = ServerLogDirectories.dayDirectory( baseDirectory, now.toLocalDate() );
+        ServerLogDirectories.createIfMissing( dayDirectory );
 
         Path logFile = availableLogFile( dayDirectory, FILE_FORMAT.format( now ) );
         log.info( "Game server log of this launch will be written to {}", logFile );
@@ -99,6 +95,44 @@ class ServerLogServiceImpl implements ServerLogService {
         String configured = read( systemPropertiesService, VdeckProperty.FILE_NAME,
                 VdeckProperty.GAME_LOG_DIRECTORY );
         return pathService.getAbsolutePath( configured );
+    }
+
+    /**
+     * Removes day directories older than the configured window, unless retention is switched off. On a
+     * first launch the log directory does not exist yet, so there is nothing to clean up and the settings
+     * are not read.
+     */
+    private void applyRetention( @Nonnull Path baseDirectory, @Nonnull LocalDate today ) {
+        if ( !Files.isDirectory( baseDirectory ) ) {
+            return;
+        }
+        if ( !isRetentionEnabled() ) {
+            log.debug( "Game log retention is disabled, keeping every log in {}", baseDirectory );
+            return;
+        }
+
+        LocalDate oldestKept = today.minusDays( retentionDays() );
+        ServerLogRetention.removeDaysBefore( baseDirectory, oldestKept );
+    }
+
+    private boolean isRetentionEnabled() {
+        return readBoolean( systemPropertiesService, VdeckProperty.FILE_NAME,
+                VdeckProperty.GAME_LOG_RETENTION_ENABLED, VdeckProperty.GAME_LOG_RETENTION_ENABLED.getDefaultValue() );
+    }
+
+    /**
+     * Returns the configured retention window in days. A negative window would remove today's logs, so it
+     * is replaced by the default, as is a value that is not a number.
+     */
+    private int retentionDays() {
+        String defaultDays = VdeckProperty.GAME_LOG_RETENTION_DAYS.getDefaultValue();
+        int retentionDays = readInt( systemPropertiesService, VdeckProperty.FILE_NAME,
+                VdeckProperty.GAME_LOG_RETENTION_DAYS, defaultDays );
+        if ( retentionDays < 0 ) {
+            log.warn( "Negative game log retention, using the default retention window" );
+            return Integer.parseInt( defaultDays );
+        }
+        return retentionDays;
     }
 
     /**
@@ -113,70 +147,5 @@ class ServerLogServiceImpl implements ServerLogService {
             index++;
         }
         return candidate;
-    }
-
-    /**
-     * Removes day directories older than the configured window. Never touches the current day, and
-     * never lets a cleanup problem stop a launch: losing disk space is a smaller problem than refusing
-     * to start the server.
-     */
-    private void applyRetention( @Nonnull Path baseDirectory, @Nonnull LocalDate today ) {
-        if ( !Files.isDirectory( baseDirectory ) ) {
-            return;
-        }
-        int retentionDays = readInt( systemPropertiesService, VdeckProperty.FILE_NAME,
-                VdeckProperty.GAME_LOG_RETENTION_DAYS, VdeckProperty.GAME_LOG_RETENTION_DAYS.getDefaultValue() );
-        if ( retentionDays < 0 ) {
-            log.warn( "Negative game log retention, using the default retention window" );
-            retentionDays = Integer.parseInt( VdeckProperty.GAME_LOG_RETENTION_DAYS.getDefaultValue() );
-        }
-        LocalDate oldestKept = today.minusDays( retentionDays );
-
-        try ( Stream< Path > days = Files.list( baseDirectory ) ) {
-            days.filter( Files::isDirectory )
-                    .filter( day -> isExpired( day, oldestKept ) )
-                    .forEach( ServerLogServiceImpl::deleteRecursively );
-        } catch ( IOException exception ) {
-            log.warn( "Could not apply game log retention in {}: {}", baseDirectory, exception.getMessage() );
-        }
-    }
-
-    /**
-     * Tells whether a directory is a day directory older than the retention window. A directory whose
-     * name is not a date belongs to someone else and is left alone.
-     */
-    private static boolean isExpired( @Nonnull Path dayDirectory, @Nonnull LocalDate oldestKept ) {
-        try {
-            LocalDate day = LocalDate.parse( dayDirectory.getFileName().toString(), DAY_FORMAT );
-            return day.isBefore( oldestKept );
-        } catch ( DateTimeParseException exception ) {
-            log.debug( "Ignoring {} during game log retention: not a day directory", dayDirectory );
-            return false;
-        }
-    }
-
-    private static void deleteRecursively( @Nonnull Path directory ) {
-        try ( Stream< Path > entries = Files.walk( directory ) ) {
-            entries.sorted( Comparator.reverseOrder() ).forEach( ServerLogServiceImpl::deleteQuietly );
-            log.info( "Removed expired game log directory {}", directory );
-        } catch ( IOException exception ) {
-            log.warn( "Could not remove expired game log directory {}: {}", directory, exception.getMessage() );
-        }
-    }
-
-    private static void deleteQuietly( @Nonnull Path entry ) {
-        try {
-            Files.deleteIfExists( entry );
-        } catch ( IOException exception ) {
-            log.warn( "Could not remove {}: {}", entry, exception.getMessage() );
-        }
-    }
-
-    private static void createDirectory( @Nonnull Path directory ) {
-        try {
-            Files.createDirectories( directory );
-        } catch ( IOException exception ) {
-            throw new UncheckedIOException( "Failed to create game log directory " + directory, exception );
-        }
     }
 }

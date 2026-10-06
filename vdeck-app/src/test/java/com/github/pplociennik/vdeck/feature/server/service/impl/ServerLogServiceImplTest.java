@@ -3,6 +3,8 @@ package com.github.pplociennik.vdeck.feature.server.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.github.pplociennik.vdeck.shared.VdeckProperty;
 import com.github.pplociennik.vdeck.shared.service.PathService;
@@ -393,6 +395,74 @@ class ServerLogServiceImplTest {
         }
     }
 
+    /**
+     * Verifies that switching retention off keeps every log, however old, and that the retention window
+     * is then not even read.
+     *
+     * @throws IOException
+     *         if the old day directory cannot be prepared
+     */
+    @Test
+    void shouldKeepEveryLog_whenRetentionIsDisabled() throws IOException {
+        // GIVEN
+        givenConfiguredLogDirectory();
+        givenRetentionEnabled( "false" );
+        Path old = givenDayDirectoryAgedDays( 365 );
+
+        // WHEN
+        underTest.createLogFileForNewStart();
+
+        // THEN
+        assertThat( old.resolve( "old-run.log" ) ).exists();
+        verify( systemPropertiesService, never() )
+                .getValue( VdeckProperty.FILE_NAME, VdeckProperty.GAME_LOG_RETENTION_DAYS );
+    }
+
+    /**
+     * Verifies that a retention switch which is neither {@code true} nor {@code false} falls back to its
+     * default, so old logs are still removed.
+     *
+     * @throws IOException
+     *         if the expired directory cannot be prepared
+     */
+    @Test
+    void shouldApplyRetention_whenRetentionSwitchIsNotBoolean() throws IOException {
+        // GIVEN
+        givenConfiguredLogDirectory();
+        givenRetentionEnabled( "maybe" );
+        given( systemPropertiesService.getValue( VdeckProperty.FILE_NAME, VdeckProperty.GAME_LOG_RETENTION_DAYS ) )
+                .willReturn( "14" );
+        Path expired = givenDayDirectoryAgedDays( 30 );
+
+        // WHEN
+        underTest.createLogFileForNewStart();
+
+        // THEN
+        assertThat( expired ).doesNotExist();
+    }
+
+    /**
+     * Verifies that an existing directory of the current day is reused as it is, keeping the logs of the
+     * earlier launches of that day.
+     *
+     * @throws IOException
+     *         if the day directory cannot be prepared
+     */
+    @Test
+    void shouldReuseDayDirectory_whenItAlreadyExists() throws IOException {
+        // GIVEN
+        givenConfiguredLogDirectory();
+        givenRetentionDays( "14" );
+        Path today = givenDayDirectoryAgedDays( 0 );
+
+        // WHEN
+        Path result = underTest.createLogFileForNewStart();
+
+        // THEN
+        assertThat( result.getParent() ).isEqualTo( today );
+        assertThat( today.resolve( "old-run.log" ) ).exists();
+    }
+
     /** Verifies that date generation cannot be configured with an absent clock. */
     @Test
     void shouldRejectConstruction_whenClockIsNull() {
@@ -420,15 +490,27 @@ class ServerLogServiceImplTest {
     }
 
     /**
-     * Configures how many days of logs are kept. Only needed by tests whose log directory already
-     * exists, because retention is skipped entirely on a first launch.
+     * Switches retention on and configures how many days of logs are kept. Only needed by tests whose
+     * log directory already exists, because retention is skipped entirely on a first launch.
      *
      * @param value
      *         raw configured value, which may deliberately be unparsable
      */
     private void givenRetentionDays( String value ) {
+        givenRetentionEnabled( "true" );
         given( systemPropertiesService.getValue( VdeckProperty.FILE_NAME,
                 VdeckProperty.GAME_LOG_RETENTION_DAYS ) ).willReturn( value );
+    }
+
+    /**
+     * Configures whether old logs are removed at all.
+     *
+     * @param value
+     *         raw configured value, which may deliberately be neither {@code true} nor {@code false}
+     */
+    private void givenRetentionEnabled( String value ) {
+        given( systemPropertiesService.getValue( VdeckProperty.FILE_NAME,
+                VdeckProperty.GAME_LOG_RETENTION_ENABLED ) ).willReturn( value );
     }
 
     /**

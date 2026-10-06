@@ -36,8 +36,8 @@ sequenceDiagram
                 H-->>A: redirect na ten sam ekran,<br/>flash: komunikat i wartości bez hasła
             else zapis udany
                 F->>F: publikacja pełnego zestawu wartości w pamięci
-                S->>S: reload(): nowa LaunchConfiguration<br/>profil i hasło z jednej wersji
-                Note over S: Zapisy i reload są serializowane.<br/>Start odczytuje kompletną starą albo nową wersję
+                S->>S: nowa LaunchConfiguration z zapisanych wartości<br/>i niezmienionych ustawień drugiego ekranu
+                Note over S: Bez ponownego odczytu ustawień. Zapisy są serializowane.<br/>Start odczytuje kompletną starą albo nową wersję
                 S-->>C: powrót bez wyjątku
                 C-->>A: redirect na ten sam ekran z ?saved
             end

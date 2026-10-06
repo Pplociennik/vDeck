@@ -57,11 +57,29 @@ class VdeckPropertyTest {
     }
 
     /**
+     * Verifies that removing old game server logs is switched on by default and can be switched off to
+     * keep every log.
+     */
+    @Test
+    void shouldExposeEnabledDefault_whenServerLogRetentionSwitchIsDeclared() {
+        // GIVEN
+        VdeckProperty property = VdeckProperty.GAME_LOG_RETENTION_ENABLED;
+
+        // WHEN
+        String name = property.getName();
+
+        // THEN
+        assertThat( name ).isEqualTo( "game.log.retention.enabled" );
+        assertThat( property.getDefaultValue() ).isEqualTo( "true" );
+        assertThat( property.isMandatory() ).isTrue();
+    }
+
+    /**
      * Verifies that game server logs have a retention window by default, so one file per launch cannot
      * accumulate without bound.
      */
     @Test
-    void shouldExposeDocumentedKeyAndDefault_whenGameLogRetentionIsDeclared() {
+    void shouldExposeDocumentedKeyAndDefault_whenServerLogRetentionIsDeclared() {
         // GIVEN
         VdeckProperty property = VdeckProperty.GAME_LOG_RETENTION_DAYS;
 

@@ -29,9 +29,11 @@ public interface ServerLogService {
      * why the previous run ended — which is also why the panel does not have to detect a log file being
      * replaced underneath it.
      *
-     * <p>Old day directories are removed first, according to {@code game.log.retention.days}. A failure
+     * <p>Old day directories are removed first, according to {@code game.log.retention.days}, unless
+     * {@code game.log.retention.enabled} is {@code false}, in which case every log is kept. A failure
      * to clean up does not prevent the launch: losing disk space is a smaller problem than refusing to
-     * start the server. The file itself is not created; the server creates it when it starts.
+     * start the server. The day directory is created only when it does not exist yet. The file itself is
+     * not created; the server creates it when it starts.
      *
      * @return absolute path the server should be told to write its log to
      * @throws UncheckedIOException

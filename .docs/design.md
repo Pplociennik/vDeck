@@ -178,6 +178,8 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │           ├── ServerServiceImpl
         │   │   │           ├── LaunchCommandServiceImpl
         │   │   │           ├── ServerLogServiceImpl
+        │   │   │           ├── ServerLogDirectories ← akcje na katalogach logów gry
+        │   │   │           ├── ServerLogRetention   ← usuwanie starych katalogów dziennych
         │   │   │           └── ServerStartValidator
         │   │   ├── launch/                      ← profil uruchomieniowy (plik, AD-013)
         │   │   │   ├── ServerSettingsController ← ekran „Serwer”
@@ -410,8 +412,10 @@ pozostawia poprzedni zestaw bez zmian i nie wymaga odtwarzania wcześniejszych w
 Po załadowaniu plików `SystemPropertiesInitializer` wywołuje `LaunchProfileService.reload()`.
 Serwis tworzy jedną niemutowalną `LaunchConfiguration`: typowany `LaunchProfile` oraz hasło
 pochodzące z tej samej wersji ustawień. Kolejne odczyty zwracają gotowy obiekt. Zapis ustawień
-serwera i gry oraz ponowne zbudowanie konfiguracji są serializowane przez serwis profilu;
-nowa konfiguracja jest publikowana po udanym zapisie. Profile zmieniamy przez serwis właściciela,
+serwera i gry oraz zbudowanie nowej konfiguracji są serializowane przez serwis profilu;
+nowa konfiguracja jest publikowana po udanym zapisie. Zapis nie wywołuje `reload()`: nowy profil
+powstaje z właśnie zapisanych wartości ekranu i niezmienionych ustawień drugiego ekranu z bieżącej
+konfiguracji, bez ponownego odczytu ustawień. Profile zmieniamy przez serwis właściciela,
 aby zapis i odświeżenie konfiguracji pozostały jednym procesem. Widoki otrzymują wyłącznie
 bezsekretny `LaunchProfile`; walidator startu i generator komendy otrzymują tę samą
 `LaunchConfiguration`. `reload()` mapuje wartości już obecne w pamięci, nie czyta ponownie dysku.
@@ -432,9 +436,12 @@ Druga właściwość, `panel.game.settings.advanced` (domyślnie `false`), zapam
 „Ustawienia gry” pokazuje sekcję „Zaawansowane” (AD-012). To preferencja wyświetlania panelu, a nie
 część profilu uruchomieniowego: jej zmiana nie wpływa na opcje przekazywane serwerowi.
 
+`game.log.retention.enabled` (domyślnie `true`) włącza retencję logów gry; `false` zachowuje
+wszystkie logi, a wartość inna niż `true`/`false` używa domyślnej. Przy włączonej retencji
 `game.log.retention.days` (domyślnie `14`) określa retencję dziennych katalogów logów; przed startem
 usuwane są katalogi starsze niż bieżąca data minus tę liczbę dni. Zero zachowuje bieżący dzień;
-wartość ujemna lub nienumeryczna przywraca domyślne 14 dni. `server.start.script` (domyślnie
+wartość ujemna lub nienumeryczna przywraca domyślne 14 dni. Katalog bieżącego dnia jest tworzony
+tylko wtedy, gdy jeszcze nie istnieje. `server.start.script` (domyślnie
 `start_headless_server.bat`) wskazuje skrypt producenta czytany wyłącznie po `SteamAppId` (AD-015).
 Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
 `.vDeck/vDeck-server-start.bat` bez zapisanego hasła, ale nigdy go nie uruchamia.

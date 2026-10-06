@@ -77,7 +77,8 @@ class LaunchProfileServiceImplTest {
 
     /**
      * Creates a fresh service backed by an in-memory copy of the default launch profile file and an
-     * installation directory that accepts every relative save directory.
+     * installation directory that accepts every relative save directory. The configuration is published
+     * as at startup, because an update builds the new configuration on the current one.
      */
     @BeforeEach
     void setUp() {
@@ -91,6 +92,7 @@ class LaunchProfileServiceImplTest {
         lenient().when( pathService.getAbsolutePath( any() ) )
                 .thenAnswer( invocation -> BASE_DIRECTORY.resolve( ( String ) invocation.getArgument( 0 ) ).normalize() );
         underTest = new LaunchProfileServiceImpl( systemPropertiesService, pathService );
+        underTest.reload();
     }
 
     // =================================================================================================
@@ -119,22 +121,26 @@ class LaunchProfileServiceImplTest {
     @Test
     void shouldRejectRead_whenConfigurationHasNotBeenLoaded() {
         // GIVEN
-        // Startup has not published a configuration yet.
+        var notLoaded = new LaunchProfileServiceImpl( systemPropertiesService, pathService );
 
         // WHEN
-        var thrown = catchThrowable( underTest::getConfiguration );
+        var thrown = catchThrowable( notLoaded::getConfiguration );
 
         // THEN
         assertThat( thrown ).isInstanceOf( IllegalStateException.class );
     }
 
-    /** Verifies that server edits replace the complete profile and password after persistence. */
+    /**
+     * Verifies that server edits publish the stored server settings and password together with the
+     * unchanged game settings, built from the submitted values without reading the settings back.
+     */
     @Test
     void shouldPublishConfiguration_whenServerSettingsAreSaved() {
         // GIVEN
+        storedValues.put( LaunchProperty.WORLD_PRESET, "hard" );
         underTest.reload();
         var previous = underTest.getConfiguration();
-        givenSuccessfulWrite();
+        clearInvocations( systemPropertiesService );
 
         // WHEN
         underTest.updateServerSettings( form( "Changed server", "ChangedSecret", false, "worlds" ) );
@@ -143,19 +149,26 @@ class LaunchProfileServiceImplTest {
         var result = underTest.getConfiguration();
         assertThat( result ).isNotSameAs( previous );
         assertThat( result.profile().serverName() ).isEqualTo( "Changed server" );
+        assertThat( result.profile().saveDirectory() ).isEqualTo( "worlds" );
         assertThat( result.password() ).isEqualTo( "ChangedSecret" );
         assertThat( result.profile().passwordSet() ).isTrue();
+        assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
         assertThat( previous.profile().serverName() ).isEqualTo( "vDeck" );
         assertThat( previous.password() ).isEmpty();
+        verify( systemPropertiesService, never() ).getValue( any(), any() );
     }
 
-    /** Verifies that game edits refresh the cached world settings and preserve server credentials. */
+    /**
+     * Verifies that game edits publish the stored world settings and keep the server settings and
+     * credentials, built from the submitted values without reading the settings back.
+     */
     @Test
     void shouldRefreshGameSettings_whenGameFormIsSaved() {
         // GIVEN
         storedValues.put( LaunchProperty.SERVER_PASSWORD, "UnchangedSecret" );
+        storedValues.put( LaunchProperty.SERVER_NAME, "Unchanged server" );
         underTest.reload();
-        givenSuccessfulWrite();
+        clearInvocations( systemPropertiesService );
 
         // WHEN
         underTest.updateGameSettings( gameForm( "hard", "veryhard" ) );
@@ -163,8 +176,11 @@ class LaunchProfileServiceImplTest {
         // THEN
         var result = underTest.getConfiguration();
         assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
-        assertThat( result.profile().modifiers() ).containsEntry( WorldModifier.COMBAT, "veryhard" );
+        assertThat( result.profile().modifiers() ).containsOnly( Map.entry( WorldModifier.COMBAT, "veryhard" ) );
+        assertThat( result.profile().enabledKeys() ).containsExactly( WorldKey.NO_MAP );
+        assertThat( result.profile().serverName() ).isEqualTo( "Unchanged server" );
         assertThat( result.password() ).isEqualTo( "UnchangedSecret" );
+        verify( systemPropertiesService, never() ).getValue( any(), any() );
     }
 
     /** Verifies that failed persistence never replaces the configuration available to Start. */
@@ -628,7 +644,6 @@ class LaunchProfileServiceImplTest {
         storedValues.put( LaunchProperty.SERVER_PASSWORD, "SyntheticSecret" );
         underTest.reload();
         var previous = underTest.getConfiguration();
-        givenSuccessfulWrite();
 
         // WHEN
         underTest.updateServerSettings( form( "Changed", "", true, "worlds" ) );
@@ -646,7 +661,6 @@ class LaunchProfileServiceImplTest {
         // GIVEN
         storedValues.put( LaunchProperty.SERVER_PASSWORD, "SyntheticSecret" );
         underTest.reload();
-        givenSuccessfulWrite();
 
         // WHEN
         underTest.updateServerSettings( form( "Changed", "", false, "worlds" ) );
@@ -735,13 +749,6 @@ class LaunchProfileServiceImplTest {
     // =================================================================================================
     // HELPER METHODS
     // =================================================================================================
-
-    private void givenSuccessfulWrite() {
-        doAnswer( invocation -> {
-            applyStoredValues( invocation.getArgument( 1 ) );
-            return null;
-        } ).when( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
-    }
 
     private void applyStoredValues( SystemPropertyValues values ) {
         values.asMap().forEach( ( property, value ) -> storedValues.put( ( LaunchProperty ) property, value.strip() ) );

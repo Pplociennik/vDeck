@@ -19,8 +19,15 @@ public enum VdeckProperty implements SystemPropertyIf {
     GAME_LOG_DIRECTORY( "game.log.directory", ".vDeck/log", true ),
 
     /**
-     * How many days of game server logs are kept. Older day directories are removed before a launch, so
-     * one log file per start cannot grow without bound (AD-001).
+     * Whether old game server logs are removed at all; {@code true} or {@code false}. With {@code false}
+     * every log is kept and {@link #GAME_LOG_RETENTION_DAYS} is ignored (AD-016).
+     */
+    GAME_LOG_RETENTION_ENABLED( "game.log.retention.enabled", "true", true ),
+
+    /**
+     * How many days of game server logs are kept while {@link #GAME_LOG_RETENTION_ENABLED} is on. Older
+     * day directories are removed before a launch, so one log file per start cannot grow without bound
+     * (AD-016).
      */
     GAME_LOG_RETENTION_DAYS( "game.log.retention.days", "14", true ),
 

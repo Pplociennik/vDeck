@@ -46,7 +46,8 @@ import static java.util.Objects.requireNonNull;
  * and the settings are then stored with a single atomic write of the file. A rejected or failed update ends
  * with a {@link LaunchProfileUpdateException}, which the launch feature's controller advice answers. The
  * save directory is stored normalised, relative to the installation directory, after {@link PathService}
- * has confirmed that it stays inside it.
+ * has confirmed that it stays inside it. After a successful write the new configuration is built from the
+ * values just stored and the unchanged settings of the other screen, so nothing is read back.
  *
  * <p>The server password is a secret: it is stored because the server needs it on its command line, but
  * only the internal launch configuration carries it. The web layer receives the secret-free profile.
@@ -96,8 +97,7 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
     @Override
     public synchronized void reload() {
         String password = read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PASSWORD );
-        configuration = new LaunchConfiguration( readProfile( password ), password );
-        log.debug( "Published the current launch configuration" );
+        publish( new LaunchConfiguration( readProfile( password ), password ) );
     }
 
     /**
@@ -124,6 +124,9 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
         }
         store( "Server settings", toServerValues( form, saveDirectory, password ),
                 cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+
+        LaunchProfile profile = withServerSettings( getProfile(), form, saveDirectory, !password.isEmpty() );
+        publish( new LaunchConfiguration( profile, password ) );
     }
 
     /**
@@ -144,26 +147,16 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
             throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
         }
         store( "Game settings", toGameValues( form ), cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+
+        LaunchConfiguration current = getConfiguration();
+        publish( new LaunchConfiguration( withGameSettings( current.profile(), form ), current.password() ) );
     }
 
-    /** Maps loaded values once per publication, retaining PropertyReader's documented fallbacks. */
+    /**
+     * Maps loaded values once per publication, retaining PropertyReader's documented fallbacks. Used only at
+     * startup: an update builds the new profile from the values it has just stored.
+     */
     private @Nonnull LaunchProfile readProfile( @Nonnull String password ) {
-        Map< WorldModifier, String > modifiers = new EnumMap<>( WorldModifier.class );
-        for ( WorldModifier modifier : WorldModifier.values() ) {
-            readOptional( systemPropertiesService, LaunchProperty.FILE_NAME, modifier.getProperty(),
-                    value -> Optional.of( value ).filter( modifier::isAllowed ) )
-                    .ifPresent( value -> modifiers.put( modifier, value ) );
-        }
-        Set< WorldKey > enabledKeys = EnumSet.noneOf( WorldKey.class );
-        for ( WorldKey key : WorldKey.values() ) {
-            LaunchProperty property = key.getProperty();
-            if ( readBoolean( systemPropertiesService, LaunchProperty.FILE_NAME, property, property.getDefaultValue() ) ) {
-                enabledKeys.add( key );
-            }
-        }
-        WorldPreset preset = readOptional( systemPropertiesService, LaunchProperty.FILE_NAME,
-                LaunchProperty.WORLD_PRESET, WorldPreset::fromCliValue ).orElse( null );
-
         return new LaunchProfile(
                 read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_NAME ),
                 readInt( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PORT,
@@ -184,9 +177,38 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
                         LaunchProperty.SERVER_BACKUP_SHORT.getDefaultValue() ),
                 readInt( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_BACKUP_LONG,
                         LaunchProperty.SERVER_BACKUP_LONG.getDefaultValue() ),
-                preset,
-                modifiers,
-                enabledKeys );
+                readPreset(),
+                readModifiers(),
+                readEnabledKeys() );
+    }
+
+    /** Reads the world preset; an unknown stored value is skipped as if no preset were applied. */
+    private @Nullable WorldPreset readPreset() {
+        return readOptional( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.WORLD_PRESET,
+                WorldPreset::fromCliValue ).orElse( null );
+    }
+
+    /** Reads the modifiers that are set; an empty or unknown stored value leaves the modifier out. */
+    private @Nonnull Map< WorldModifier, String > readModifiers() {
+        Map< WorldModifier, String > modifiers = new EnumMap<>( WorldModifier.class );
+        for ( WorldModifier modifier : WorldModifier.values() ) {
+            readOptional( systemPropertiesService, LaunchProperty.FILE_NAME, modifier.getProperty(),
+                    value -> Optional.of( value ).filter( modifier::isAllowed ) )
+                    .ifPresent( value -> modifiers.put( modifier, value ) );
+        }
+        return modifiers;
+    }
+
+    /** Reads the enabled world keys; a stored value that is not a boolean falls back to the key's default. */
+    private @Nonnull Set< WorldKey > readEnabledKeys() {
+        Set< WorldKey > enabledKeys = EnumSet.noneOf( WorldKey.class );
+        for ( WorldKey key : WorldKey.values() ) {
+            LaunchProperty property = key.getProperty();
+            if ( readBoolean( systemPropertiesService, LaunchProperty.FILE_NAME, property, property.getDefaultValue() ) ) {
+                enabledKeys.add( key );
+            }
+        }
+        return enabledKeys;
     }
 
     /**
@@ -198,11 +220,85 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
                         @Nonnull Function< UncheckedIOException, LaunchProfileUpdateException > saveFailure ) {
         try {
             systemPropertiesService.setValues( LaunchProperty.FILE_NAME, values );
-            reload();
         } catch ( UncheckedIOException exception ) {
             throw saveFailure.apply( exception );
         }
         log.info( "{} stored ({} settings)", scope, values.asMap().size() );
+    }
+
+    private void publish( @Nonnull LaunchConfiguration published ) {
+        configuration = published;
+        log.debug( "Published the current launch configuration" );
+    }
+
+    /**
+     * Returns the profile with the "Serwer" screen's settings replaced by the values just stored; the game
+     * settings are kept from {@code current}, because the other screen did not change them.
+     */
+    private static @Nonnull LaunchProfile withServerSettings( @Nonnull LaunchProfile current,
+                                                             @Nonnull ServerSettingsForm form,
+                                                             @Nonnull String saveDirectory, boolean passwordSet ) {
+        return new LaunchProfile(
+                form.serverName(),
+                form.port(),
+                form.worldName(),
+                passwordSet,
+                Boolean.TRUE.equals( form.publicServer() ),
+                Boolean.TRUE.equals( form.crossplay() ),
+                emptyIfNull( form.instanceId() ),
+                saveDirectory,
+                form.saveInterval(),
+                form.backupCount(),
+                form.backupShort(),
+                form.backupLong(),
+                current.preset(),
+                current.modifiers(),
+                current.enabledKeys() );
+    }
+
+    /**
+     * Returns the profile with the "Ustawienia gry" screen's settings replaced by the values just stored;
+     * the server settings are kept from {@code current}, because the other screen did not change them.
+     */
+    private static @Nonnull LaunchProfile withGameSettings( @Nonnull LaunchProfile current,
+                                                           @Nonnull GameSettingsForm form ) {
+        return new LaunchProfile(
+                current.serverName(),
+                current.port(),
+                current.worldName(),
+                current.passwordSet(),
+                current.publicServer(),
+                current.crossplay(),
+                current.instanceId(),
+                current.saveDirectory(),
+                current.saveInterval(),
+                current.backupCount(),
+                current.backupShort(),
+                current.backupLong(),
+                form.presetValue(),
+                toModifiers( form ),
+                toEnabledKeys( form ) );
+    }
+
+    private static @Nonnull Map< WorldModifier, String > toModifiers( @Nonnull GameSettingsForm form ) {
+        Map< WorldModifier, String > modifiers = new EnumMap<>( WorldModifier.class );
+        for ( WorldModifier modifier : WorldModifier.values() ) {
+            String value = form.modifierValue( modifier );
+            if ( !isBlank( value ) ) {
+                modifiers.put( modifier, value );
+            }
+        }
+        return modifiers;
+    }
+
+    private static @Nonnull Set< WorldKey > toEnabledKeys( @Nonnull GameSettingsForm form ) {
+        Set< WorldKey > enabledKeys = EnumSet.noneOf( WorldKey.class );
+        for ( WorldKey key : WorldKey.values() ) {
+            if ( form.isKeyEnabled( key ) ) {
+                enabledKeys.add( key );
+            }
+        }
+        return enabledKeys;
     }
 
     private static boolean isComplete( @Nonnull ServerSettingsForm form ) {

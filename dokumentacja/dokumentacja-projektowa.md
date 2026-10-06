@@ -210,7 +210,8 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 | Klucz | Znaczenie | Obowiązkowe | Wartość domyślna |
 |---|---|---|---|
 | `game.log.directory` | Katalog dziennych podkatalogów logów gry, względny wobec instalacji | tak | `.vDeck/log` |
-| `game.log.retention.days` | Nieujemna liczba dni retencji logów gry; wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
+| `game.log.retention.enabled` | Czy przed startem usuwać stare logi gry; `false` zachowuje wszystkie logi, wartość inna niż `true`/`false` używa domyślnej | tak | `true` |
+| `game.log.retention.days` | Nieujemna liczba dni retencji logów gry przy włączonej retencji; wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
 | `server.start.script` | Skrypt producenta czytany po `SteamAppId`, nigdy wykonywany przez panel | tak | `start_headless_server.bat` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 
@@ -825,13 +826,15 @@ Komponenty:
 | `exc.LaunchProfileUpdateException` | Wyjątek procesu zapisu: klucz `LaunchProfileMessage`, przesłany formularz (ekranu „Serwer” bez hasła) i — przy nieudanym zapisie — przyczyna |
 | `dto.ServerSettingsForm` | Rekord formularza ekranu „Serwer” z walidacją; `toString()` redaguje hasło, `withoutPassword()` usuwa je przed ponownym wyświetleniem |
 | `dto.GameSettingsForm` | Rekord formularza ekranu „Ustawienia gry”: preset, modyfikatory i klucze świata |
-| `service.LaunchProfileService` / `impl.LaunchProfileServiceImpl` | Mapowanie przez `PropertyReader` przy inicjalizacji i po zapisie, odczyt gotowej konfiguracji oraz osobny zapis ustawień każdego ekranu (`updateServerSettings`, `updateGameSettings`) przez `SystemPropertiesService` z nazwą pliku `LaunchProperty.FILE_NAME` |
+| `service.LaunchProfileService` / `impl.LaunchProfileServiceImpl` | Mapowanie przez `PropertyReader` przy inicjalizacji, budowa nowej konfiguracji z zapisanych wartości po zapisie, odczyt gotowej konfiguracji oraz osobny zapis ustawień każdego ekranu (`updateServerSettings`, `updateGameSettings`) przez `SystemPropertiesService` z nazwą pliku `LaunchProperty.FILE_NAME` |
 | `service.GameSettingsDisplayService` / `impl.GameSettingsDisplayServiceImpl` | Odczyt (`PropertyReader.readBoolean`) i zapis widoczności sekcji „Zaawansowane” przez `SystemPropertiesService` z nazwą pliku `VdeckProperty.FILE_NAME`; wartość inna niż `true`/`false` oznacza sekcję ukrytą |
 
 Konfigurację startową publikuje `LaunchProfileService.reload()` po wczytaniu plików przez
-`SystemPropertiesInitializer` oraz po każdym udanym zapisie z obu ekranów. `getProfile()` i
+`SystemPropertiesInitializer`. Po każdym udanym zapisie z obu ekranów serwis nie wywołuje
+`reload()`: nową konfigurację buduje z właśnie zapisanych wartości ekranu oraz niezmienionych
+ustawień drugiego ekranu z bieżącej wersji, bez ponownego odczytu ustawień. `getProfile()` i
 `getConfiguration()` zwracają gotowe obiekty, bez ponownego parsowania propertiesów. Zapis i
-odświeżenie są serializowane; równoległy Start zachowuje przechwyconą, kompletną wersję.
+publikacja są serializowane; równoległy Start zachowuje przechwyconą, kompletną wersję.
 Błąd zapisu pozostawia poprzednią konfigurację. `PropertiesFile` również publikuje nowe wartości
 dopiero po zapisie i serializuje własnych zapisujących. Ręczna edycja pliku nadal wymaga restartu
 panelu; `reload()` odczytuje pamięć, nie dysk. Kontrole gotowości do startu nie blokują otwarcia
@@ -894,11 +897,16 @@ bezpośrednio, przez `WindowsProcessLauncher` i FFM `CreateProcessW`, w katalogu
 
 `ServerLogServiceImpl` wybiera `<game.log.directory>/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>.log`.
 Domyślny katalog to `.vDeck/log`; gdy plik już istnieje, nazwa dostaje przyrostek `-1`, `-2` itd.
-Plik tworzy serwer przez `-logFile`; panel nie przekierowuje konsoli. Przed startem usuwa katalogi
-dzienne starsze niż bieżąca data minus `game.log.retention.days` (domyślnie 14); dzień graniczny
-i katalogi o nazwach innych niż daty zostają. Błąd retencji jest ostrzeżeniem i nie blokuje startu.
-Zero zachowuje bieżący dzień; wartość ujemna lub nienumeryczna daje domyślne 14 dni.
-Datę wyznacza wstrzykiwany `Clock`, produkcyjnie w lokalnej strefie czasowej.
+Plik tworzy serwer przez `-logFile`; panel nie przekierowuje konsoli. Przed startem, gdy
+`game.log.retention.enabled` ma wartość `true` (domyślnie), usuwa katalogi dzienne starsze niż
+bieżąca data minus `game.log.retention.days` (domyślnie 14); dzień graniczny i katalogi o nazwach
+innych niż daty zostają. Przy `false` wszystkie logi są zachowywane, a liczba dni nie jest czytana.
+Błąd retencji jest ostrzeżeniem i nie blokuje startu. Zero zachowuje bieżący dzień; wartość ujemna
+lub nienumeryczna daje domyślne 14 dni. Katalog bieżącego dnia jest tworzony tylko wtedy, gdy jeszcze
+nie istnieje. Datę wyznacza wstrzykiwany `Clock`, produkcyjnie w lokalnej strefie czasowej.
+Usuwanie starych katalogów realizuje pakietowa klasa `ServerLogRetention`, a akcje na katalogach —
+nazwę i rozpoznanie katalogu dnia, utworzenie brakującego katalogu i rekurencyjne usunięcie —
+`ServerLogDirectories`; obie leżą w `feature.server.service.impl`, a ustawienia czyta serwis.
 
 `ServerStateMachine` jest pojedynczym właścicielem procesu i stanu. Zmiany serializuje jedna kolejka;
 odczyt zwraca opublikowany `ServerStatus`. Po 5 sekundach życia proces przechodzi z `STARTING`

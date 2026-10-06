@@ -16,8 +16,9 @@ public interface LaunchProfileService {
 
     /**
      * Publishes a typed configuration from the already loaded properties, without rereading disk.
-     * Called at startup after file loading and after successful profile updates. Malformed typed
-     * values use PropertyReader fallbacks; server readiness is checked only when starting the server.
+     * Called at startup after file loading; a successful profile update publishes its new configuration
+     * from the values it has just stored instead. Malformed typed values use PropertyReader fallbacks;
+     * server readiness is checked only when starting the server.
      */
     void reload();
 

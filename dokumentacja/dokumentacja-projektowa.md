@@ -44,6 +44,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.5 Menu boczne](#55-menu-boczne)
   - [5.6 Serwer i Ustawienia gry](#56-serwer-i-ustawienia-gry)
   - [5.7 Uruchamianie serwera](#57-uruchamianie-serwera)
+  - [5.8 Przycisk strony głównej](#58-przycisk-strony-głównej)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -527,6 +528,7 @@ vdeck-app/src/main/resources/
 │       └── game-settings.js     ← sekcja „Zaawansowane” ekranu „Ustawienia gry”
 ├── messages.properties          ← polski zestaw tekstów interfejsu
 └── templates/
+    ├── common/home-button.html     ← komponent wspólny: przycisk strony głównej
     ├── common/island.html          ← komponent wspólny: wyspa akcji
     ├── common/password-rules.html  ← komponent wspólny: wymagania dla nowego hasła
     ├── common/side-menu.html       ← komponent wspólny: menu boczne
@@ -611,7 +613,7 @@ początkowego — konto przed zmianą hasła nie może wykonać żadnej z jej ak
 Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są osadzane przez `<use>`.
 Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
 `icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
-`icon-key`, `icon-logout`, `icon-menu` (przycisk menu bocznego), `icon-server` (ekran „Serwer”),
+`icon-key`, `icon-logout`, `icon-home` (przycisk strony głównej), `icon-menu` (przycisk menu bocznego), `icon-server` (ekran „Serwer”),
 `icon-sliders` (ekran „Ustawienia gry”) i `icon-chevron` (stan gałęzi menu). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
 przyciski tworzą kopię, a nie pobierają pliku.
 
@@ -938,6 +940,25 @@ wyjątek suppressed do pierwotnej awarii przypisania. Zamknięty job nie jest za
 ![Diagram klas: komponenty uruchamiania serwera](diagramy/server/img/klasy-komponenty.svg)
 
 Źródło diagramu: [`diagramy/server/klasy-komponenty.mmd`](diagramy/server/klasy-komponenty.mmd)
+
+### 5.8 Przycisk strony głównej
+
+Przycisk strony głównej jest osobnym komponentem wspólnym, niezależnym od menu bocznego — plik
+`templates/common/home-button.html` z fragmentem `homeButton`. Osadzają go te same widoki co menu
+boczne (strona główna, „Serwer”, „Ustawienia gry” i zmiana hasła na żądanie), każdy osobnym
+`th:replace`. To zwykły odnośnik do `/` bez własnego skryptu; jego jedynym działaniem jest przejście na
+stronę główną. Nazwę dostępną i podpowiedź daje klucz `homeButton.label` („Strona główna”), a ikonę —
+`icon-home`.
+
+- Przycisk jest okrągły, w tym samym stylu co przycisk menu bocznego: oba używają wspólnej klasy
+  `.round-button` (obręcz, powierzchnia, cień oraz stany najechania, fokusu i wciśnięcia).
+- Ma połowę średnicy przycisku menu i przylega do niego od zewnątrz, z prawej strony: oba koła są
+  styczne, a ich dolne krawędzie leżą na jednej linii. Położenie wynika z tokenów
+  `--home-button-size` i `--home-button-inset-inline` w `variables.css`.
+- Widoczne koło jest mniejsze niż minimalny obszar dotyku, dlatego niewidoczny pseudo-element
+  powiększa obszar aktywny do `--control-touch-size`.
+- Otwarte menu boczne wysuwa się w miejscu przycisku, więc przycisk leży pod menu i jest ukryty na
+  czas jego otwarcia; ukrycie usuwa go też z kolejności tabulacji.
 
 ## 6. Bezpieczeństwo
 

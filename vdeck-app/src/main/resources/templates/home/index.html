@@ -21,6 +21,7 @@
        th:if="${serverErrorKey}" th:text="#{${serverErrorKey}}"></p>
 </main>
 
+<div th:replace="~{common/home-button :: homeButton}"></div>
 <div th:replace="~{common/side-menu :: sideMenu}"></div>
 </body>
 </html>

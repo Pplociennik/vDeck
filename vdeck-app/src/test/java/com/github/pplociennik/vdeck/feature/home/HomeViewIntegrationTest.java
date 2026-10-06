@@ -45,6 +45,11 @@ class HomeViewIntegrationTest {
      */
     private static final String SIDE_MENU_TRANSLATION_KEY_PREFIX = "sideMenu.";
 
+    /**
+     * Prefix of every translation key of the home button, checked the same way as the island keys.
+     */
+    private static final String HOME_BUTTON_TRANSLATION_KEY_PREFIX = "homeButton.";
+
     @TempDir
     private static Path directory;
 
@@ -111,6 +116,31 @@ class HomeViewIntegrationTest {
                 .andExpect( content().string( not( containsString( "aria-current" ) ) ) )
                 .andExpect( content().string( containsString(
                         "<script type=\"module\" src=\"/js/side-menu.js\"></script>" ) ) );
+    }
+
+    /**
+     * Verifies that the panel root renders the home button as a separate round link to the home page,
+     * outside the side menu, with its accessible name translated and the house icon referenced from the
+     * sprite.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the request
+     */
+    @Test
+    void shouldRenderHomeButton_whenAdministratorOpensPanelRoot() throws Exception {
+        // GIVEN
+        // an authenticated administrator opening the panel root
+
+        // WHEN
+        var result = underTest.perform( get( "/" ).with( user( "admin" ).roles( "ADMIN" ) ) );
+
+        // THEN
+        result.andExpect( status().isOk() )
+                .andExpect( content().string( not( containsString( HOME_BUTTON_TRANSLATION_KEY_PREFIX ) ) ) )
+                .andExpect( content().string( containsString(
+                        "<a class=\"home-button round-button\" href=\"/\"" ) ) )
+                .andExpect( content().string( containsString( "/icons/icons.svg#icon-home" ) ) )
+                .andExpect( content().string( containsString( "class=\"side-menu-toggle round-button\"" ) ) );
     }
 
     /**

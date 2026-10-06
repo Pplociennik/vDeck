@@ -23,7 +23,8 @@ vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2
   successful profile save. Start captures it once for validation and command generation. The builder
   returns `LaunchSpec` directly; the mirror script is rendered from that same specification. Start works; Stop, Restart and
   Kill are not implemented. Status updates require a page refresh. Views with navigation embed the side menu
-  (`templates/common/side-menu.html` + `static/js/side-menu.js`); `static/js/game-settings.js` is the
+  (`templates/common/side-menu.html` + `static/js/side-menu.js`) and, as a separate fragment, the round
+  home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` is the
   only other ES module.
 
 Only packages holding real code exist; the rest of the `design.md` §3 tree is created when

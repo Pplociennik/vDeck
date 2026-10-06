@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -120,5 +121,22 @@ class SystemPropertiesInitializerTest {
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "systemPropertiesService must not be null" );
+    }
+
+    /** Verifies a failed launch-profile file load prevents publishing a partial startup configuration. */
+    @Test
+    void shouldSkipReload_whenSecondSettingsFileCannotBeLoaded() {
+        // GIVEN
+        var failure = new UncheckedIOException( new IOException( "Synthetic second-file failure" ) );
+        doNothing().when( systemPropertiesService ).loadFile( eq( VdeckProperty.FILE_NAME ), any() );
+        willThrow( failure ).given( systemPropertiesService ).loadFile( eq( LaunchProperty.FILE_NAME ), any() );
+
+        // WHEN
+        var thrown = catchThrowable( underTest::afterSingletonsInstantiated );
+
+        // THEN
+        assertThat( thrown ).isSameAs( failure );
+        verify( systemPropertiesService ).loadFile( VdeckProperty.FILE_NAME, VdeckProperty.defaults() );
+        verify( launchProfileService, never() ).reload();
     }
 }

@@ -210,7 +210,7 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 | Klucz | Znaczenie | Obowiązkowe | Wartość domyślna |
 |---|---|---|---|
 | `game.log.directory` | Katalog dziennych podkatalogów logów gry, względny wobec instalacji | tak | `.vDeck/log` |
-| `game.log.retention.days` | Liczba dni retencji logów gry; zalecana wartość nieujemna | tak | `14` |
+| `game.log.retention.days` | Nieujemna liczba dni retencji logów gry; wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
 | `server.start.script` | Skrypt producenta czytany po `SteamAppId`, nigdy wykonywany przez panel | tak | `start_headless_server.bat` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 
@@ -886,6 +886,9 @@ Panel nie uruchamia ani nie zmienia skryptu producenta.
 Metoda `LaunchCommandService.renderScript(launchSpec)` nie czyta ustawień ani plików.
 Skrypt `.vDeck/vDeck-server-start.bat` jest regenerowanym, atomowo zapisywanym artefaktem
 diagnostycznym, bez własnego ekranu. Zamiast hasła zawiera `-password "%VDECK_SERVER_PASSWORD%"`.
+Zapis UTF-8 i nagłówek `chcp 65001` zachowują polskie znaki. Operatory powłoki w argumentach
+są cytowane, literalne procenty podwajane, a delayed expansion wyłączone. Niesekretne wartości
+profilu nie zawierają osadzonych podwójnych cudzysłowów, zgodnie z walidacją formularza.
 Błąd zapisu skryptu jest logowany i nie blokuje właściwego startu. Panel uruchamia plik exe
 bezpośrednio, przez `WindowsProcessLauncher` i FFM `CreateProcessW`, w katalogu instalacji.
 
@@ -894,12 +897,17 @@ Domyślny katalog to `.vDeck/log`; gdy plik już istnieje, nazwa dostaje przyros
 Plik tworzy serwer przez `-logFile`; panel nie przekierowuje konsoli. Przed startem usuwa katalogi
 dzienne starsze niż bieżąca data minus `game.log.retention.days` (domyślnie 14); dzień graniczny
 i katalogi o nazwach innych niż daty zostają. Błąd retencji jest ostrzeżeniem i nie blokuje startu.
+Zero zachowuje bieżący dzień; wartość ujemna lub nienumeryczna daje domyślne 14 dni.
+Datę wyznacza wstrzykiwany `Clock`, produkcyjnie w lokalnej strefie czasowej.
 
 `ServerStateMachine` jest pojedynczym właścicielem procesu i stanu. Zmiany serializuje jedna kolejka;
 odczyt zwraca opublikowany `ServerStatus`. Po 5 sekundach życia proces przechodzi z `STARTING`
 do `RUNNING`; nie jest to potwierdzenie gotowości na podstawie logu. Wyjście podczas startu daje
 `START_FAILED`, późniejsze — `CRASHED`. Powiadomienia ze starego uruchomienia są odrzucane przez
 `operationId`. Błąd samego tworzenia procesu pozostawia poprzedni stan.
+Pakietowy konstruktor przyjmuje serializującą kolejkę `ScheduledExecutorService`; runtime
+pozostaje jej właścicielem i zamyka ją również po błędzie kończenia procesu. Testy sterują
+dostarczeniem zdarzeń oraz potwierdzeń startu bez oczekiwania na upływ czasu.
 
 ![Diagram stanów: bieżący cykl życia serwera](diagramy/server/img/przeplyw-stany-serwera.svg)
 
@@ -910,6 +918,14 @@ Obecna implementacja wiąże proces z panelem przez job object Windows z
 kontekstu wywołuje `ServerStateMachine.close()`, które również kończy proces bez drabiny zapisu
 świata i CTRL+C. Może to utracić niezapisany postęp. Stop, Restart i Kill z GUI, snapshoty,
 łagodne zatrzymanie, odzyskiwanie i adopcja nie są zaimplementowane.
+
+`WindowsProcessLauncher` otrzymuje granicę wywołań `Win32`, funkcję wyszukiwania `ProcessHandle`
+i zegar. Testy zastępują granice systemowe bez uruchamiania procesów. Błąd konfiguracji joba
+lub tworzenia procesu zamyka job; po utworzeniu procesu launcher zawsze zwalnia uchwyty procesu
+i wątku. Nieudane przypisanie do joba wymaga bezpośredniego `TerminateProcess`, ponieważ job
+nie jest jeszcze właścicielem procesu. Po udanym przypisaniu awaria wznowienia lub brak
+`ProcessHandle` powodują zamknięcie joba. Błąd awaryjnego zakończenia jest dołączany jako
+wyjątek suppressed do pierwotnej awarii przypisania. Zamknięty job nie jest zachowywany do ponownego startu.
 
 ![Diagram klas: komponenty uruchamiania serwera](diagramy/server/img/klasy-komponenty.svg)
 

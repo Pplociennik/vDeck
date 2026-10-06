@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.feature.server.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchConfiguration;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
@@ -12,6 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -241,6 +244,27 @@ class ServerStartValidatorTest {
         // THEN
         assertThat( thrown ).isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "pathService must not be null" );
+    }
+
+    /**
+     * Verifies a missing save directory is refused before checking ports or resolving storage.
+     *
+     * @param directory
+     *         blank stored save directory
+     */
+    @ParameterizedTest( name = "[{index}] blank directory <{0}>" )
+    @ValueSource( strings = { "", " ", "\t" } )
+    void shouldRejectIncompleteProfile_whenSaveDirectoryIsBlank( String directory ) {
+        // GIVEN
+        // Port -1 would fail if port probing ran before completeness validation.
+        var configuration = new LaunchConfiguration( profile( SERVER_NAME, "Dedicated", directory, -1, false ), "" );
+
+        // WHEN
+        var thrown = catchThrowable( () -> underTest.validate( configuration, executable ) );
+
+        // THEN
+        assertThatRejectedWith( thrown, ServerMessage.PROFILE_INCOMPLETE );
+        verifyNoInteractions( pathService );
     }
 
     // =================================================================================================

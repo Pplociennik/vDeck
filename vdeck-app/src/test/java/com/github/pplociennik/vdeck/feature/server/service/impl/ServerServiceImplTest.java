@@ -3,7 +3,10 @@ package com.github.pplociennik.vdeck.feature.server.service.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -38,6 +41,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Verifies start orchestration without creating processes or touching installation files. */
 @ExtendWith( MockitoExtension.class )
@@ -262,6 +266,61 @@ class ServerServiceImplTest {
 
         // THEN
         assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( dependency );
+    }
+
+    /** Verifies settings changing during validation cannot mix the checked profile and launched password. */
+    @Test
+    void shouldCaptureConfigurationOnce_whenSettingsChangeDuringValidation() {
+        // GIVEN
+        var captured = new LaunchConfiguration( profile(), "FirstSyntheticSecret" );
+        var replacement = new LaunchConfiguration( profile(), "SecondSyntheticSecret" );
+        var available = new AtomicReference<>( captured );
+        Path executable = directory.resolve( "valheim_server.exe" );
+        Path log = directory.resolve( "run.log" );
+        var spec = new LaunchSpec( executable, List.of( "-password", captured.password() ), Map.of(), directory, log );
+        given( serverRuntime.status() ).willReturn( ServerStatus.stopped() );
+        given( launchProfileService.getConfiguration() ).willAnswer( invocation -> available.get() );
+        given( pathService.getBaseDirectory() ).willReturn( directory );
+        doAnswer( invocation -> {
+            available.set( replacement );
+            return null;
+        } ).when( validator ).validate( same( captured ),
+                eq( executable ) );
+        given( serverLogService.createLogFileForNewStart() ).willReturn( log );
+        given( launchCommandService.build( same( captured ),
+                eq( log ) ) ).willReturn( spec );
+        given( launchCommandService.renderScript( spec ) ).willReturn( "@echo off\r\n" );
+        given( pathService.getAbsolutePath( ServerService.START_SCRIPT_NAME ) )
+                .willReturn( directory.resolve( ServerService.START_SCRIPT_NAME ) );
+        given( serverRuntime.start( spec ) ).willReturn( runningStatus() );
+
+        // WHEN
+        underTest.start();
+
+        // THEN
+        verify( launchProfileService ).getConfiguration();
+        verify( launchCommandService ).build( same( captured ),
+                eq( log ) );
+        verify( serverRuntime ).start( same( spec ) );
+        assertThat( available.get() ).isSameAs( replacement );
+        assertThat( spec.arguments() ).contains( "FirstSyntheticSecret" ).doesNotContain( "SecondSyntheticSecret" );
+    }
+
+    /** Verifies the persisted mirror retains Unicode instead of failing the ASCII encoder. */
+    @Test
+    void shouldPersistUnicodeMirror_whenNamesContainPolishCharacters() {
+        // GIVEN
+        var spec = givenPreparedCommand();
+        String content = "@echo off\r\nREM Za\u017c\u00f3\u0142\u0107\r\n";
+        given( launchCommandService.renderScript( spec ) ).willReturn( content );
+        given( serverRuntime.start( spec ) ).willReturn( runningStatus() );
+
+        // WHEN
+        underTest.start();
+
+        // THEN
+        assertThat( directory.resolve( ServerService.START_SCRIPT_NAME ) ).hasContent( content );
+        verify( serverRuntime ).start( spec );
     }
 
     // =================================================================================================

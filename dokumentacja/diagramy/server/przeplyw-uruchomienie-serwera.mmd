@@ -26,7 +26,7 @@ sequenceDiagram
             Advice-->>Admin: przekierowanie / z serverErrorKey
         else Walidacja zakończona
             Service->>Logs: createLogFileForNewStart()
-            Note over Logs: Retencja i wybór ścieżki logu
+            Note over Logs: Retencja według Clock i wybór ścieżki logu.<br/>Ujemna retencja używa 14 dni, zero zachowuje dziś
             alt Nie można przygotować katalogu logów
                 Logs-->>Service: UncheckedIOException
                 Service-->>Advice: LOG_DIRECTORY_NOT_WRITABLE przez kontroler
@@ -36,8 +36,9 @@ sequenceDiagram
                 Command-->>Service: LaunchSpec
                 Service->>Command: renderScript(launchSpec)
                 Command-->>Service: skrypt bez hasła (bez odczytu ustawień)
-                Note over Service: Atomowy zapis skryptu lustrzanego.<br/>Błąd zapisu pliku nie blokuje startu
+                Note over Service: Atomowy zapis skryptu UTF-8 bez hasła.<br/>Cytowanie operatorów, literalne procenty.<br/>Błąd zapisu pliku nie blokuje startu
                 Service->>Runtime: start(launchSpec)
+                Note over Runtime: Proces zawieszony przed przypisaniem do joba.<br/>Błąd przypisania: TerminateProcess.<br/>Inna awaria: zamknięcie joba i uchwytów
                 alt Proces utworzony
                     Runtime-->>Service: STARTING
                     Service-->>Web: sukces

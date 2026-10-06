@@ -12,9 +12,12 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
+import java.util.function.LongFunction;
 
 import static java.util.Objects.requireNonNull;
 
@@ -51,6 +54,37 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
      */
     private MemorySegment jobHandle;
 
+    private final Win32 nativeCalls;
+
+    private final LongFunction< Optional< ProcessHandle > > processLookup;
+
+    private final Clock clock;
+
+    /** Creates the launcher using the Windows native API and the system clock. */
+    public WindowsProcessLauncher() {
+        this( new Win32(), ProcessHandle::of, Clock.systemUTC() );
+    }
+
+    /**
+     * Creates a launcher with explicit operating-system boundaries.
+     *
+     * @param nativeCalls
+     *         Windows calls whose handles are owned by this launcher
+     * @param processLookup
+     *         lookup of the Java handle for a created process
+     * @param clock
+     *         source of process creation timestamps
+     * @throws NullPointerException
+     *         if any dependency is null
+     */
+    WindowsProcessLauncher( @Nonnull Win32 nativeCalls,
+                            @Nonnull LongFunction< Optional< ProcessHandle > > processLookup,
+                            @Nonnull Clock clock ) {
+        this.nativeCalls = requireNonNull( nativeCalls, "nativeCalls must not be null" );
+        this.processLookup = requireNonNull( processLookup, "processLookup must not be null" );
+        this.clock = requireNonNull( clock, "clock must not be null" );
+    }
+
     @Override
     public @Nonnull RunningServer launch( @Nonnull LaunchSpec launchSpec ) {
         requireNonNull( launchSpec, "launchSpec must not be null" );
@@ -60,17 +94,17 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
         MemorySegment job = createKillOnCloseJob();
         try ( Arena arena = Arena.ofConfined() ) {
             long pid = createProcessInJob( arena, launchSpec, job );
-            jobHandle = job;
-            Instant startedAt = Instant.now();
-            ProcessHandle handle = ProcessHandle.of( pid ).orElseThrow(
+            Instant startedAt = clock.instant();
+            ProcessHandle handle = processLookup.apply( pid ).orElseThrow(
                     () -> new UncheckedIOException( new IOException(
                             "Server process " + pid + " disappeared immediately after being created" ) ) );
+            jobHandle = job;
             log.info( "Created server process {} bound to the panel's lifetime", pid );
             return new RunningServer( handle, startedAt, launchSpec.logFile() );
         } catch ( RuntimeException exception ) {
             // The job owns nothing useful now; closing it reaps a process that may have been created
             // before the failure, so a half-finished launch cannot leave an orphan behind.
-            Win32.closeHandle( job );
+            nativeCalls.closeHandle( job );
             throw exception;
         }
     }
@@ -93,45 +127,63 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
         MemorySegment processInformation = arena.allocate( Win32.PROCESS_INFORMATION );
 
         int creationFlags = Win32.CREATE_NO_WINDOW | Win32.CREATE_UNICODE_ENVIRONMENT | Win32.CREATE_SUSPENDED;
-        if ( Win32.createProcess( applicationName, commandLine, creationFlags, environment, workingDirectory,
+        if ( nativeCalls.createProcess( applicationName, commandLine, creationFlags, environment, workingDirectory,
                 startupInfo, processInformation ) == 0 ) {
-            throw failure( "CreateProcessW", Win32.getLastError() );
+            throw failure( "CreateProcessW", nativeCalls.getLastError() );
         }
 
         MemorySegment processHandle = processInformation.get( ValueLayout.ADDRESS, 0L );
         MemorySegment threadHandle = processInformation.get( ValueLayout.ADDRESS, 8L );
         long pid = Integer.toUnsignedLong( processInformation.get( ValueLayout.JAVA_INT, 16L ) );
         try {
-            if ( Win32.assignProcessToJobObject( job, processHandle ) == 0 ) {
-                throw failure( "AssignProcessToJobObject", Win32.getLastError() );
-            }
-            if ( Win32.resumeThread( threadHandle ) == Win32.INVALID_HANDLE ) {
-                throw failure( "ResumeThread", Win32.getLastError() );
+            assignToJob( job, processHandle );
+            if ( nativeCalls.resumeThread( threadHandle ) == Win32.INVALID_HANDLE ) {
+                throw failure( "ResumeThread", nativeCalls.getLastError() );
             }
             return pid;
         } finally {
             // The panel tracks the process through ProcessHandle, so these two handles are not needed
             // once the process is running; the job keeps the ownership relation alive.
-            Win32.closeHandle( threadHandle );
-            Win32.closeHandle( processHandle );
+            nativeCalls.closeHandle( threadHandle );
+            nativeCalls.closeHandle( processHandle );
+        }
+    }
+
+    /** A job cannot reap a process until assignment succeeds; failed assignment needs direct cleanup. */
+    private void assignToJob( MemorySegment job, MemorySegment process ) {
+        try {
+            if ( nativeCalls.assignProcessToJobObject( job, process ) == 0 ) {
+                throw failure( "AssignProcessToJobObject", nativeCalls.getLastError() );
+            }
+        } catch ( RuntimeException exception ) {
+            try {
+                if ( nativeCalls.terminateProcess( process ) == 0 ) {
+                    exception.addSuppressed( failure( "TerminateProcess", nativeCalls.getLastError() ) );
+                }
+            } catch ( RuntimeException cleanupFailure ) {
+                exception.addSuppressed( cleanupFailure );
+            }
+            throw exception;
         }
     }
 
     private @Nonnull MemorySegment createKillOnCloseJob() {
-        MemorySegment job = Win32.createJobObject();
+        MemorySegment job = nativeCalls.createJobObject();
         if ( job.equals( MemorySegment.NULL ) ) {
-            throw failure( "CreateJobObjectW", Win32.getLastError() );
+            throw failure( "CreateJobObjectW", nativeCalls.getLastError() );
         }
         try ( Arena arena = Arena.ofConfined() ) {
             MemorySegment limits = arena.allocate( Win32.JOBOBJECT_EXTENDED_LIMIT_INFORMATION );
             limits.set( ValueLayout.JAVA_INT, Win32.LIMIT_FLAGS_OFFSET, Win32.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE );
             int size = ( int ) Win32.JOBOBJECT_EXTENDED_LIMIT_INFORMATION.byteSize();
-            if ( Win32.setInformationJobObject( job, Win32.JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, limits,
+            if ( nativeCalls.setInformationJobObject( job, Win32.JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, limits,
                     size ) == 0 ) {
-                int error = Win32.getLastError();
-                Win32.closeHandle( job );
+                int error = nativeCalls.getLastError();
                 throw failure( "SetInformationJobObject", error );
             }
+        } catch ( RuntimeException exception ) {
+            nativeCalls.closeHandle( job );
+            throw exception;
         }
         return job;
     }
@@ -140,7 +192,7 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
         if ( jobHandle == null ) {
             return;
         }
-        Win32.closeHandle( jobHandle );
+        nativeCalls.closeHandle( jobHandle );
         jobHandle = null;
         log.debug( "Released the job object of the previous server" );
     }

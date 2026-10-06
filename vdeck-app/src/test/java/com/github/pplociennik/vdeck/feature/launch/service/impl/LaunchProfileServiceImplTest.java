@@ -38,6 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
@@ -618,6 +619,117 @@ class LaunchProfileServiceImplTest {
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "pathService must not be null" );
+    }
+
+    /** Verifies removal is reflected in both the captured secret and the web profile flag. */
+    @Test
+    void shouldPublishPasswordRemoval_whenRemovalIsSaved() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "SyntheticSecret" );
+        underTest.reload();
+        var previous = underTest.getConfiguration();
+        givenSuccessfulWrite();
+
+        // WHEN
+        underTest.updateServerSettings( form( "Changed", "", true, "worlds" ) );
+
+        // THEN
+        assertThat( underTest.getConfiguration().password() ).isEmpty();
+        assertThat( underTest.getProfile().passwordSet() ).isFalse();
+        assertThat( previous.password() ).isEqualTo( "SyntheticSecret" );
+        assertThat( previous.profile().passwordSet() ).isTrue();
+    }
+
+    /** Verifies leaving the password field blank preserves the secret in the newly published version. */
+    @Test
+    void shouldPublishKeptPassword_whenPasswordFieldIsBlank() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "SyntheticSecret" );
+        underTest.reload();
+        givenSuccessfulWrite();
+
+        // WHEN
+        underTest.updateServerSettings( form( "Changed", "", false, "worlds" ) );
+
+        // THEN
+        assertThat( underTest.getConfiguration().password() ).isEqualTo( "SyntheticSecret" );
+        assertThat( underTest.getProfile().passwordSet() ).isTrue();
+        assertThat( underTest.getProfile().serverName() ).isEqualTo( "Changed" );
+    }
+
+    /** Verifies a failed server write cannot publish the submitted replacement password. */
+    @Test
+    void shouldKeepSecretAndConfiguration_whenServerWriteFails() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "OriginalSyntheticSecret" );
+        underTest.reload();
+        var previous = underTest.getConfiguration();
+        var failure = new UncheckedIOException( new IOException( "Synthetic write failure" ) );
+        willThrow( failure ).given( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+
+        // WHEN
+        var thrown = catchThrowable( () -> underTest.updateServerSettings(
+                form( "Changed", "ReplacementSyntheticSecret", false, "worlds" ) ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( LaunchProfileUpdateException.class ).hasCause( failure );
+        assertThat( underTest.getConfiguration() ).isSameAs( previous );
+        assertThat( previous.password() ).isEqualTo( "OriginalSyntheticSecret" );
+    }
+
+    /**
+     * Verifies overlapping writes from the two settings screens publish both changes together.
+     *
+     * @throws Exception
+     *         if coordinated writers fail or exceed their bounded waits
+     */
+    @Test
+    void shouldPreserveBothScreens_whenServerAndGameUpdatesOverlap() throws Exception {
+        // GIVEN
+        storedValues = Collections.synchronizedMap( storedValues );
+        underTest.reload();
+        var writingServer = new CountDownLatch( 1 );
+        var releaseServer = new CountDownLatch( 1 );
+        var gameRequested = new CountDownLatch( 1 );
+        doAnswer( invocation -> {
+            SystemPropertyValues values = invocation.getArgument( 1 );
+            if ( values.asMap().containsKey( LaunchProperty.SERVER_NAME ) ) {
+                writingServer.countDown();
+                if ( !releaseServer.await( 5, TimeUnit.SECONDS ) ) {
+                    throw new IllegalStateException( "Server write was not released" );
+                }
+            }
+            applyStoredValues( values );
+            return null;
+        } ).when( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+        try ( var executor = Executors.newFixedThreadPool( 2 ) ) {
+            var serverUpdate = executor.submit( () -> underTest.updateServerSettings(
+                    form( "New server", "SyntheticSecret", false, "worlds" ) ) );
+            try {
+                assertThat( writingServer.await( 5, TimeUnit.SECONDS ) ).isTrue();
+                var gameUpdate = executor.submit( () -> {
+                    gameRequested.countDown();
+                    underTest.updateGameSettings( gameForm( "hard", "veryhard" ) );
+                } );
+
+                // WHEN
+                assertThat( gameRequested.await( 5, TimeUnit.SECONDS ) ).isTrue();
+                releaseServer.countDown();
+                serverUpdate.get( 5, TimeUnit.SECONDS );
+                gameUpdate.get( 5, TimeUnit.SECONDS );
+
+                // THEN
+                var result = underTest.getConfiguration();
+                assertThat( result.profile().serverName() ).isEqualTo( "New server" );
+                assertThat( result.password() ).isEqualTo( "SyntheticSecret" );
+                assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
+                assertThat( result.profile().modifiers() ).containsEntry( WorldModifier.COMBAT, "veryhard" );
+                assertThat( storedValues ).containsEntry( LaunchProperty.SERVER_NAME, "New server" )
+                        .containsEntry( LaunchProperty.WORLD_PRESET, "hard" );
+            } finally {
+                releaseServer.countDown();
+            }
+        }
     }
 
     // =================================================================================================

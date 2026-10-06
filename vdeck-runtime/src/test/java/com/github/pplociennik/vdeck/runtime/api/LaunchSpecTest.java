@@ -1,16 +1,19 @@
 package com.github.pplociennik.vdeck.runtime.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Verifies that a launch description is complete, absolute and frozen once built, and that it never
@@ -211,4 +214,89 @@ class LaunchSpecTest {
         assertThat( thrown ).isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "executable must not be null" );
     }
+    /** Verifies that a relative working directory is rejected just like the executable and log paths. */
+    @Test
+    void shouldRejectSpecification_whenWorkingDirectoryIsRelative() {
+        // GIVEN
+        var original = underTest;
+
+        // WHEN
+        var thrown = catchThrowable( () -> new LaunchSpec( original.executable(), original.arguments(),
+                original.environment(), Path.of( "relative" ), original.logFile() ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( IllegalArgumentException.class ).hasMessageContaining( "workingDirectory" );
+    }
+
+    /**
+     * Verifies both remaining required paths reject null independently.
+     *
+     * @param missing
+     *         path deliberately omitted
+     */
+    @ParameterizedTest( name = "[{index}] missing {0}" )
+    @ValueSource( strings = { "workingDirectory", "logFile" } )
+    void shouldRejectSpecification_whenRequiredPathIsNull( String missing ) {
+        // GIVEN
+        var original = underTest;
+
+        // WHEN
+        var thrown = catchThrowable( () -> new LaunchSpec( original.executable(), original.arguments(),
+                original.environment(), missing.equals( "workingDirectory" ) ? null : original.workingDirectory(),
+                missing.equals( "logFile" ) ? null : original.logFile() ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( missing );
+    }
+
+    /** Verifies a null argument element cannot reach native command-line encoding. */
+    @Test
+    void shouldRejectSpecification_whenArgumentElementIsNull() {
+        // GIVEN
+        var original = underTest;
+
+        // WHEN
+        var thrown = catchThrowable( () -> new LaunchSpec( original.executable(), Arrays.asList( "-name", null ),
+                original.environment(), original.workingDirectory(), original.logFile() ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( NullPointerException.class );
+    }
+
+    /**
+     * Verifies null environment keys and values are rejected before native block encoding.
+     *
+     * @param nullKey
+     *         whether the key rather than its value is absent
+     */
+    @ParameterizedTest( name = "[{index}] null environment key={0}" )
+    @ValueSource( booleans = { true, false } )
+    void shouldRejectSpecification_whenEnvironmentContainsNull( boolean nullKey ) {
+        // GIVEN
+        var environment = new HashMap< String, String >();
+        environment.put( nullKey ? null : "NAME", nullKey ? "value" : null );
+        var original = underTest;
+
+        // WHEN
+        var thrown = catchThrowable( () -> new LaunchSpec( original.executable(), original.arguments(),
+                environment, original.workingDirectory(), original.logFile() ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( NullPointerException.class );
+    }
+
+    /** Verifies callers cannot mutate the environment after validation has captured it. */
+    @Test
+    void shouldRejectEnvironmentMutation_whenSpecificationIsPublished() {
+        // GIVEN
+        var environment = underTest.environment();
+
+        // WHEN
+        var thrown = catchThrowable( () -> environment.put( "INJECTED", "value" ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( UnsupportedOperationException.class );
+        assertThat( underTest.environment() ).doesNotContainKey( "INJECTED" );
+    }
+
 }

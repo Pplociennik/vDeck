@@ -99,12 +99,31 @@ public final class ServerStateMachine implements ServerRuntime, AutoCloseable {
      *         if {@code gracePeriod} is negative
      */
     public ServerStateMachine( @Nonnull GameProcessLauncher launcher, @Nonnull Duration gracePeriod ) {
+        this( launcher, gracePeriod, Executors.newSingleThreadScheduledExecutor( eventQueueThreadFactory() ) );
+    }
+
+    /**
+     * Creates a runtime owning the supplied serial queue, including its shutdown.
+     *
+     * @param launcher
+     *         process creation boundary
+     * @param gracePeriod
+     *         non-negative survival interval
+     * @param eventQueue
+     *         serial scheduler controlling lifecycle events
+     * @throws NullPointerException
+     *         if any dependency is null
+     * @throws IllegalArgumentException
+     *         if the grace period is negative
+     */
+    ServerStateMachine( @Nonnull GameProcessLauncher launcher, @Nonnull Duration gracePeriod,
+                        @Nonnull ScheduledExecutorService eventQueue ) {
         this.launcher = requireNonNull( launcher, "launcher must not be null" );
         this.gracePeriod = requireNonNull( gracePeriod, "gracePeriod must not be null" );
         if ( gracePeriod.isNegative() ) {
             throw new IllegalArgumentException( "gracePeriod must not be negative but was " + gracePeriod );
         }
-        this.eventQueue = Executors.newSingleThreadScheduledExecutor( eventQueueThreadFactory() );
+        this.eventQueue = requireNonNull( eventQueue, "eventQueue must not be null" );
     }
 
     @Override

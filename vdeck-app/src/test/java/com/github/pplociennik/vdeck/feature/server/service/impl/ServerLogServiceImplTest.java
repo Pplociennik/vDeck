@@ -1,10 +1,16 @@
 package com.github.pplociennik.vdeck.feature.server.service.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.BDDMockito.given;
+
 import com.github.pplociennik.vdeck.shared.VdeckProperty;
 import com.github.pplociennik.vdeck.shared.service.PathService;
 import com.github.pplociennik.vdeck.shared.service.SystemPropertiesService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
@@ -14,19 +20,16 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.mockito.BDDMockito.given;
 
 /**
  * Verifies the layout of the game server logs and the retention applied before a launch.
  *
- * <p>No assertion names a concrete date. The naming tests check the structural relationship between a
- * day directory and the file inside it, which cannot break at midnight, and the retention tests build
- * their own day directories relative to the current date instead of hard-coding one.
+ * <p>A fixed clock makes same-second collisions and retention boundaries deterministic.
  */
 @ExtendWith( MockitoExtension.class )
 class ServerLogServiceImplTest {
@@ -34,6 +37,8 @@ class ServerLogServiceImplTest {
     // =================================================================================================
     // FIELDS
     // =================================================================================================
+
+    private static final Clock CLOCK = Clock.fixed( Instant.parse( "2026-10-06T23:59:59Z" ), ZoneOffset.UTC );
 
     private static final String CONFIGURED_DIRECTORY = ".vDeck/log";
 
@@ -67,7 +72,7 @@ class ServerLogServiceImplTest {
     @BeforeEach
     void setUp() {
         logDirectory = installationDirectory.resolve( ".vDeck" ).resolve( "log" );
-        underTest = new ServerLogServiceImpl( systemPropertiesService, pathService );
+        underTest = new ServerLogServiceImpl( systemPropertiesService, pathService, CLOCK );
     }
 
     // =================================================================================================
@@ -144,7 +149,8 @@ class ServerLogServiceImplTest {
 
         // THEN
         assertThat( result ).isNotEqualTo( firstLog ).doesNotExist();
-        assertThat( result.getFileName().toString() ).endsWith( ".log" );
+        assertThat( result.getFileName().toString() ).isEqualTo( "2026-10-06_23-59-59-1.log" );
+        assertThat( firstLog ).hasContent( "" );
     }
 
     /**
@@ -291,6 +297,115 @@ class ServerLogServiceImplTest {
                 .hasMessageContaining( "pathService must not be null" );
     }
 
+    /**
+     * Verifies repeated collisions use the first available suffix and preserve earlier logs.
+     *
+     * @throws IOException
+     *         if the occupied files cannot be prepared
+     */
+    @Test
+    void shouldUseSecondSuffix_whenBaseAndFirstSuffixAreOccupied() throws IOException {
+        // GIVEN
+        givenConfiguredLogDirectory();
+        Path first = underTest.createLogFileForNewStart();
+        Files.writeString( first, "first launch" );
+        Path second = first.resolveSibling( "2026-10-06_23-59-59-1.log" );
+        Files.writeString( second, "second launch" );
+
+        // WHEN
+        Path result = underTest.createLogFileForNewStart();
+
+        // THEN
+        assertThat( result ).isEqualTo( first.resolveSibling( "2026-10-06_23-59-59-2.log" ) ).doesNotExist();
+        assertThat( first ).hasContent( "first launch" );
+        assertThat( second ).hasContent( "second launch" );
+    }
+
+    /**
+     * Verifies that zero retention removes yesterday while keeping today's existing logs.
+     *
+     * @throws IOException
+     *         if the day directories cannot be prepared
+     */
+    @Test
+    void shouldKeepCurrentDay_whenRetentionIsZero() throws IOException {
+        // GIVEN
+        givenConfiguredLogDirectory();
+        givenRetentionDays( "0" );
+        Path yesterday = givenDayDirectoryAgedDays( 1 );
+        Path today = givenDayDirectoryAgedDays( 0 );
+
+        // WHEN
+        underTest.createLogFileForNewStart();
+
+        // THEN
+        assertThat( yesterday ).doesNotExist();
+        assertThat( today.resolve( "old-run.log" ) ).exists();
+    }
+
+    /**
+     * Verifies that invalid negative retention falls back to fourteen days instead of deleting today's logs.
+     *
+     * @throws IOException
+     *         if the day directories cannot be prepared
+     */
+    @Test
+    void shouldUseDefaultWindow_whenRetentionIsNegative() throws IOException {
+        // GIVEN
+        givenConfiguredLogDirectory();
+        givenRetentionDays( "-1" );
+        Path today = givenDayDirectoryAgedDays( 0 );
+        Path boundary = givenDayDirectoryAgedDays( 14 );
+        Path expired = givenDayDirectoryAgedDays( 15 );
+
+        // WHEN
+        underTest.createLogFileForNewStart();
+
+        // THEN
+        assertThat( today.resolve( "old-run.log" ) ).exists();
+        assertThat( boundary ).exists();
+        assertThat( expired ).doesNotExist();
+    }
+
+    /**
+     * Verifies a Windows read-only expired file does not prevent creating the next log directory.
+     *
+     * @throws IOException
+     *         if the isolated file attributes cannot be set or restored
+     */
+    @Test
+    @EnabledOnOs( OS.WINDOWS )
+    void shouldPrepareNewLog_whenExpiredFileCannotBeDeleted() throws IOException {
+        // GIVEN
+        givenConfiguredLogDirectory();
+        givenRetentionDays( "14" );
+        Path expired = givenDayDirectoryAgedDays( 30 ).resolve( "old-run.log" );
+        Files.setAttribute( expired, "dos:readonly", true );
+        try {
+            // WHEN
+            Path result = underTest.createLogFileForNewStart();
+
+            // THEN
+            assertThat( result.getParent() ).isDirectory();
+            assertThat( expired ).exists();
+        } finally {
+            Files.setAttribute( expired, "dos:readonly", false );
+        }
+    }
+
+    /** Verifies that date generation cannot be configured with an absent clock. */
+    @Test
+    void shouldRejectConstruction_whenClockIsNull() {
+        // GIVEN
+        // No clock.
+
+        // WHEN
+        var thrown = catchThrowable( () -> new ServerLogServiceImpl( systemPropertiesService, pathService, null ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( "clock" );
+    }
+
     // =================================================================================================
     // HELPER METHODS
     // =================================================================================================
@@ -327,7 +442,7 @@ class ServerLogServiceImplTest {
      *         if it cannot be created
      */
     private Path givenDayDirectoryAgedDays( int age ) throws IOException {
-        Path day = logDirectory.resolve( DAY_FORMAT.format( LocalDate.now().minusDays( age ) ) );
+        Path day = logDirectory.resolve( DAY_FORMAT.format( LocalDate.now( CLOCK ).minusDays( age ) ) );
         Files.createDirectories( day );
         Files.createFile( day.resolve( "old-run.log" ) );
         return day;

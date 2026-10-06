@@ -154,7 +154,7 @@ class ServerServiceImpl implements ServerService {
         try {
             Files.createDirectories( script.getParent() );
             temporaryFile = Files.createTempFile( script.getParent(), "vDeck", ".bat.tmp" );
-            Files.writeString( temporaryFile, content, StandardCharsets.US_ASCII );
+            Files.writeString( temporaryFile, content, StandardCharsets.UTF_8 );
             Files.move( temporaryFile, script, REPLACE_EXISTING, ATOMIC_MOVE );
             temporaryFile = null;
             log.info( "Wrote the start script mirroring this launch to {}", script );

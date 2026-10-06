@@ -1,17 +1,22 @@
 package com.github.pplociennik.vdeck.feature.server.service.impl;
 
+import static com.github.pplociennik.vdeck.shared.PropertyReader.read;
+import static com.github.pplociennik.vdeck.shared.PropertyReader.readInt;
+
 import com.github.pplociennik.vdeck.feature.server.service.ServerLogService;
 import com.github.pplociennik.vdeck.shared.VdeckProperty;
 import com.github.pplociennik.vdeck.shared.service.PathService;
 import com.github.pplociennik.vdeck.shared.service.SystemPropertiesService;
 import jakarta.annotation.Nonnull;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -19,8 +24,6 @@ import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.stream.Stream;
 
-import static com.github.pplociennik.vdeck.shared.PropertyReader.read;
-import static com.github.pplociennik.vdeck.shared.PropertyReader.readInt;
 import static java.util.Objects.requireNonNull;
 
 /**
@@ -41,6 +44,8 @@ class ServerLogServiceImpl implements ServerLogService {
 
     private final PathService pathService;
 
+    private final Clock clock;
+
     /**
      * Creates the service laying out game server logs.
      *
@@ -49,17 +54,36 @@ class ServerLogServiceImpl implements ServerLogService {
      * @param pathService
      *         service resolving the configured directory against the installation directory
      */
+    @Autowired
     ServerLogServiceImpl( @Nonnull SystemPropertiesService systemPropertiesService,
                           @Nonnull PathService pathService ) {
+        this( systemPropertiesService, pathService, Clock.systemDefaultZone() );
+    }
+
+    /**
+     * Creates log storage with an explicit clock for day boundaries and file collisions.
+     *
+     * @param systemPropertiesService
+     *         panel settings
+     * @param pathService
+     *         confined path resolver
+     * @param clock
+     *         clock and zone used for log dates
+     * @throws NullPointerException
+     *         if any dependency is null
+     */
+    ServerLogServiceImpl( @Nonnull SystemPropertiesService systemPropertiesService,
+                          @Nonnull PathService pathService, @Nonnull Clock clock ) {
         this.systemPropertiesService = requireNonNull( systemPropertiesService,
                 "systemPropertiesService must not be null" );
         this.pathService = requireNonNull( pathService, "pathService must not be null" );
+        this.clock = requireNonNull( clock, "clock must not be null" );
     }
 
     @Override
     public @Nonnull Path createLogFileForNewStart() {
         Path baseDirectory = resolveBaseDirectory();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now( clock );
 
         applyRetention( baseDirectory, now.toLocalDate() );
 
@@ -102,6 +126,10 @@ class ServerLogServiceImpl implements ServerLogService {
         }
         int retentionDays = readInt( systemPropertiesService, VdeckProperty.FILE_NAME,
                 VdeckProperty.GAME_LOG_RETENTION_DAYS, VdeckProperty.GAME_LOG_RETENTION_DAYS.getDefaultValue() );
+        if ( retentionDays < 0 ) {
+            log.warn( "Negative game log retention, using the default retention window" );
+            retentionDays = Integer.parseInt( VdeckProperty.GAME_LOG_RETENTION_DAYS.getDefaultValue() );
+        }
         LocalDate oldestKept = today.minusDays( retentionDays );
 
         try ( Stream< Path > days = Files.list( baseDirectory ) ) {

@@ -1,14 +1,18 @@
 package com.github.pplociennik.vdeck.feature.launch.domain;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Verifies that {@link LaunchProfile} rejects missing components and freezes its collections.
@@ -20,6 +24,16 @@ class LaunchProfileTest {
     // =================================================================================================
 
     private LaunchProfile underTest;
+
+    // =================================================================================================
+    // BEFORE METHODS
+    // =================================================================================================
+
+    /** Creates a fresh profile for every contract test. */
+    @BeforeEach
+    void setUp() {
+        underTest = profile( Map.of(), Set.of() );
+    }
 
     // =================================================================================================
     // TESTS
@@ -80,6 +94,51 @@ class LaunchProfileTest {
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "serverName must not be null" );
+    }
+
+    /**
+     * Verifies empty secrets, whole names, substrings and case-insensitive matching through the domain rule.
+     *
+     * @param password
+     *         synthetic password to compare
+     * @param name
+     *         server name
+     * @param expected
+     *         whether the combination must be rejected
+     */
+    @ParameterizedTest( name = "[{index}] password={0}, name={1}, match={2}" )
+    @CsvSource( { "'', Name, false", "'', '', false", "secret, secret, true",
+            "secret, MysecretServer, true", "SeCrEt, MYSECRETServer, true",
+            "secret, Different, false", "secret, '', false", "secret, sec, false" } )
+    void shouldDetectPasswordInName_whenComparingText( String password, String name, boolean expected ) {
+        // GIVEN
+        // The parameter set describes one combination.
+
+        // WHEN
+        boolean result = LaunchProfile.isPasswordPartOfName( password, name );
+
+        // THEN
+        assertThat( result ).isEqualTo( expected );
+    }
+
+    /**
+     * Verifies each required comparison argument is rejected before matching.
+     *
+     * @param missing
+     *         argument deliberately omitted
+     */
+    @ParameterizedTest( name = "[{index}] missing {0}" )
+    @ValueSource( strings = { "password", "serverName" } )
+    void shouldRejectComparison_whenArgumentIsNull( String missing ) {
+        // GIVEN
+        String password = missing.equals( "password" ) ? null : "synthetic";
+        String name = missing.equals( "serverName" ) ? null : "Server";
+
+        // WHEN
+        var thrown = catchThrowable( () -> LaunchProfile.isPasswordPartOfName( password, name ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( missing );
     }
 
     // =================================================================================================

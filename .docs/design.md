@@ -433,7 +433,8 @@ Druga właściwość, `panel.game.settings.advanced` (domyślnie `false`), zapam
 część profilu uruchomieniowego: jej zmiana nie wpływa na opcje przekazywane serwerowi.
 
 `game.log.retention.days` (domyślnie `14`) określa retencję dziennych katalogów logów; przed startem
-usuwane są katalogi starsze niż bieżąca data minus tę liczbę dni. `server.start.script` (domyślnie
+usuwane są katalogi starsze niż bieżąca data minus tę liczbę dni. Zero zachowuje bieżący dzień;
+wartość ujemna lub nienumeryczna przywraca domyślne 14 dni. `server.start.script` (domyślnie
 `start_headless_server.bat`) wskazuje skrypt producenta czytany wyłącznie po `SteamAppId` (AD-015).
 Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
 `.vDeck/vDeck-server-start.bat` bez zapisanego hasła, ale nigdy go nie uruchamia.
@@ -482,6 +483,9 @@ procesu; skrypt lustrzany używa `"%VDECK_SERVER_PASSWORD%"`. Błąd zapisu skry
 `LaunchCommandService.build()` tworzy bezpośrednio `LaunchSpec` z przechwyconej konfiguracji
 i nowej ścieżki logu. `renderScript(launchSpec)` renderuje skrypt z tej samej specyfikacji,
 bez ponownego czytania ustawień i bez pośredniego obiektu komendy.
+Skrypt jest zapisywany w UTF-8 i wybiera stronę kodową 65001; cytuje operatory powłoki,
+podwaja literalne procenty i wyłącza delayed expansion, zachowując nazwy z polskimi znakami.
+Jego argumenty niesekretne pochodzą z poprawnego profilu bez osadzonych podwójnych cudzysłowów.
 
 Panel nie przekierowuje strumieni konsoli serwera. Plik logu wskazuje jawnie opcja
 `-logFile <ścieżka>` przekazana w wierszu poleceń, kierująca zapis do

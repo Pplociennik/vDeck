@@ -145,13 +145,17 @@ final class Win32 {
     private static final MethodHandle RESUME_THREAD = downcall( "ResumeThread",
             FunctionDescriptor.of( ValueLayout.JAVA_INT, ValueLayout.ADDRESS ) );
 
+    private static final MethodHandle TERMINATE_PROCESS = downcall( "TerminateProcess",
+            FunctionDescriptor.of( ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT ) );
+
     private static final MethodHandle CLOSE_HANDLE = downcall( "CloseHandle",
             FunctionDescriptor.of( ValueLayout.JAVA_INT, ValueLayout.ADDRESS ) );
 
     private static final MethodHandle GET_LAST_ERROR = downcall( "GetLastError",
             FunctionDescriptor.of( ValueLayout.JAVA_INT ) );
 
-    private Win32() {
+    /** Creates the native Windows boundary used by the process launcher. */
+    Win32() {
     }
 
     /**
@@ -175,7 +179,7 @@ final class Win32 {
      * @throws IllegalStateException
      *         if the native call itself cannot be performed
      */
-    static int createProcess( @Nonnull MemorySegment applicationName, @Nonnull MemorySegment commandLine,
+    int createProcess( @Nonnull MemorySegment applicationName, @Nonnull MemorySegment commandLine,
                               int creationFlags, @Nonnull MemorySegment environment,
                               @Nonnull MemorySegment currentDirectory, @Nonnull MemorySegment startupInfo,
                               @Nonnull MemorySegment processInformation ) {
@@ -195,7 +199,7 @@ final class Win32 {
      * @throws IllegalStateException
      *         if the native call itself cannot be performed
      */
-    static @Nonnull MemorySegment createJobObject() {
+    @Nonnull MemorySegment createJobObject() {
         try {
             return ( MemorySegment ) CREATE_JOB_OBJECT_W.invokeExact( MemorySegment.NULL, MemorySegment.NULL );
         } catch ( Throwable throwable ) {
@@ -218,7 +222,7 @@ final class Win32 {
      * @throws IllegalStateException
      *         if the native call itself cannot be performed
      */
-    static int setInformationJobObject( @Nonnull MemorySegment job, int informationClass,
+    int setInformationJobObject( @Nonnull MemorySegment job, int informationClass,
                                         @Nonnull MemorySegment information, int informationLength ) {
         try {
             return ( int ) SET_INFORMATION_JOB_OBJECT.invokeExact( job, informationClass, information,
@@ -239,7 +243,7 @@ final class Win32 {
      * @throws IllegalStateException
      *         if the native call itself cannot be performed
      */
-    static int assignProcessToJobObject( @Nonnull MemorySegment job, @Nonnull MemorySegment process ) {
+    int assignProcessToJobObject( @Nonnull MemorySegment job, @Nonnull MemorySegment process ) {
         try {
             return ( int ) ASSIGN_PROCESS_TO_JOB_OBJECT.invokeExact( job, process );
         } catch ( Throwable throwable ) {
@@ -256,7 +260,7 @@ final class Win32 {
      * @throws IllegalStateException
      *         if the native call itself cannot be performed
      */
-    static int resumeThread( @Nonnull MemorySegment thread ) {
+    int resumeThread( @Nonnull MemorySegment thread ) {
         try {
             return ( int ) RESUME_THREAD.invokeExact( thread );
         } catch ( Throwable throwable ) {
@@ -273,7 +277,7 @@ final class Win32 {
      * @throws IllegalStateException
      *         if the native call itself cannot be performed
      */
-    static int closeHandle( @Nonnull MemorySegment handle ) {
+    int closeHandle( @Nonnull MemorySegment handle ) {
         try {
             return ( int ) CLOSE_HANDLE.invokeExact( handle );
         } catch ( Throwable throwable ) {
@@ -288,11 +292,28 @@ final class Win32 {
      * @throws IllegalStateException
      *         if the native call itself cannot be performed
      */
-    static int getLastError() {
+    int getLastError() {
         try {
             return ( int ) GET_LAST_ERROR.invokeExact();
         } catch ( Throwable throwable ) {
             throw new IllegalStateException( "Native call to GetLastError failed", throwable );
+        }
+    }
+
+    /**
+     * Terminates a suspended process that could not be assigned to its owning job.
+     *
+     * @param process
+     *         native handle of the unassigned process
+     * @return non-zero on success, zero on failure
+     * @throws IllegalStateException
+     *         if the native invocation itself fails
+     */
+    int terminateProcess( @Nonnull MemorySegment process ) {
+        try {
+            return ( int ) TERMINATE_PROCESS.invokeExact( process, 1 );
+        } catch ( Throwable throwable ) {
+            throw new IllegalStateException( "Native call to TerminateProcess failed", throwable );
         }
     }
 

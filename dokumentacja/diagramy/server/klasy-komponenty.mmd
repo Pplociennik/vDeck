@@ -36,6 +36,7 @@ classDiagram
             <<interface>>
         }
         class WindowsProcessLauncher
+        class Win32
     }
     ServerController --> ServerService : start
     ServerExceptionHandler ..> ServerController : obsługa błędu
@@ -54,3 +55,4 @@ classDiagram
     ServerRuntime ..> ServerStatus : publikuje
     ServerStateMachine --> GameProcessLauncher : uruchamia
     WindowsProcessLauncher ..|> GameProcessLauncher
+    WindowsProcessLauncher --> Win32 : wstrzykiwana granica Windows

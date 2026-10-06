@@ -17,10 +17,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,6 +32,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 /**
  * Verifies that the launch profile becomes the right {@code valheim_server.exe} command line, that
@@ -60,6 +66,9 @@ class LaunchCommandServiceImplTest {
     private Path logFile;
 
     private String password = "";
+
+    @Mock
+    private Function< Path, Stream< String > > scriptLines;
 
     private LaunchCommandServiceImpl underTest;
 
@@ -258,22 +267,21 @@ class LaunchCommandServiceImplTest {
                 .doesNotContain( "-password" );
     }
 
-    /**
-     * Verifies that the script stays pure ASCII, because {@code cmd.exe} reads it in an OEM code page
-     * and would mangle anything else.
-     */
+    /** Verifies that a mirror keeps Unicode paths and names and explicitly selects UTF-8. */
     @Test
-    void shouldContainOnlyAsciiCharacters_whenScriptIsGenerated() {
+    void shouldPreserveUnicode_whenScriptContainsPolishNames() {
         // GIVEN
-        givenPassword( PASSWORD );
-        givenStartScriptDeclaring( "892970" );
-        givenResolvedSaveDirectory();
+        var base = installationDirectory.resolve( "Za\u017c\u00f3\u0142\u0107" );
+        var spec = new LaunchSpec( base.resolve( "valheim_server.exe" ),
+                List.of( "-name", "\u017b\u00f3\u0142ty serwer", "-password", PASSWORD ),
+                Map.of( "SteamAppId", "892970" ), base, base.resolve( "run.log" ) );
 
         // WHEN
-        LaunchSpec result = underTest.build( new LaunchConfiguration( fullProfile(), password ), logFile );
+        String result = underTest.renderScript( spec );
 
         // THEN
-        assertThat( underTest.renderScript( result ).chars().allMatch( character -> character < 128 ) ).isTrue();
+        assertThat( result ).contains( "chcp 65001 >nul\r\n", "Za\u017c\u00f3\u0142\u0107",
+                "\"\u017b\u00f3\u0142ty serwer\"" ).doesNotContain( PASSWORD );
     }
 
     /**
@@ -424,9 +432,147 @@ class LaunchCommandServiceImplTest {
                 .hasMessageContaining( "pathService must not be null" );
     }
 
+    /**
+     * Verifies literal shell operators in validated names are enclosed in an argument's quotes.
+     *
+     * @param name
+     *         name containing a shell operator
+     */
+    @ParameterizedTest( name = "[{index}] literal name {0}" )
+    @ValueSource( strings = { "A&B", "A|B", "A^B", "A<B", "A>B", "A(B)" } )
+    void shouldQuoteShellOperators_whenNameContainsThem( String name ) {
+        // GIVEN
+        var spec = mirrorSpec( name, PASSWORD );
+
+        // WHEN
+        String result = underTest.renderScript( spec );
+
+        // THEN
+        assertThat( result ).contains( "-name \"" + name + "\"" ).doesNotContain( PASSWORD );
+    }
+
+    /** Verifies batch variables in the name stay literal and delayed expansion is disabled. */
+    @Test
+    void shouldEscapeExpansion_whenNameContainsVariableSyntax() {
+        // GIVEN
+        var spec = mirrorSpec( "%PATH%!NAME!", PASSWORD );
+
+        // WHEN
+        String result = underTest.renderScript( spec );
+
+        // THEN
+        assertThat( result ).contains( "setlocal DisableDelayedExpansion\r\n", "-name %%PATH%%!NAME!" )
+                .contains( "-password \"%VDECK_SERVER_PASSWORD%\"" ).doesNotContain( PASSWORD );
+    }
+
+    /** Verifies a quoted path ending in a backslash cannot consume the argument's closing quote. */
+    @Test
+    void shouldDoubleTrailingSlash_whenQuotedDirectoryEndsWithSeparator() {
+        // GIVEN
+        var spec = new LaunchSpec( installationDirectory.resolve( "server.exe" ),
+                List.of( "-savedir", "C:\\my worlds\\" ), Map.of( "SteamAppId", "892970" ),
+                installationDirectory, logFile );
+
+        // WHEN
+        String result = underTest.renderScript( spec );
+
+        // THEN
+        assertThat( result ).contains( "-savedir \"C:\\my worlds\\\\\"\r\n" );
+    }
+
+    /** Verifies a quoted secret is redacted as a complete value rather than partially escaped into the mirror. */
+    @Test
+    void shouldRedactEntireSecret_whenPasswordContainsQuotesAndOperators() {
+        // GIVEN
+        var spec = mirrorSpec( "Safe name", "synthetic\"&%PATH%|secret" );
+
+        // WHEN
+        String result = underTest.renderScript( spec );
+
+        // THEN
+        assertThat( result ).contains( "-password \"%VDECK_SERVER_PASSWORD%\"" )
+                .doesNotContain( "synthetic", "PATH", "|secret" );
+    }
+
+    /**
+     * Verifies case-insensitive publisher declarations with surrounding whitespace.
+     *
+     * @param declaration
+     *         supported publisher declaration
+     * @throws IOException
+     *         if the isolated script cannot be written
+     */
+    @ParameterizedTest( name = "[{index}] declaration {0}" )
+    @ValueSource( strings = { "SET STEAMAPPID=123456", "  set SteamAppId = 123456  ", "\tSeT steamappid=123456" } )
+    void shouldReadSteamAppId_whenDeclarationUsesCaseAndWhitespace( String declaration ) throws IOException {
+        // GIVEN
+        givenConfiguredStartScriptName();
+        givenResolvedSaveDirectory();
+        Files.writeString( installationDirectory.resolve( SCRIPT_NAME ), declaration );
+
+        // WHEN
+        var result = underTest.build( new LaunchConfiguration( minimalProfile(), "" ), logFile );
+
+        // THEN
+        assertThat( result.environment() ).containsEntry( "SteamAppId", "123456" );
+    }
+
+    /**
+     * Verifies failures opening or lazily reading a publisher script fall back without stopping Start.
+     *
+     * @param lazyFailure
+     *         whether the stream fails during traversal rather than opening
+     * @throws IOException
+     *         if the isolated script cannot be created
+     */
+    @ParameterizedTest( name = "[{index}] lazy read failure={0}" )
+    @ValueSource( booleans = { false, true } )
+    void shouldUseDefaultSteamAppId_whenScriptReadFails( boolean lazyFailure ) throws IOException {
+        // GIVEN
+        underTest = new LaunchCommandServiceImpl( systemPropertiesService, pathService, scriptLines );
+        givenConfiguredStartScriptName();
+        givenResolvedSaveDirectory();
+        Path script = Files.createFile( installationDirectory.resolve( SCRIPT_NAME ) );
+        var failure = new UncheckedIOException( new IOException( "Synthetic read failure" ) );
+        var closed = new AtomicBoolean();
+        if ( lazyFailure ) {
+            Stream< String > lines = Stream.< String >generate( () -> { throw failure; } )
+                    .onClose( () -> closed.set( true ) );
+            given( scriptLines.apply( script ) ).willReturn( lines );
+        } else {
+            given( scriptLines.apply( script ) ).willThrow( failure );
+        }
+
+        // WHEN
+        var result = underTest.build( new LaunchConfiguration( minimalProfile(), "" ), logFile );
+
+        // THEN
+        assertThat( result.environment() ).containsEntry( "SteamAppId", "892970" );
+        assertThat( closed.get() ).isEqualTo( lazyFailure );
+    }
+
+    /** Verifies the injected script reader is required before building any command. */
+    @Test
+    void shouldRejectConstruction_whenScriptReaderIsNull() {
+        // GIVEN
+        // No script reader.
+
+        // WHEN
+        var thrown = catchThrowable( () -> new LaunchCommandServiceImpl( systemPropertiesService, pathService, null ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( "scriptLines" );
+    }
+
     // =================================================================================================
     // HELPER METHODS
     // =================================================================================================
+
+    private LaunchSpec mirrorSpec( String name, String secret ) {
+        return new LaunchSpec( installationDirectory.resolve( "valheim_server.exe" ),
+                List.of( "-name", name, "-password", secret ), Map.of( "SteamAppId", "892970" ),
+                installationDirectory, logFile );
+    }
 
     /**
      * Sets the password captured together with the profile.

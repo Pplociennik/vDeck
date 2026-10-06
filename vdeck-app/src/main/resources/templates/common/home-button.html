@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="pl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Home button component</title>
+</head>
+<body>
+<!--
+    Reusable home button of the panel: a small round link with a house icon that leads to the home page.
+    It is a separate component from the side menu, in the same round style as its toggle, half its size
+    and touching it from the outside on its right. It has no behaviour of its own. Embedded by every view
+    that offers navigation; the file is a Thymeleaf fragment and is never rendered as a standalone page.
+-->
+<a class="home-button round-button" th:fragment="homeButton" th:href="@{/}"
+   th:attr="aria-label=#{homeButton.label},title=#{homeButton.label}">
+    <svg class="icon home-button__icon" aria-hidden="true" focusable="false">
+        <use th:href="@{/icons/icons.svg#icon-home}"></use>
+    </svg>
+</a>
+</body>
+</html>

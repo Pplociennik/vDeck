@@ -93,6 +93,11 @@
     --island-status-color-running: #6fbf73;
     --island-status-color-failed: #d9534f;
 
+    /* Round buttons floating over the page: the side menu toggle and the home button */
+    --round-button-rim-width: 0.125rem;
+    --round-button-shadow: 0 0.375rem 0.875rem rgba(0, 0, 0, 0.55), inset 0 0.0625rem 0 var(--color-edge-highlight);
+    --round-button-pressed-shadow: inset 0 0.125rem 0.375rem rgba(0, 0, 0, 0.6);
+
     /*
      * Side menu. The round toggle sits inside the panel's bottom-left corner: the corner lies the
      * toggle depth beyond the toggle's centre, towards the screen corner, so more than half of the
@@ -108,11 +113,8 @@
     --side-menu-toggle-size: 4.25rem;
     --side-menu-toggle-offset: var(--space-xl);
     --side-menu-toggle-depth: 1.5rem;
-    --side-menu-toggle-rim-width: 0.125rem;
     --side-menu-toggle-inset-inline: max(var(--side-menu-toggle-offset), env(safe-area-inset-left, 0px));
     --side-menu-toggle-inset-block: max(var(--side-menu-toggle-offset), env(safe-area-inset-bottom, 0px));
-    --side-menu-toggle-shadow: 0 0.375rem 0.875rem rgba(0, 0, 0, 0.55), inset 0 0.0625rem 0 var(--color-edge-highlight);
-    --side-menu-toggle-pressed-shadow: inset 0 0.125rem 0.375rem rgba(0, 0, 0, 0.6);
     --side-menu-toggle-gap: 0.5rem;
     --side-menu-corner-inset: calc(var(--side-menu-toggle-size) / 2 - var(--side-menu-toggle-depth));
     --side-menu-notch-radius: calc(var(--side-menu-toggle-size) / 2 + var(--side-menu-toggle-gap));
@@ -123,6 +125,17 @@
     --side-menu-section-title-opacity: 0.3;
     --side-menu-shadow: drop-shadow(0 0.5rem 0.875rem rgba(0, 0, 0, 0.55));
     --side-menu-entry-surface: rgba(8, 7, 6, 0.72);
+
+    /*
+     * Home button. It is half the size of the side menu toggle and touches the toggle from the outside,
+     * on its right, with both bottoms on one line. For radii R and R/2 the centres of touching circles
+     * whose bottoms are aligned lie sqrt(2) * R apart horizontally, so the button's left edge lies
+     * (1/4 + sqrt(2)/2) = 0.957 of the toggle size right of the toggle's left edge. Its touch area is
+     * enlarged to the touch floor around the smaller visible circle.
+     */
+    --home-button-size: calc(var(--side-menu-toggle-size) / 2);
+    --home-button-inset-inline: calc(var(--side-menu-toggle-inset-inline) + var(--side-menu-toggle-size) * 0.957);
+    --home-button-icon-size: 1.125rem;
 
     /* Controls; the touch size is the floor required for comfortable operation by finger */
     --control-size: 3rem;
@@ -181,7 +194,11 @@
     --transition-panel-duration: 280ms;
     --transition-panel: var(--transition-panel-duration) cubic-bezier(0.2, 0.8, 0.2, 1);
 
-    /* Stacking order of elements floating above the page; the side menu toggle stays above its panel */
+    /*
+     * Stacking order of elements floating above the page; the side menu toggle stays above its panel and
+     * the home button below it, where the open menu rises
+     */
+    --z-home-button: 9;
     --z-side-menu: 10;
     --z-side-menu-toggle: 11;
 }

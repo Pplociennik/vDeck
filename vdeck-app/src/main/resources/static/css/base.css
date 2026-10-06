@@ -142,9 +142,9 @@ body::before {
 }
 
 /*
- * The side menu toggle floats over the bottom-left corner of the page and can cover the lower edge of a
- * wide panel. The extra end padding lets the last element of the panel - usually a form's submit
- * button - scroll clear of it.
+ * The side menu toggle and the home link next to it float over the bottom-left corner of the page and
+ * can cover the lower edge of a wide panel. Both have the toggle's height, so the extra end padding lets
+ * the last element of the panel - usually a form's submit button - scroll clear of them.
  */
 .page-content .panel-frame > .view-card {
     padding-block-end: calc(var(--side-menu-toggle-size) + var(--space-lg));
@@ -717,6 +717,91 @@ body::before {
 }
 
 /*
+ * Round button - look shared by the floating round controls: the side menu toggle and the home button.
+ * Each of them sets its own size and position; this class only gives the round shape, rim, surface and
+ * states.
+ */
+.round-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+    border: var(--round-button-rim-width) solid var(--color-control-border);
+    border-radius: 50%;
+    color: var(--color-text);
+    background-color: var(--color-control-surface);
+    box-shadow: var(--round-button-shadow);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast),
+        border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .round-button:hover {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+/* The side menu toggle's ring fits inside the arc-shaped gap, so it stays visible while the menu is open. */
+.round-button:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}
+
+/*
+ * A pressed round button stays in place instead of sinking the way a pressed action button does, so the
+ * side menu toggle stays concentric with the arc cut out around it.
+ */
+.round-button:active {
+    border-color: var(--color-accent);
+    color: var(--color-accent);
+    background-color: var(--color-control-surface-active);
+    box-shadow: var(--round-button-pressed-shadow);
+}
+
+/*
+ * Home button - reusable link to the home page rendered from the common/home-button fragment. It is a
+ * separate component from the side menu, but it is placed against the side menu toggle: half its size,
+ * touching it from the outside on its right, with both bottoms on one line.
+ *
+ * The open side menu rises over the place where the button stands, so the button sits below the menu
+ * and is hidden while the menu is open; being hidden also takes it out of the tab order.
+ */
+.home-button {
+    position: fixed;
+    left: var(--home-button-inset-inline);
+    bottom: var(--side-menu-toggle-inset-block);
+    z-index: var(--z-home-button);
+    inline-size: var(--home-button-size);
+    block-size: var(--home-button-size);
+    transition: background-color var(--transition-fast), color var(--transition-fast),
+        border-color var(--transition-fast), box-shadow var(--transition-fast),
+        opacity var(--transition-fast), visibility 0s;
+}
+
+/* The visible circle is smaller than the touch floor, so an invisible circle enlarges the touch area. */
+.home-button::before {
+    content: "";
+    position: absolute;
+    inset: calc((var(--home-button-size) - var(--control-touch-size)) / 2);
+    border-radius: 50%;
+}
+
+.home-button__icon {
+    inline-size: var(--home-button-icon-size);
+    block-size: var(--home-button-icon-size);
+}
+
+body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-fast), visibility 0s linear var(--transition-fast);
+}
+
+/*
  * Side menu - reusable navigation rendered from the common/side-menu fragment. Its styles live in the
  * global stylesheet because the fragment is embedded by several views and brings no <link> of its own.
  *
@@ -730,46 +815,16 @@ body::before {
     left: var(--side-menu-toggle-inset-inline);
     bottom: var(--side-menu-toggle-inset-block);
     z-index: var(--z-side-menu-toggle);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     inline-size: var(--side-menu-toggle-size);
     block-size: var(--side-menu-toggle-size);
-    padding: 0;
-    -webkit-tap-highlight-color: transparent;
-    border: var(--side-menu-toggle-rim-width) solid var(--color-control-border);
-    border-radius: 50%;
-    color: var(--color-text);
-    background-color: var(--color-control-surface);
-    box-shadow: var(--side-menu-toggle-shadow);
-    cursor: pointer;
-    transition: background-color var(--transition-fast), color var(--transition-fast),
-        border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-@media (hover: hover) {
-    .side-menu-toggle:hover {
-        background-color: var(--color-control-surface-hover);
-        color: var(--color-accent);
-    }
-}
-
-/* The ring fits inside the arc-shaped gap, so it stays visible while the menu is open. */
-.side-menu-toggle:focus-visible {
-    outline: var(--focus-ring-width) solid var(--color-accent);
-    outline-offset: var(--focus-ring-offset);
-}
-
-/*
- * While the menu is open the toggle keeps its icon and stays pressed in. It does not sink the way a
- * pressed action button does, so it stays concentric with the arc cut out around it.
- */
-.side-menu-toggle:active,
+/* While the menu is open the toggle keeps its icon and stays pressed in. */
 .side-menu-toggle[aria-expanded="true"] {
     border-color: var(--color-accent);
     color: var(--color-accent);
     background-color: var(--color-control-surface-active);
-    box-shadow: var(--side-menu-toggle-pressed-shadow);
+    box-shadow: var(--round-button-pressed-shadow);
 }
 
 /*
@@ -1068,7 +1123,9 @@ body::before {
         transform: none;
     }
 
-    .side-menu-toggle,
+    .round-button,
+    .home-button,
+    body:has(.side-menu-toggle[aria-expanded="true"]) .home-button,
     .side-menu-panel,
     .side-menu-panel[data-state="open"],
     .side-menu-children,

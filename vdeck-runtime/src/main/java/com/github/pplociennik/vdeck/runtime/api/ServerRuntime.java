@@ -2,6 +2,8 @@ package com.github.pplociennik.vdeck.runtime.api;
 
 import jakarta.annotation.Nonnull;
 
+import java.util.concurrent.CompletionStage;
+
 /**
  * Public facade of the vDeck runtime and the <strong>single owner of everything the application knows
  * about the running server</strong>: its lifecycle state, the managed process and that launch's log
@@ -17,26 +19,15 @@ import jakarta.annotation.Nonnull;
  * <p>Implementations serialise every state change onto one thread, so concurrent HTTP requests cannot
  * interleave a start with a process-exit notification. All methods are safe to call from any thread.
  *
- * <h2>The server's lifetime is bound to the panel's</h2>
- *
- * <p>A server started by vDeck never outlives vDeck. The process is placed in a job object that the
- * operating system tears down when the panel's last handle to it closes, which happens whether the
- * panel exits normally, is killed or crashes. Two consequences follow, and both are deliberate:
- *
- * <ul>
- *   <li>the panel never has to look for a server left over from a previous run, so there is no PID
- *       file, no process scan at startup and no adoption of a foreign process — the only server that
- *       exists is the one this instance started and still holds;</li>
- *   <li>termination through the job object is <strong>forcible</strong>. It is not the graceful
- *       CTRL+C shutdown Valheim prefers, so a panel that crashes takes the world's unsaved progress
- *       with it. A normal shutdown is expected to stop the server gracefully first; the job object is
- *       the safety net for the paths where that is impossible.</li>
- * </ul>
+ * <p>A successfully created server may outlive the panel. Failed graceful stop never grants force,
+ * and closing runtime resources never terminates the process. A durable launch token and installation
+ * lock prevent duplicate launches; adopting a surviving process requires explicit identity verification.
  */
 public interface ServerRuntime {
 
     /**
-     * Starts the Valheim server described by the specification and returns the state the panel reached.
+     * Starts a process in a minimal start-only runtime. The complete production runtime rejects this
+     * overload because it requires the world context supplied to {@link #start(LaunchSpec, WorldContext)}.
      *
      * <p>The call is serialised against every other lifecycle event and against itself, so two
      * administrators pressing Start at the same moment cannot create two processes. It returns once the
@@ -65,6 +56,65 @@ public interface ServerRuntime {
      */
     @Nonnull
     ServerStatus start( @Nonnull LaunchSpec launchSpec );
+
+    /**
+     * Starts a launch with its captured world context, which is required for data-safe stop and recovery.
+     *
+     * @param launchSpec
+     *         complete process specification
+     * @param world
+     *         immutable world and separately authorized backup directory
+     * @return correlated starting status
+     * @throws NullPointerException
+     *         if an argument is null
+     * @throws IllegalStateException
+     *         if a process or recovery decision already blocks start
+     */
+    @Nonnull
+    ServerStatus start( @Nonnull LaunchSpec launchSpec, @Nonnull WorldContext world );
+
+    /**
+     * Accepts a stop on the lifecycle queue, then performs I/O asynchronously.
+     *
+     * <pre>
+     * Stop: RUNNING/STOP_FAILED -&gt; complete snapshot -&gt; CTRL+C -&gt; one retry -&gt; observed exit
+     * Kill: RUNNING/STOP_FAILED -&gt; snapshot attempt (failure tolerated) -&gt; force -&gt; observed exit
+     * Success -&gt; STOPPED; failure with a live process -&gt; STOP_FAILED
+     * </pre>
+     * The total deadline is five minutes. Rejection is synchronous; accepted work completes only
+     * after observed exit, or exceptionally while retaining a live process. Shutdown never grants force.
+     * Confirmed Kill tolerates snapshot failures but never bypasses cancellation, deadline or identity checks.
+     *
+     * @param request
+     *         launch-specific authorization
+     * @return completion of the accepted operation
+     * @throws NullPointerException
+     *         if the request is null
+     * @throws IllegalStateException
+     *         if the state, launch identifier, or active operation refuses the request
+     */
+    @Nonnull
+    CompletionStage< Void > stop( @Nonnull StopRequest request );
+
+    /**
+     * Blocks new launches and gracefully stops, or joins, the currently managed process.
+     *
+     * @return completion without any implicit force permission
+     */
+    @Nonnull
+    CompletionStage< Void > shutdown();
+
+    /**
+     * Explicitly adopts the saved, reverified launch after a panel restart.
+     *
+     * @param launchId
+     *         saved launch selected by the administrator
+     * @throws NullPointerException
+     *         if the identifier is null
+     * @throws IllegalStateException
+     *         if recovery is unavailable or the identifier is stale
+     */
+    void adopt( @Nonnull String launchId );
 
     /**
      * Returns the current snapshot of the managed server. Never blocks on the runtime's thread, so it

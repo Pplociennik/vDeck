@@ -14,7 +14,7 @@
     Every control carries the same text as its accessible name and as its tooltip, so a pointer user
     and a screen reader user get the same wording from the translation file.
 -->
-<header class="island-header" th:fragment="island">
+<header class="island-header" th:fragment="island" data-server-island th:attr="data-status-url=@{/server/status}">
     <!--
         The island and the status diamond are one component. The diamond is a sibling rather than a
         child because the island clips its own overflow, and the wrapper reserves the height the
@@ -24,8 +24,7 @@
         <div class="island surface surface--island">
             <div class="island-section island-section--server-control" role="group"
                  th:attr="aria-label=#{island.group.serverControl}">
-                <!-- Start is disabled while a server is already starting or running; the status
-                     diamond below the island shows which of the two it is. -->
+                <!-- Runtime state disables commands conflicting with active work or unresolved recovery. -->
                 <form class="island-action-form" th:action="@{/server/start}" method="post">
                     <button class="action-button" type="submit"
                             th:disabled="${!serverStatus.state.startable}"
@@ -35,24 +34,30 @@
                         </svg>
                     </button>
                 </form>
-                <button class="action-button" type="button"
-                        th:attr="aria-label=#{island.action.stop},title=#{island.action.stop}">
-                    <svg class="icon" aria-hidden="true" focusable="false">
-                        <use th:href="@{/icons/icons.svg#icon-stop}"></use>
-                    </svg>
-                </button>
+                <form class="island-action-form" th:action="@{/server/stop}" method="post">
+                    <input type="hidden" name="launchId" th:value="${serverStatus.launchId}">
+                    <button class="action-button" type="submit" th:disabled="${!serverStatus.state.stoppable}"
+                            th:attr="aria-label=#{island.action.stop},title=#{island.action.stop}">
+                        <svg class="icon" aria-hidden="true" focusable="false">
+                            <use th:href="@{/icons/icons.svg#icon-stop}"></use>
+                        </svg>
+                    </button>
+                </form>
                 <button class="action-button" type="button"
                         th:attr="aria-label=#{island.action.restart},title=#{island.action.restart}">
                     <svg class="icon" aria-hidden="true" focusable="false">
                         <use th:href="@{/icons/icons.svg#icon-restart}"></use>
                     </svg>
                 </button>
-                <button class="action-button" type="button"
-                        th:attr="aria-label=#{island.action.forceStop},title=#{island.action.forceStop}">
-                    <svg class="icon" aria-hidden="true" focusable="false">
-                        <use th:href="@{/icons/icons.svg#icon-power}"></use>
-                    </svg>
-                </button>
+                <form class="island-action-form" th:action="@{/server/kill-confirmation}" method="get">
+                    <input type="hidden" name="launchId" th:value="${serverStatus.launchId}">
+                    <button class="action-button" type="submit" th:disabled="${!serverStatus.state.stoppable}"
+                            th:attr="aria-label=#{island.action.forceStop},title=#{island.action.forceStop}">
+                        <svg class="icon" aria-hidden="true" focusable="false">
+                            <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                        </svg>
+                    </button>
+                </form>
             </div>
 
             <div class="island-section island-section--backups" role="group"
@@ -99,6 +104,8 @@
                   th:text="#{${'server.state.' + serverStatus.state}}">Zatrzymany</span>
         </span>
     </div>
+    <p class="island-stop-message form-alert" role="alert" th:if="${serverStatus.stopFailure != null}"
+       th:text="#{${'server.stopFailure.' + serverStatus.stopFailure}}"></p>
 </header>
 </body>
 </html>

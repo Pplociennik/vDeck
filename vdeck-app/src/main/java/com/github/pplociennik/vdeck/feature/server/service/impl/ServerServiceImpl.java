@@ -1,15 +1,21 @@
 package com.github.pplociennik.vdeck.feature.server.service.impl;
 
+import com.github.pplociennik.vdeck.feature.backup.service.BackupPathService;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchConfiguration;
 import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import com.github.pplociennik.vdeck.feature.server.ServerMessage;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import com.github.pplociennik.vdeck.feature.server.service.LaunchCommandService;
 import com.github.pplociennik.vdeck.feature.server.service.ServerLogService;
 import com.github.pplociennik.vdeck.feature.server.service.ServerService;
 import com.github.pplociennik.vdeck.runtime.api.LaunchSpec;
 import com.github.pplociennik.vdeck.runtime.api.ServerRuntime;
 import com.github.pplociennik.vdeck.runtime.api.ServerStatus;
+import com.github.pplociennik.vdeck.runtime.api.StopRequest;
+import com.github.pplociennik.vdeck.runtime.api.WorldContext;
 import com.github.pplociennik.vdeck.shared.service.PathService;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
@@ -27,8 +33,8 @@ import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Carries out the server start: checks first, then prepares this launch's log file and command line,
- * and finally hands the launch to the runtime.
+ * Captures the launch configuration and world context before creating a process, and admits launch-specific
+ * Stop, confirmed Kill and recovery requests through the single runtime lifecycle owner.
  *
  * <p>This class holds no state of its own. The lifecycle state lives in the runtime and is read from
  * it every time, because a copy kept here would go stale the moment the server exited on its own.
@@ -49,6 +55,8 @@ class ServerServiceImpl implements ServerService {
 
     private final PathService pathService;
 
+    private final BackupPathService backupPaths;
+
     /**
      * Creates the service controlling the Valheim server.
      *
@@ -64,13 +72,15 @@ class ServerServiceImpl implements ServerService {
      *         pre-start checks refusing a launch that would fail anyway
      * @param pathService
      *         service resolving the executable and the mirror script inside the installation
+     * @param backupPaths
+     *         resolver for the authorized snapshot root outside the installation
      */
     ServerServiceImpl( @Nonnull ServerRuntime serverRuntime,
                        @Nonnull LaunchProfileService launchProfileService,
                        @Nonnull LaunchCommandService launchCommandService,
                        @Nonnull ServerLogService serverLogService,
                        @Nonnull ServerStartValidator validator,
-                       @Nonnull PathService pathService ) {
+                       @Nonnull PathService pathService, @Nonnull BackupPathService backupPaths ) {
         this.serverRuntime = requireNonNull( serverRuntime, "serverRuntime must not be null" );
         this.launchProfileService = requireNonNull( launchProfileService,
                 "launchProfileService must not be null" );
@@ -79,8 +89,10 @@ class ServerServiceImpl implements ServerService {
         this.serverLogService = requireNonNull( serverLogService, "serverLogService must not be null" );
         this.validator = requireNonNull( validator, "validator must not be null" );
         this.pathService = requireNonNull( pathService, "pathService must not be null" );
+        this.backupPaths = requireNonNull( backupPaths, "backupPaths must not be null" );
     }
 
+    /** {@inheritDoc} */
     @Override
     public void start() {
         log.info( "Server start requested" );
@@ -88,15 +100,71 @@ class ServerServiceImpl implements ServerService {
 
         LaunchConfiguration configuration = launchProfileService.getConfiguration();
         validator.validate( configuration, executable() );
+        WorldContext world = captureWorld( configuration );
 
         LaunchSpec launchSpec = launchCommandService.build( configuration, reserveLogFile() );
         writeStartScript( launchCommandService.renderScript( launchSpec ) );
-        launch( launchSpec );
+        launch( launchSpec, world );
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public void stop( @Nonnull String launchId ) {
+        requireNonNull( launchId, "launchId must not be null" );
+        log.info( "Graceful stop requested" );
+        try {
+            serverRuntime.stop( StopRequest.graceful( launchId ) );
+        } catch ( IllegalArgumentException | IllegalStateException exception ) {
+            throw new ServerStopException( ServerMessage.STOP_REJECTED, null );
+        } catch ( RuntimeException exception ) {
+            throw new ServerStopException( ServerMessage.STOP_FAILED, exception );
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void kill( @Nonnull String launchId, boolean confirmed ) {
+        requireNonNull( launchId, "launchId must not be null" );
+        log.info( "Kill requested, risk confirmation {}", confirmed );
+        if ( !confirmed ) {
+            throw new ServerKillException( ServerMessage.CONFIRMATION_REQUIRED, null );
+        }
+        try {
+            serverRuntime.stop( StopRequest.confirmedKill( launchId ) );
+        } catch ( IllegalArgumentException | IllegalStateException exception ) {
+            throw new ServerKillException( ServerMessage.KILL_REJECTED, null );
+        } catch ( RuntimeException exception ) {
+            throw new ServerKillException( ServerMessage.STOP_FAILED, exception );
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void adopt( @Nonnull String launchId ) {
+        requireNonNull( launchId, "launchId must not be null" );
+        log.info( "Explicit server adoption requested" );
+        try {
+            serverRuntime.adopt( launchId );
+        } catch ( IllegalArgumentException | IllegalStateException exception ) {
+            throw new ServerAdoptException( ServerMessage.ADOPT_REJECTED, null );
+        } catch ( RuntimeException exception ) {
+            throw new ServerAdoptException( ServerMessage.ADOPT_FAILED, exception );
+        }
+    }
+
+    /** {@inheritDoc} */
     @Override
     public @Nonnull ServerStatus getStatus() {
         return serverRuntime.status();
+    }
+
+    private WorldContext captureWorld( LaunchConfiguration configuration ) {
+        try {
+            Path save = pathService.getAbsolutePath( configuration.profile().saveDirectory() );
+            return new WorldContext( configuration.profile().worldName(), save, backupPaths.resolveRoot( save ) );
+        } catch ( RuntimeException exception ) {
+            throw ServerStartException.startFailed( exception );
+        }
     }
 
     /**
@@ -129,9 +197,9 @@ class ServerServiceImpl implements ServerService {
      * Hands the launch to the runtime. An {@link IllegalStateException} means the runtime settled a
      * race and another start won it; anything else means the process could not be created.
      */
-    private void launch( @Nonnull LaunchSpec launchSpec ) {
+    private void launch( @Nonnull LaunchSpec launchSpec, @Nonnull WorldContext world ) {
         try {
-            ServerStatus status = serverRuntime.start( launchSpec );
+            ServerStatus status = serverRuntime.start( launchSpec, world );
             log.info( "Server start accepted, state {}", status.getState() );
         } catch ( IllegalStateException exception ) {
             log.info( "Server start rejected: another start won the race" );

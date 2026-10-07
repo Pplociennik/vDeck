@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pl" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{server.kill.title}"></title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <script type="module" th:src="@{/js/server-status.js}"></script>
+</head>
+<body>
+<div th:replace="~{common/island :: island}"></div>
+<main class="page-content">
+    <!-- Force permission belongs only to the selected launch and requires a fresh explicit checkbox. -->
+    <div class="panel-frame">
+        <section class="view-card surface">
+            <h1 th:text="#{server.kill.title}"></h1>
+            <p class="form-alert" role="alert" th:if="${serverErrorKey != null}" th:text="#{${serverErrorKey}}"></p>
+            <form class="form-stack settings-form" th:action="@{/server/kill}" method="post">
+                <input type="hidden" name="launchId" th:value="${launchId}">
+                <p class="form-alert" id="kill-risk" th:text="#{server.kill.risk}"></p>
+                <label class="form-checkbox">
+                    <input type="checkbox" name="confirmed" value="true" required aria-describedby="kill-risk">
+                    <span th:text="#{server.kill.confirm}"></span>
+                </label>
+                <div class="settings-footer">
+                    <button class="form-submit" type="submit" th:text="#{server.kill.submit}"></button>
+                    <a class="form-submit" th:href="@{/}" th:text="#{server.kill.cancel}"></a>
+                </div>
+            </form>
+        </section>
+    </div>
+</main>
+<div th:replace="~{common/home-button :: homeButton}"></div>
+<div th:replace="~{common/side-menu :: sideMenu}"></div>
+</body>
+</html>

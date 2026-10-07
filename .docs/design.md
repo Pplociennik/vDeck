@@ -1,6 +1,6 @@
 # vDeck — główne założenia projektowe
 
-> Data: 2026-08-17 · Aktualizacja: 2026-09-29 · Status: żywy opis uzgodnionej architektury
+> Data: 2026-08-17 · Aktualizacja: 2026-10-12 · Status: żywy opis uzgodnionej architektury
 
 vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim. Aplikacja jest
 dystrybuowana razem z instalacją serwera, uruchamiana lokalnie, a następnie obsługiwana z poziomu
@@ -47,15 +47,16 @@ model feature'a może używać adnotacji JPA, a repozytoria Spring Data są jego
 persystencji. Interfejsy serwisów wyznaczają kontrakty dla konsumentów bez wprowadzania osobnych
 portów i adapterów dla każdej operacji.
 
-Początkowo projekt składa się z dwóch modułów Maven pod wspólnym parentem:
+Projekt składa się z trzech modułów Maven pod wspólnym parentem:
 
 | Moduł | Odpowiedzialność |
 |---|---|
 | `vdeck-runtime` | Czysta Java: cykl życia serwera, procesy, sygnały, logi, snapshoty i granice zależne od platformy. Bez Springa. |
+| `vdeck-runner` | Czysta Java: osobny wykonywalny punkt wejścia helpera CTRL+C (AD-020). |
 | `vdeck-app` | Aplikacja Spring Boot: web, bezpieczeństwo, konfiguracja, persystencja oraz integracja z runtime. |
 
-Kierunek zależności Maven jest jednostronny: `vdeck-app` zależy od `vdeck-runtime`; runtime nigdy nie
-zależy od aplikacji ani od Springa. Aplikacja korzysta z fasady `runtime.api`, a szczegóły cyklu życia
+`vdeck-app` i `vdeck-runner` zależą od `vdeck-runtime`; nie zależą od siebie. Runtime nigdy nie
+zależy od aplikacji, runnera ani od Springa. Aplikacja korzysta z fasady `runtime.api`, a szczegóły cyklu życia
 i implementacje Windows pozostają wewnętrzne dla runtime.
 
 W `vdeck-app` obowiązuje package-by-feature. Wszystkie pionowe funkcjonalności znajdują się pod
@@ -84,7 +85,7 @@ i mogą zostać doprecyzowane podczas planowania danego feature’a, ale kierune
 modułów i pakietów pozostają obowiązującym założeniem.
 
 Poddrzewa `vdeck-runtime` i `feature.server` pokazują stan zaimplementowany. Pozostałe planowane
-obszary runtime, w tym snapshoty, RCON i łagodne zatrzymanie, opisują dalsze sekcje dokumentu.
+obszary runtime, w tym przyszłe RCON i automatyzację, opisują dalsze sekcje dokumentu.
 
 ```text
 vdeck/                                           ← parent i agregator Maven
@@ -120,7 +121,9 @@ vdeck/                                           ← parent i agregator Maven
 │       │   │   ├── ServerState
 │       │   │   ├── ServerStatus
 │       │   │   ├── RunningServer
-│       │   │   └── LaunchSpec
+│       │   │   ├── LaunchSpec
+│       │   │   ├── ProcessIdentity
+│       │   │   └── ControlSenderCommand
 │       │   ├── spi/                             ← wymienne granice zewnętrzne
 │       │   │   └── GameProcessLauncher
 │       │   ├── lifecycle/                       ← serializowane zmiany stanu
@@ -128,8 +131,14 @@ vdeck/                                           ← parent i agregator Maven
 │       │   └── windows/                         ← adapter Windows; moduł dopiero przy 2. OS
 │       │       ├── Win32
 │       │       ├── WindowsCommandLine
+│       │       ├── WindowsConsoleControlSender
 │       │       └── WindowsProcessLauncher
 │       └── test/java/…                          ← testy runtime bez Springa i Valheim
+│
+├── vdeck-runner/                                ← wykonywalny helper, bez Springa
+│   ├── pom.xml
+│   └── src/main/java/com/github/pplociennik/vdeck/runner/
+│       └── VdeckRunner
 │
 └── vdeck-app/                                   ← aplikacja Spring Boot
     ├── pom.xml
@@ -137,6 +146,7 @@ vdeck/                                           ← parent i agregator Maven
         ├── main/java/com/github/pplociennik/vdeck/
         │   ├── VdeckApplication.java
         │   ├── config/                          ← konfiguracja i inicjalizacja aplikacji
+        │   │   ├── ConsoleControlConfiguration
         │   │   ├── DataInitializer
         │   │   ├── PathConfiguration
         │   │   ├── SecurityConfiguration
@@ -326,6 +336,20 @@ komunikatem i formularzem bez sekretów w atrybutach flash. Pozostałe wyjątki 
 
 ---
 
+Implementacja zatrzymania rozszerza powyższe poddrzewa o:
+
+- runtime/api: `ProcessIdentity`, `ControlSenderCommand`, `WorldContext`, `StopRequest`, `StopFailure`;
+- runtime/lifecycle: `ManagedLaunch`, `ManagedLaunchStore` i pakietowy `StopEnvironment`;
+- runtime/spi: `ConsoleControlSender` oraz `WorldSnapshotStore`;
+- runtime/snapshot: `FileWorldSnapshotStore`;
+- runtime/windows: `JvmConsoleControlSender`, `WindowsConsoleControlSender`;
+- runner: `VdeckRunner`;
+- app/config: `ConsoleControlConfiguration`, `ServerShutdownLifecycle`;
+- app/feature/backup: `service.BackupPathService` i `service.impl.BackupPathServiceImpl`;
+- app/feature/server/exc: `ServerStopException`, `ServerKillException`;
+- templates/server: `kill-confirmation.html`; static/js: `server-status.js`.
+
+
 ## 4. Persystencja
 
 Panel używa SQLite oraz Spring Data JPA. Funkcjonalne repozytoria są generycznymi interfejsami
@@ -362,6 +386,12 @@ Katalog instalacji jest ustalany przez
 `new ApplicationHome(VdeckApplication.class).getDir().toPath().toRealPath()`, a nie na podstawie
 bieżącego katalogu procesu. Jest on również jawnym katalogiem roboczym procesu Valheim. Uruchomienie
 z IDE i testy mogą korzystać z nadpisania `vdeck.server-directory`.
+
+Wybrana instalacja jest kanonizowana przez `toRealPath()` w `PathService` i na wejściu runtime.
+Spacje, polskie znaki i przekierowania powyżej instalacji nie są odrzucane. Kontrola katalogów tokenu
+oraz świata obejmuje części od kanonicznej instalacji w dół. Odrzuca dowiązania, junctions,
+`isOther()` i różnicę względem rzeczywistej ścieżki. Katalog backupów jest wyprowadzany z kanonicznej
+instalacji jako `.vDeck/<snapshot.directory>`; jego resolver sprawdza `.vDeck` i niżej.
 
 Przed `SpringApplication.run()` wykonywany jest preflight. Sprawdza obecność zwykłego pliku
 `valheim_server.exe`, możliwość zapisu locka, tokenu PID, bazy i logów oraz poprawność wszystkich
@@ -445,6 +475,8 @@ tylko wtedy, gdy jeszcze nie istnieje. `server.start.script` (domyślnie
 `start_headless_server.bat`) wskazuje skrypt producenta czytany wyłącznie po `SteamAppId` (AD-015).
 Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
 `.vDeck/vDeck-server-start.bat` bez zapisanego hasła, ale nigdy go nie uruchamia.
+`snapshot.directory` (domyślnie `shutdown-snapshots`) to nazwa jednego podkatalogu `.vDeck` na snapshoty świata
+(AD-018); wartość z separatorem, `.` albo `..` przerywa start serwera.
 
 Podstawowy układ danych:
 
@@ -452,28 +484,30 @@ Podstawowy układ danych:
 <ApplicationHome>/
 ├── valheim_server.exe
 ├── vdeck.jar
+├── vdeck-runner.jar                  ← wykonywalny helper z modułu vdeck-runner
 ├── .vDeck/
 │   ├── config/                        ← wszystkie pliki ustawień (AD-010)
 │   │   ├── vDeck.properties
 │   │   └── valheim-server.properties
+│   ├── vdeck.lock                    ← blokada panelu FileLock
+│   ├── server.pid                    ← bezsekretny token uruchomienia
 │   ├── vDeck-server-start.bat          ← regenerowany skrypt lustrzany bez hasła
 │   └── log/                           ← domyślny `game.log.directory`
 │       └── 2026-09-29/
 │           └── 2026-09-29_12-00-00.log ← osobny plik na start
 ├── valheim-data/                      ← katalog domyślny; zmienia go `server.save.directory`
-├── vdeck.lock
-├── server.pid
 └── vdeck.db
 
 <katalog danych Valheim>/
 └── światy i listy graczy
 
-<katalog snapshotów poza instalacją serwera>/
-└── historia snapshotów wraz z metadanymi
+<instalacja>/.vDeck/<snapshot.directory>/  ← domyślnie shutdown-snapshots
+└── snapshot-latest/                 ← ostatni kompletny zestaw i metadane
 ```
 
 Snapshoty są przechowywane poza instalacją Valheim, aby nie podlegały operacjom aktualizacji ani
-weryfikacji plików serwera.
+weryfikacji plików serwera. AD-018 ustanawia osobny bezpieczny `BackupPathService` dla stałego
+zewnętrznego katalogu; pozostałe ścieżki nadal rozwiązuje `PathService` wewnątrz instalacji.
 
 ---
 
@@ -513,10 +547,38 @@ FreeConsole → AttachConsole(pid) → SetConsoleCtrlHandler(NULL, TRUE)
             → GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0)
 ```
 
-Izoluje to procesowe ustawienia konsoli i obsługę CTRL+C od głównej JVM. Helper nie wymaga osobnego
-artefaktu: ten sam `vdeck.jar` jest uruchamiany w trybie technicznym `--ctrl-sender <pid>`, który
-kończy się bez tworzenia kontekstu Springa. Skrypt Python byłby możliwy technicznie, ale wymagałby
-zewnętrznego interpretera i dlatego nie jest przyjętym wariantem dystrybucji.
+Izoluje to procesowe ustawienia konsoli i obsługę CTRL+C od głównej JVM. Zgodnie z AD-020 helper
+jest osobnym artefaktem `vdeck-runner.jar`, budowanym wraz z panelem przez `mvnw package`.
+Zawiera runtime i zależności wykonawcze, bez Springa. Plik z `vdeck-runner/target/vdeck-runner.jar`
+należy umieścić w katalogu instalacji także podczas uruchamiania panelu z IDE lub `spring-boot:run`.
+Punkt wejścia panelu uruchamia wyłącznie Springa.
+
+`ConsoleControlConfiguration` tworzy singleton `ConsoleControlSender` z implementacją
+`JvmConsoleControlSender`. Konfiguracja rozwiązuje `vdeck-runner.jar` przez
+`PathService.getAbsolutePath()` i przekazuje gotową listę argumentów uruchomienia do konstruktora.
+Bean nie tworzy procesu ani wątku przy starcie panelu. `ServerRuntimeConfiguration` wstrzykuje go
+do runtime; worker zatrzymania wywołuje go po wymaganym snapshotcie. Każdy sygnał uruchamia nowy
+krótkotrwały proces. Brak lub uszkodzenie JAR-a ujawnia się przy żądaniu sygnału jako błąd helpera:
+Stop zachowuje serwer zgodnie z AD-017. Uruchamianie panelu przez runner i autoaktualizacje
+nie są jeszcze zaimplementowane.
+
+Tryb techniczny jest już zaimplementowany jako pierwszy element funkcji Stop. Jego pełny kontrakt
+to `--ctrl-sender <pid> <creation-instant> <absolute-executable>`: czas jest rzeczywistym czasem
+utworzenia procesu, a ścieżka exe jest rozwiązywana do postaci rzeczywistej. `runner.VdeckRunner`
+obsługuje wyłącznie helper. `ControlSenderCommand` waliduje argumenty,
+`ProcessIdentity` sprawdza proces, a `WindowsConsoleControlSender` wykonuje sygnał i odłączenie
+od konsoli. Błędny argument daje kod wyjścia `2`, błąd sygnału lub tożsamości — `1`, a wysłanie
+zdarzenia — `0`; ten ostatni nie potwierdza zapisu świata ani wyjścia serwera.
+`JvmConsoleControlSender` uruchamia helper przez listę argumentów `ProcessBuilder`, bez powłoki,
+z odrzuconymi stdout/stderr i zamkniętym stdin. Timeout do 10 sekund obejmuje wyłącznie helper;
+jego awaryjne sprzątanie nigdy nie kończy serwera.
+
+Zgodnie z AD-017 job chroni wyłącznie nieukończony start. Po udanym utworzeniu i odczycie czasu
+procesu launcher wyłącza `KILL_ON_JOB_CLOSE` przed przekazaniem własności runtime. Żywy serwer
+może przeżyć panel; `close()` nie wysyła żadnego sygnału ani nie kończy procesu.
+Runtime sprawdza pełną `ProcessIdentity` przed publikacją STARTING i własności procesu. Niepowodzenie
+tej weryfikacji sprząta świeżo utworzony proces bez zmiany opublikowanego stanu. Po udanym przejęciu
+błąd zapisu tokenu zachowuje własność, `onExit()` i timer, więc Stop oraz Kill nadal działają.
 
 Panel udostępnia również Kill realizowany przez `ProcessHandle.destroyForcibly()`. Użycie tej
 możliwości podlega zasadom bezpieczeństwa danych opisanym niżej.
@@ -524,36 +586,45 @@ możliwości podlega zasadom bezpieczeństwa danych opisanym niżej.
 Zamknięcie panelu zatrzymuje zarządzany serwer przez asynchroniczne `SmartLifecycle.stop(Runnable)`,
 nie przez własny shutdown hook. Koordynator wysyła polecenie do kolejki zdarzeń i wywołuje callback
 Springa po zakończeniu operacji albo po przekroczeniu jej deadline’u. Ma jawną fazę zamykania i
-zależność od serwisu zapisującego metadane, aby repozytoria i `DataSource` pozostały dostępne.
+zależność od runtime, który zachowuje kolejkę, writer i token aż do zakończenia fazy.
+Token procesu jest plikiem i nie zależy od `DataSource`.
 
 Globalny deadline zatrzymania wynosi domyślnie 5 minut, a konfiguracja vDeck ustawia
 `spring.lifecycle.timeout-per-shutdown-phase` na 6 minut. Aktualizacja lub kontrolowany restart
-panelu oznacza więc również restart serwera Valheim.
+panelu próbuje więc zatrzymać serwer Valheim. Niepowodzenie pozostawia żywy serwer i token;
+ponowny panel wymaga jawnej adopcji, nie tworzy automatycznie drugiej instancji.
 
 ---
 
 ## 7. Jedyność instancji i odzyskiwanie
 
-`vdeck.lock` używa `FileLock` i zapewnia, że w danym katalogu działa najwyżej jeden panel. System
+`.vDeck/vdeck.lock` używa `FileLock` i zapewnia, że w danym katalogu działa najwyżej jeden panel. System
 operacyjny zwalnia blokadę po śmierci procesu, również gdy nie wykona się kontrolowane zamknięcie.
 
-`server.pid` identyfikuje zarządzany serwer za pomocą PID, czasu startu i ścieżki do pliku
+`.vDeck/server.pid` identyfikuje zarządzany serwer za pomocą PID, czasu startu i ścieżki do pliku
 wykonywalnego. Sam PID nie jest wystarczający, ponieważ Windows może wykorzystać go ponownie.
 
-Po zdobyciu locka panel sprawdza token oraz skanuje `ProcessHandle.allProcesses()`. Kandydatem jest
-proces, którego `info().command()` po normalizacji wskazuje dokładnie `valheim_server.exe` z bieżącego
-`ApplicationHome`. Tam, gdzie system udostępnia dane, panel porównuje również użytkownika i
-`startInstant`, a wyniki skanowania łączy z tokenem po PID i czasie startu. Jeżeli znajdzie kandydatów:
+Po zdobyciu locka panel sprawdza ograniczony do 16 KiB token i skanuje `ProcessHandle.allProcesses()`.
+Proces o `info().command()` wskazującym dokładnie exe tej instalacji blokuje Start. Żywy zapisany PID
+blokuje go również wtedy, gdy metadane są niedostępne. Nieczytelny lub niepoprawny token nie przerywa
+skanu. Jeśli nie ma procesu tej instalacji, token trafia atomowo do kwarantanny
+`server.pid.invalid-<czas>-<uuid>` z WARN, a Start zostaje odblokowany. Błąd kwarantanny przerywa Start.
+Przy żywym procesie bez poprawnego tokenu pozostaje RECOVERY_REQUIRED bez opcji adopcji.
+Odczyt stanu zleca pojedyncze
+ponowne sprawdzenie recovery, aby zniknięcie procesu mogło odblokować GUI.
 
-- blokuje uruchomienie kolejnego serwera;
-- pokazuje użytkownikowi pełną listę znalezionych procesów;
-- pozwala podjąć osobną decyzję dla każdego procesu;
-- nie wykonuje automatycznej adopcji ani zatrzymania procesu, którego tożsamości nie potrafi
-  wystarczająco potwierdzić.
+Aktualna implementacja oferuje tylko jawną adopcję pojedynczego procesu ze zgodnym tokenem:
+PID, czas utworzenia i rzeczywisty exe muszą zostać ponownie potwierdzone. Token przechowuje także
+launchId, świat, saveDirectory i log bez sekretów. Zmiany profilu po starcie nie zmieniają tych danych.
+Ścieżki tokenu muszą pozostać w instalacji; backup root jest wyznaczany ponownie przez AD-018.
+Odczyt tokenu nie wymaga istnienia katalogu zapisu; sprawdza jego przynależność do instalacji.
+Istnienie i brak przekierowań są kontrolowane przy snapshotcie. Adopcja przechodzi do RUNNING
+i uzbraja `onExit()`. Nie wysyła sygnałów ani nie tworzy kopii. `ServerAdoptException` rozróżnia
+ADOPT_REJECTED (INFO bez przyczyny) i ADOPT_FAILED (ERROR z przyczyną); zniknięcie procesu jest odrzuceniem.
 
-Dostępne decyzje to adopcja, pozostawienie procesu bez zarządzania, łagodne zatrzymanie albo Kill
-z dodatkowym potwierdzeniem. vDeck zarządza najwyżej jednym serwerem. Pozostawienie aktywnego procesu
-z tej samej instalacji bez zarządzania nadal blokuje uruchomienie nowej instancji.
+Proces bez zgodnego tokenu, wiele kandydatów lub niepewna tożsamość dają RECOVERY_REQUIRED bez
+opcji adopcji. Pełna lista i obsługa obcych procesów są przyszłym zakresem. Token jest usuwany
+po obserwacji wyjścia albo potwierdzeniu braku żywego zapisanego PID i kandydatów tej instalacji.
 
 ---
 
@@ -565,8 +636,8 @@ Podstawowa ścieżka stanów to:
 STOPPED → STARTING → RUNNING → STOPPING → STOPPED
 ```
 
-Stany błędów to `START_FAILED`, `CRASHED` i `STOP_FAILED`. `STOP_FAILED` oznacza, że wyczerpano
-łagodne zatrzymanie, ale proces nadal działa, ponieważ Kill nie był dozwolony albo również zawiódł.
+Stany błędów to `START_FAILED`, `CRASHED` i `STOP_FAILED`. `STOP_FAILED` oznacza, że zatrzymanie zawiodło, a proces jest nadal zarządzany: błąd może dotyczyć
+snapshotu, tożsamości, helpera, oczekiwania, deadline albo ręcznie dopuszczonego wymuszenia.
 `RECOVERY_REQUIRED` oznacza konieczność rozstrzygnięcia procesów znalezionych po starcie panelu.
 
 Wszystkie zdarzenia zmieniające stan — HTTP, harmonogram, parser logów, `onExit()` i zamykanie panelu
@@ -574,13 +645,15 @@ Wszystkie zdarzenia zmieniające stan — HTTP, harmonogram, parser logów, `onE
 Długie operacje I/O wykonują workery, a wynik wraca do kolejki z `operationId`. Wynik jest przyjmowany
 wyłącznie wtedy, gdy dotyczy nadal aktywnej operacji; spóźnione callbacki są ignorowane.
 
-`onExit()` podczas `STOPPING` prowadzi do `STOPPED`, podczas `STARTING` do `START_FAILED`, a podczas
+`onExit()` podczas `STOPPING` lub `STOP_FAILED` prowadzi do `STOPPED`, podczas `STARTING` do `START_FAILED`, a podczas
 `RUNNING` do `CRASHED`. Snapshot po crashu musi zakończyć się przed ewentualnym auto-restartem.
 Sprzeczne polecenia są odrzucane jako „Operacja w toku”.
 
 ---
 
-## 9. RCON
+## 9. RCON — przyszły zakres, wyłączony z bieżącej implementacji
+
+Żaden element Stop, Kill, snapshotów ani shutdownu nie sprawdza i nie używa RCON.
 
 RCON jest opcjonalną zdolnością dostarczaną przez mod `Tristan/ValheimRcon`. Panel pozostaje w pełni
 użyteczny bez moda. Instalację, konfigurację i włączenie RCON można wykonać z panelu, ale aktywacja
@@ -604,50 +677,69 @@ force kill panel — o ile RCON odpowiada — ponawia zapis i czeka na jego uko�
 
 ## 10. Zatrzymanie i bezpieczeństwo danych
 
-Preferowaną metodą zatrzymania jest CTRL+C, zgodnie z zalecanym sposobem zamykania serwera Valheim.
-RCON, jeśli jest dostępny, służy wcześniej do zapisania świata. Force kill jest ostatecznością po
-nieudanych próbach łagodnego zatrzymania.
-
-Uzgodniona drabina zatrzymania:
+Zaimplementowane przebiegi bez RCON:
 
 ```text
-0. snapshot PRE_STOP                       ← BEST_EFFORT; brak snapshotu przerywa operację
-1. RCON: say + save                        [30 s]
-   odpowiedź „World save started”
-   → potwierdzenie ukończenia w logu
-   → snapshot POST_SAVE                    ← CONFIRMED_SAVE
-2. CTRL_C przez helper → oczekiwanie       [120 s]
-3. jednorazowe ponowienie CTRL_C           [30 s]
-4. jeśli proces żyje i RCON odpowiada:
-   ponowne save → potwierdzenie → snapshot FINAL_SAVE
-5. force kill zgodnie z polityką bezpieczeństwa
+Stop / nowy shutdown:
+0. kompletny snapshot PRE_STOP                  BEST_EFFORT; błąd przerywa przed sygnałem
+1. CTRL+C przez izolowany helper                do 10 s
+2. oczekiwanie na wyjście                       do 120 s
+3. jednorazowe ponowienie CTRL+C i oczekiwanie   helper do 10 s, wyjście do 30 s
+4. brak wyjścia                                 STOP_FAILED; proces pozostaje uruchomiony
+
+Ręcznie potwierdzony Kill:
+0. próba snapshotu PRE_STOP                     błąd kopii jest logowany; nie blokuje Kill
+1. weryfikacja tożsamości i uprawnienia          PID, rzeczywisty czas utworzenia i exe
+2. destroyForcibly                              bez CTRL+C i bez czekania na próby łagodne
+3. oczekiwanie na obserwację wyjścia             do 10 s
 ```
 
-Timeouty etapów mieszczą się we wspólnym pięciominutowym deadline i nie wydłużają go przez proste
-sumowanie kolejnych retry. Przekroczenie deadline’u prowadzi do `STOP_FAILED`, a nie do automatycznej
-zgody na Kill.
+Każda operacja podlega jednemu monotonicznemu deadline 5 minut, obejmującemu próbę kopii.
+Timeout i nieudany Stop kończą się STOP_FAILED z zachowaniem procesu, nigdy automatycznym
+wymuszeniem (AD-017). Kill wymaga jawnego potwierdzenia ryzyka dla konkretnego launchId.
+Potwierdzenie obejmuje zakończenie także bez backupu; nie ma dodatkowego checkboxa ani warunku
+wcześniejszego błędu snapshotu. Runtime próbuje wykonać kopię w każdej operacji Kill, a po błędzie
+kopii kontynuuje wymuszenie. Nie ignoruje anulowania, przerwania workera ani wyczerpania deadline.
+Brak pewnej tożsamości nadal zabrania wymuszenia. `destroyForcibly() == true` nie zastępuje
+obserwacji wyjścia: żywy proces po odmowie API lub czasie oczekiwania pozostaje w STOP_FAILED.
+W zwykłym Stop błąd helpera przerywa operację; retry następuje po udanym wysłaniu pierwszego
+CTRL+C i wyczerpaniu czasu na wyjście. Shutdown dołącza do aktywnej operacji bez odnawiania
+zgody lub deadline; nowy shutdown sam nigdy nie przyznaje zgody na Kill.
 
-Snapshoty mają dwa poziomy zaufania:
+`WorldContext` pochodzi z konfiguracji przechwyconej przy starcie. Snapshoty mają wyłącznie
+BEST_EFFORT: kopia żywych plików nie dowodzi zakończonego ani spójnego semantycznie zapisu.
+Writer kopiuje `worlds_local/<świat>.db` i `.fwl` wraz z obecnymi `.old`, albo cały istniejący
+katalog `worlds_local/<świat>`. Kontroluje członkostwo, rozmiary, mtime i rzeczywistą tożsamość plików
+przed i po kopii. SPI `FileIdentityReader` ma implementację Windows przez FFM:
+`GetFileInformationByHandleEx(FileIdInfo)` zwraca numer woluminu i 128-bitowy FileId. `CreateFileW`
+używa współdzielenia READ, WRITE i DELETE. Brak identyfikatora przerywa próbę, bez fallbacku do
+`fileKey()` albo czasu utworzenia. Niestabilny zestaw i błędy I/O kopii dają do trzech prób całości.
+Nieznany lub pusty zestaw
+jest odrzucany. Brak źródłowego katalogu lub wymaganego `.db`/`.fwl` jest rozpoznawany przez
+`WorldSaveMissingException`; zwykły Stop publikuje WORLD_SAVE_MISSING i odmowę WARN, bez
+sygnału. Panel wyjaśnia brak źródłowego zapisu świata, a nie wcześniejszego backupu. Pozostałe
+błędy kopii zatrzymują Stop z SNAPSHOT. Kill loguje niepowodzenie kopii i kontynuuje wymuszenie.
+Nie wykonuje się przywracania ani semantycznego parsowania plików Valheim.
 
-| Poziom | Znaczenie |
-|---|---|
-| `BEST_EFFORT` | Kopia plików działającego serwera bez potwierdzonego zapisu. Walidacja strukturalna nie gwarantuje semantycznej spójności świata. |
-| `CONFIRMED_SAVE` | Snapshot wykonany po potwierdzonym ukończeniu RCON `save`. |
+Staging leży w zatwierdzonym katalogu AD-018. Każdy plik i manifest są utrwalane przez `force(true)`;
+zestaw publikuje `ATOMIC_MOVE`, bez fallbacku. Manifest zawiera powód PRE_STOP, czas, operację,
+świat, BEST_EFFORT, rozmiary i SHA-256. Rename nie ma gwarancji trwałości po utracie zasilania.
+Kontrola ścieżek odrzuca dowiązania, junctions i redirection. Kopiowanie używa bufora 64 KiB,
+limitu 8 GiB na zestaw i 8192 wpisów; głębokość drzewa jest ograniczona poniżej 16.
+AD-019 zachowuje ostatni kompletny zestaw w `snapshot-latest`. Po przygotowaniu `.tmp-<uuid>`
+poprzedni zestaw jest atomowo przenoszony do `.old-<uuid>`, a nowy publikowany jako `snapshot-latest`.
+Nieudana publikacja przywraca poprzednią kopię; jeśli rollback się nie uda, `.old-*` pozostaje do
+odzyskania. Po sukcesie poprzednia kopia jest usuwana; błąd usuwania daje WARN. Na początku następnej
+operacji writer odzyskuje `.old-*`, gdy brakuje `snapshot-latest`, i sprząta pozostałe `.tmp-*` oraz
+`.old-*`. Wolne miejsce musi pomieścić nowy zestaw obok starego. Nie ma limitu 32 zatrzymań.
+Starsze katalogi `snapshot-<operationId>` nie są automatycznie kasowane; ekran backupów i zarządzanie
+historycznymi kopiami pozostają przyszłym zakresem.
 
-Automatyczny force kill, np. z harmonogramu, wymaga aktualnego `CONFIRMED_SAVE`. Użytkownik może
-ręcznie zaakceptować większe ryzyko i wykonać Kill mając jedynie `BEST_EFFORT`.
-
-Snapshot jest zapisywany jako zestaw tymczasowy, następnie utrwalany przez `fsync` i publikowany przez
-`ATOMIC_MOVE`. Metadane zawierają co najmniej powód, czas, poziom zaufania, rozmiary i sumy SHA-256.
-
-Przy kopiowaniu żywego świata mtime i rozmiary całego zestawu `.db`/`.fwl`/`.old` są odczytywane
-przed i po kopiowaniu. Zmiana dowolnego pliku powoduje odrzucenie i ponowienie całego zestawu, a nie
-tylko pojedynczego pliku. Mechanizm ogranicza ryzyko niespójności, ale go nie eliminuje; walidacja
-strukturalna nie dowodzi semantycznej poprawności świata i nie zastępuje historii wielu kopii.
-
-Retencja nigdy nie usuwa ostatniego `CONFIRMED_SAVE`. Jeżeli taki snapshot jeszcze nie istnieje,
-zachowuje ostatni strukturalnie poprawny `BEST_EFFORT`. Po crashu snapshot powstaje przed ewentualnym
-auto-restartem, ponieważ ponowny start gry może nadpisać pliki `.old`.
+Stan zmienia wyłącznie kolejka; snapshot i helper wykonuje jeden worker z ograniczoną kolejką.
+Worker otrzymuje niezmienny kontekst, deadline i cancellation guard. Stare wyniki są odrzucane,
+dalsze etapy anulowane po wyjściu, a nowy Start czeka na opróżnienie zaległego workera.
+Timery operacji są anulowane po wyniku i usuwane z kolejki. Odświeżanie recovery współdzieli
+jeden znacznik pending, aby odczyty nie tworzyły nieograniczonej kolejki skanów.
 
 ---
 

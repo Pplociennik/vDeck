@@ -1,0 +1,32 @@
+%% Diagram przepływu: publikacja i odmowa snapshotu świata
+flowchart TD
+    world[WorldContext przechwycony przy starcie] --> root[BackupPathService:<br/>instalacja/.vDeck/snapshot.directory]
+    root --> safe{Ścieżki bez nakładania<br/>i przekierowań poniżej zaufanych korzeni?}
+    safe -- nie --> reject[Błąd snapshotu<br/>Bez publikacji niepełnej kopii]
+    safe -- tak --> recovery[Przywróć .old, jeśli brak snapshot-latest<br/>Sprzątaj pozostałości .tmp i .old]
+    recovery --> inventory[Inwentaryzacja worlds_local:<br/>para db/fwl i obecne old lub cały katalog świata]
+    inventory -- brak źródłowego db/fwl lub worlds_local --> missing[WORLD_SAVE_MISSING]
+    missing --> reject
+    inventory -- błąd tożsamości lub I/O --> retry{Mniej niż 3 próby?}
+    inventory -- kompletny zestaw --> capacity{8 GiB, 8192 wpisy<br/>i miejsce na nowy zestaw obok starego?}
+    capacity -- nie --> reject
+    capacity -- tak --> staging[Staging .tmp-uuid w backup root<br/>Bufor 64 KiB; ograniczona głębokość]
+    staging --> stable{Zestaw, rozmiar, mtime<br/>wolumin i 128-bitowy FileId bez zmian?}
+    stable -- zmiana po kopii --> retry
+    retry -- tak --> cleanup[Usuń staging i ponów całość]
+    cleanup --> inventory
+    retry -- nie --> reject
+    staging -- błąd I/O --> retry
+    staging -- anulowanie --> reject
+    stable -- tak --> metadata[SHA-256 i manifest PRE_STOP / BEST_EFFORT<br/>force true na każdym pliku]
+    metadata --> guard{Ścieżka i operacja nadal ważne?}
+    guard -- nie --> reject
+    guard -- tak --> previous[ATOMIC_MOVE snapshot-latest do .old-uuid<br/>jeśli poprzednia kopia istnieje]
+    previous --> publish[ATOMIC_MOVE staging do snapshot-latest]
+    publish -- sukces --> remove[Usuń poprzednią .old<br/>Błąd sprzątania: WARN]
+    remove --> done[Runtime kontynuuje Stop albo Kill]
+    publish -- błąd lub anulowanie --> rollback[Przywróć .old do snapshot-latest<br/>Błąd rollback: zachowaj .old do odzyskania]
+    previous -- błąd --> reject
+    rollback --> reject
+    reject --> preserve[Sprzątaj staging<br/>Zachowaj ostatnią dobrą kopię]
+    preserve --> policy[Runtime: Stop zachowuje proces<br/>Potwierdzony Kill kontynuuje po błędzie kopii<br/>Anulowanie i deadline blokują dalsze etapy]

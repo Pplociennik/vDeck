@@ -1,6 +1,7 @@
 package com.github.pplociennik.vdeck.runtime.windows;
 
 import jakarta.annotation.Nonnull;
+import lombok.extern.log4j.Log4j2;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -12,18 +13,19 @@ import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 
 /**
- * The few {@code kernel32} calls and structures vDeck needs to create the Valheim server process and
- * bind its lifetime to the panel's.
+ * The {@code kernel32} calls and structures used to create the server, bind its lifetime to the
+ * panel's incomplete creation, read file identities and send console control from an isolated helper.
  *
  * <p>This is the only place in the project that touches native code. It deliberately exposes raw
  * handles and error codes rather than a friendly API: interpreting them, and above all closing them,
- * is {@link WindowsProcessLauncher}'s job, so ownership of a native resource stays with a single class
+ * is the calling Windows adapter's job, so ownership of a native resource stays with a single class
  * ({@code clean-code.md} §9).
  *
  * <p>Structure layouts are written out explicitly, including the padding the x64 ABI inserts, because
  * a wrong offset here would not fail loudly — it would silently pass a garbage value to the operating
  * system. Each layout's total size is asserted against the size Windows documents.
  */
+@Log4j2
 final class Win32 {
 
     /**
@@ -154,8 +156,133 @@ final class Win32 {
     private static final MethodHandle GET_LAST_ERROR = downcall( "GetLastError",
             FunctionDescriptor.of( ValueLayout.JAVA_INT ) );
 
+    private static final MethodHandle CREATE_FILE_W = downcall( "CreateFileW",
+            FunctionDescriptor.of( ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS ) );
+
+    private static final MethodHandle GET_FILE_INFORMATION_BY_HANDLE_EX = downcall( "GetFileInformationByHandleEx",
+            FunctionDescriptor.of( ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT ) );
+
+    private static final MethodHandle FREE_CONSOLE = downcall( "FreeConsole",
+            FunctionDescriptor.of( ValueLayout.JAVA_INT ) );
+
+    private static final MethodHandle ATTACH_CONSOLE = downcall( "AttachConsole",
+            FunctionDescriptor.of( ValueLayout.JAVA_INT, ValueLayout.JAVA_INT ) );
+
+    private static final MethodHandle SET_CONSOLE_CTRL_HANDLER = downcall( "SetConsoleCtrlHandler",
+            FunctionDescriptor.of( ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.JAVA_INT ) );
+
+    private static final MethodHandle GENERATE_CONSOLE_CTRL_EVENT = downcall( "GenerateConsoleCtrlEvent",
+            FunctionDescriptor.of( ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT ) );
+
     /** Creates the native Windows boundary used by the process launcher. */
     Win32() {
+    }
+
+    /**
+     * Opens an existing file for metadata with read, write and delete sharing enabled.
+     *
+     * @param name
+     *         null-terminated UTF-16 absolute file name
+     * @return owned handle, or INVALID_HANDLE_VALUE on failure
+     * @throws IllegalStateException
+     *         if the native invocation fails
+     */
+    @Nonnull MemorySegment openFileForIdentity( @Nonnull MemorySegment name ) {
+        try {
+            // OPEN_EXISTING; FILE_FLAG_OPEN_REPARSE_POINT avoids following a replaced leaf link.
+            return ( MemorySegment ) CREATE_FILE_W.invokeExact( name, 0, 7, MemorySegment.NULL, 3,
+                    0x0020_0000, MemorySegment.NULL );
+        } catch ( Throwable throwable ) {
+            throw new IllegalStateException( "Native call to CreateFileW failed", throwable );
+        }
+    }
+
+    /**
+     * Reads FILE_ID_INFO: an eight-byte volume serial followed by a 128-bit file identifier.
+     *
+     * @param file
+     *         open file handle
+     * @param information
+     *         aligned 24-byte output buffer
+     * @return non-zero on success, zero on failure
+     * @throws IllegalStateException
+     *         if the native invocation fails
+     */
+    int readFileIdentity( @Nonnull MemorySegment file, @Nonnull MemorySegment information ) {
+        try {
+            return ( int ) GET_FILE_INFORMATION_BY_HANDLE_EX.invokeExact( file, 18, information, 24 );
+        } catch ( Throwable throwable ) {
+            throw new IllegalStateException( "Native call to GetFileInformationByHandleEx failed", throwable );
+        }
+    }
+
+    /**
+     * Detaches the calling helper from its console.
+     *
+     * @return non-zero on success, zero on failure
+     * @throws IllegalStateException
+     *         if the native invocation fails
+     */
+    int freeConsole() {
+        log.debug( "Detaching the console sender from its console" );
+        try {
+            return ( int ) FREE_CONSOLE.invokeExact();
+        } catch ( Throwable throwable ) {
+            throw new IllegalStateException( "Native call to FreeConsole failed", throwable );
+        }
+    }
+
+    /**
+     * Attaches the helper to the verified server's console.
+     *
+     * @param pid
+     *         Windows process identifier
+     * @return non-zero on success, zero on failure
+     * @throws IllegalStateException
+     *         if the native invocation fails
+     */
+    int attachConsole( int pid ) {
+        log.debug( "Attaching the console sender to process {}", Integer.toUnsignedLong( pid ) );
+        try {
+            return ( int ) ATTACH_CONSOLE.invokeExact( pid );
+        } catch ( Throwable throwable ) {
+            throw new IllegalStateException( "Native call to AttachConsole failed", throwable );
+        }
+    }
+
+    /**
+     * Makes the calling helper ignore CTRL+C, after attaching to the destination console.
+     *
+     * @return non-zero on success, zero on failure
+     * @throws IllegalStateException
+     *         if the native invocation fails
+     */
+    int ignoreConsoleControl() {
+        log.debug( "Disabling CTRL+C handling in the isolated console sender" );
+        try {
+            return ( int ) SET_CONSOLE_CTRL_HANDLER.invokeExact( MemorySegment.NULL, 1 );
+        } catch ( Throwable throwable ) {
+            throw new IllegalStateException( "Native call to SetConsoleCtrlHandler failed", throwable );
+        }
+    }
+
+    /**
+     * Sends CTRL+C to the calling helper's currently attached console.
+     *
+     * @return non-zero on success, zero on failure
+     * @throws IllegalStateException
+     *         if the native invocation fails
+     */
+    int sendConsoleControl() {
+        log.debug( "Generating CTRL+C in the attached server console" );
+        try {
+            return ( int ) GENERATE_CONSOLE_CTRL_EVENT.invokeExact( 0, 0 );
+        } catch ( Throwable throwable ) {
+            throw new IllegalStateException( "Native call to GenerateConsoleCtrlEvent failed", throwable );
+        }
     }
 
     /**

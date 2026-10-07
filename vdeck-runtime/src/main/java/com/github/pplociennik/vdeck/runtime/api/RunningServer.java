@@ -14,11 +14,9 @@ import static java.util.Objects.requireNonNull;
  * <p>Every component is always present, so this is a plain carrier: an instance exists only while a
  * process is genuinely being managed.
  *
- * <p>The process is held as a live {@link ProcessHandle} obtained when it was created, never looked up
- * again by its identifier. That is what makes a bare process identifier safe here despite
- * {@code security.md} §4: the panel never has to decide whether some process it found is the one it
- * started, because it never lets go of the handle. A managed process also cannot outlive the panel —
- * see {@link ServerRuntime} — so a stale identifier has no chance to be reused behind its back.
+ * <p>The handle belongs to a newly created or explicitly adopted process. ProcessIdentity verifies
+ * its PID, operating-system creation time and actual executable before every signal or termination.
+ * A successfully created server may outlive the panel; a PID alone never grants recovery ownership.
  *
  * @param handle
  *         live handle of the managed process

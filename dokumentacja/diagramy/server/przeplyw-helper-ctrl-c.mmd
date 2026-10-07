@@ -1,0 +1,24 @@
+%% Diagram przepływu: techniczny helper CTRL+C
+flowchart TD
+    request([Worker runtime: żądanie sygnału<br/>po wymaganym snapshotcie]) --> bean[Bean ConsoleControlSender:<br/>JvmConsoleControlSender]
+    bean --> launch[Nowy proces javaw.exe -jar vdeck-runner.jar<br/>Limit czasu i nadzór wyłącznie nad helperem]
+    launch -- błąd startu lub timeout --> failure([Błąd helpera: Stop zachowuje serwer])
+    launch -- uruchomiony --> command[VdeckRunner: tryb --ctrl-sender<br/>Bez Springa i uruchamiania panelu]
+    command --> parse[ControlSenderCommand:<br/>PID, czas utworzenia i absolutny plik exe]
+    parse -- błędne argumenty --> invalid([Kod 2: bez Springa i Win32])
+    parse -- poprawne argumenty --> lookup[WindowsConsoleControlSender:<br/>odszukanie procesu i ProcessIdentity.verify]
+    lookup -- brak lub inna tożsamość --> failed([Kod 1: sygnał niewysłany])
+    lookup -- potwierdzony --> free[FreeConsole]
+    free -- błąd --> failed
+    free -- sukces --> attach[AttachConsole do PID serwera]
+    attach -- błąd --> failed
+    attach -- sukces --> handler[SetConsoleCtrlHandler NULL, TRUE<br/>Helper ignoruje CTRL+C]
+    handler -- sukces --> verify[Ponowne sprawdzenie tożsamości i żywotności]
+    verify -- potwierdzony --> send[GenerateConsoleCtrlEvent CTRL_C_EVENT, 0]
+    handler -- błąd --> cleanupError[FreeConsole w sprzątaniu<br/>Zachowanie pierwotnej przyczyny]
+    verify -- błąd --> cleanupError
+    send -- błąd --> cleanupError
+    cleanupError --> errorExit([Kod 1: błąd sygnału lub tożsamości])
+    send -- sukces --> cleanup[FreeConsole w sprzątaniu]
+    cleanup -- błąd --> cleanupExit([Kod 1: błąd sprzątania])
+    cleanup -- sukces --> success([Kod 0: zdarzenie wysłane<br/>Bez potwierdzenia zapisu i wyjścia serwera])

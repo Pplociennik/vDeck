@@ -1,0 +1,768 @@
+= vDeck: Instrukcja obsługi panelu serwera Valheim
+:doctype: book
+:lang: pl
+:media: screen
+:toc:
+:toclevels: 2
+:toc-title: Spis treści
+:sectnums:
+:sectnumlevels: 2
+:outlinelevels: 3
+:chapter-signifier:
+:chapter-refsig: Rozdział
+:section-refsig: Podrozdział
+:appendix-caption: Dodatek
+:appendix-refsig: Dodatek
+:figure-caption: Rysunek
+:table-caption: Tabela
+:example-caption: Przykład
+:note-caption: Informacja
+:tip-caption: Wskazówka
+:important-caption: Ważne
+:warning-caption: Ostrzeżenie
+:caution-caption: Uwaga
+:version-label: Wersja
+:last-update-label: Ostatnia aktualizacja
+:untitled-label: Bez tytułu
+:xrefstyle: short
+:revnumber: wersja deweloperska
+:experimental:
+
+// Źródło instrukcji użytkownika dołączanej do paczki dystrybucyjnej jako vDeck-instrukcja.pdf.
+// Build (moduł .dist) wstawia revnumber z pom.xml. Zrzuty odtwarza zrzuty/zrzuty-ekranu.mjs,
+// a rysunki pochodzą z plików .mmd w katalogu rysunki/ (patrz .docs/rules/documentation.md).
+
+[#wprowadzenie]
+== Wprowadzenie
+
+[#o-instrukcji]
+=== O tej instrukcji
+
+Instrukcja prowadzi krok po kroku przez instalację i codzienną pracę z panelem vDeck.
+Na zrzutach ekranu ważne miejsca są oznaczone złotą ramką albo numerem; numery są objaśnione
+pod rysunkiem.
+
+Jeżeli chcesz tylko szybko wystartować, przeczytaj rozdziały <<instalacja>> i
+<<pierwsze-uruchomienie>>. Pozostałe rozdziały możesz czytać w miarę potrzeby.
+
+NOTE: vDeck jest we wczesnej fazie rozwoju. Instrukcja opisuje tylko funkcje, które już działają.
+Przyciski przygotowane na przyszłe funkcje są wyraźnie oznaczone jako niedostępne.
+
+[#o-programie]
+=== Czym jest vDeck
+
+vDeck to panel obsługiwany przez przeglądarkę internetową, który ułatwia prowadzenie
+dedykowanego serwera gry Valheim na komputerze z systemem Windows. Zamiast pisać polecenia
+i edytować skrypty, ustawiasz serwer w formularzach i uruchamiasz go jednym przyciskiem.
+
+Panel pozwala:
+
+* ustawić nazwę serwera, port, hasło, świat i automatyczne kopie zapisu gry;
+* wybrać poziom trudności świata i jego zasady;
+* uruchamiać i bezpiecznie zatrzymywać serwer, obserwując jego stan;
+* przed każdym zatrzymaniem wykonać kopię plików świata;
+* w razie potrzeby wymusić zakończenie zawieszonego serwera.
+
+Panel działa na tym samym komputerze co serwer gry. Domyślnie jest dostępny tylko z tego
+komputera, pod adresem `http://127.0.0.1:8085`.
+
+[#wymagania]
+=== Wymagania
+
+[cols="1,3",options="header"]
+|===
+| Element | Wymaganie
+
+| System
+| Windows 10 lub 11, 64-bitowy (x64).
+
+| Serwer gry
+| Zainstalowany *Valheim Dedicated Server*, czyli katalog z plikiem `valheim_server.exe`.
+Pliki serwera nie są częścią paczki vDeck — zainstaluj je osobno, np. przez Steam.
+
+| Przeglądarka
+| Dowolna aktualna przeglądarka: Edge, Chrome, Firefox. Panel działa także na telefonie i tablecie.
+
+| Uprawnienia
+| Prawo zapisu w katalogu serwera oraz w katalogu nadrzędnym, gdzie powstają kopie świata.
+
+| Miejsce na dysku
+| Tyle wolnego miejsca, aby obok poprzedniej kopii świata zmieściła się nowa.
+|===
+
+TIP: Nie musisz instalować Javy. Paczka zawiera własne środowisko Java (Eclipse Temurin 25)
+i korzysta wyłącznie z niego.
+
+[#instalacja]
+== Instalacja
+
+. Pobierz paczkę `vDeck-dist-<wersja>.zip`.
+. Wypakuj *całą* zawartość ZIP-a do katalogu Valheim Dedicated Server, tak aby plik
+  `start-vDeck.bat` leżał obok `valheim_server.exe`.
+. Sprawdź, czy katalog wygląda jak na <<fig-katalogi>>.
+
+[#fig-katalogi]
+.Katalog serwera po wypakowaniu paczki vDeck
+[source,text]
+----
+Valheim dedicated server\
+├── valheim_server.exe          ← plik serwera gry (instalowany osobno)
+├── start-vDeck.bat             ← uruchamia panel
+├── vDeck-instrukcja.pdf        ← ta instrukcja
+├── README.txt
+├── lib\                        ← pliki programu vDeck
+├── jre\                        ← dołączone środowisko Java
+└── .vDeck\
+    └── config\                 ← pliki ustawień panelu i serwera
+----
+
+IMPORTANT: Zachowaj wszystkie podkatalogi: `lib`, `jre` i `.vDeck`. Bez nich panel się
+nie uruchomi albo nie będzie umiał zatrzymać serwera.
+
+[#pierwsze-uruchomienie]
+== Pierwsze uruchomienie
+
+=== Uruchomienie panelu
+
+. Kliknij dwukrotnie `start-vDeck.bat`. Otworzy się czarne okno konsoli z napisem
+  `Uruchamianie vDeck. Panel: http://127.0.0.1:8085`.
+. Poczekaj kilka sekund, aż panel wystartuje.
+. Otwórz w przeglądarce adres `http://127.0.0.1:8085`.
+
+IMPORTANT: Okno konsoli to działający panel. Nie zamykaj go, dopóki korzystasz z vDeck.
+Jak poprawnie zamknąć panel, opisuje <<zamykanie-panelu>>.
+
+=== Logowanie
+
+Zaloguj się kontem administratora: użytkownik `admin`, hasło początkowe `admin`.
+
+.Ekran logowania
+image::logowanie.jpg[Ekran logowania z polami Username i Password,pdfwidth=40%]
+
+Ekran logowania jest na razie w języku angielskim: pole *Username* to nazwa użytkownika,
+*Password* to hasło, a przycisk *Sign in* loguje do panelu.
+
+=== Ustawienie własnego hasła
+
+Przy pierwszym logowaniu panel od razu prosi o ustawienie własnego hasła. Dopóki tego
+nie zrobisz, pozostałe ekrany są niedostępne.
+
+.Wymuszona zmiana hasła przy pierwszym logowaniu
+image::pierwsze-logowanie-zmiana-hasla.jpg[Ekran Ustaw własne hasło z wymaganiami dla hasła,pdfwidth=48%]
+
+. Wpisz nowe hasło w polu *Nowe hasło*.
+. Wpisz je ponownie w polu *Powtórz nowe hasło*.
+. Naciśnij btn:[Zmień hasło].
+. Panel wyloguje Cię. Zaloguj się ponownie jako `admin`, tym razem nowym hasłem.
+
+Nowe hasło musi:
+
+* mieć od 12 do 128 znaków;
+* zawierać co najmniej jedną cyfrę, małą literę, wielką literę i znak specjalny;
+* różnić się od aktualnego hasła.
+
+TIP: Zapisz hasło w menedżerze haseł. Panel nie ma funkcji przypominania hasła.
+
+=== Pierwsza konfiguracja serwera
+
+Przed pierwszym startem serwera:
+
+. Ustaw nazwę serwera, świat i hasło na ekranie *Serwer* (<<ekran-serwer>>).
+. Wybierz poziom trudności na ekranie *Ustawienia gry* (<<ekran-ustawienia-gry>>).
+. Uruchom serwer przyciskiem *Uruchom serwer* (<<uruchamianie>>).
+
+[#nawigacja]
+== Ekran główny i nawigacja
+
+[#fig-ekran-glowny]
+.Ekran główny panelu
+image::ekran-glowny.jpg[Ekran główny z wyspą akcji, stanem serwera i przyciskiem menu]
+
+[horizontal]
+1:: *Wyspa akcji* — przyciski sterowania serwerem i panelem, widoczne na każdym ekranie.
+2:: *Stan serwera* — kropka w kolorze stanu i jego nazwa.
+3:: *Menu* — otwiera menu boczne z ekranami ustawień.
+
+=== Wyspa akcji
+
+Wyspa akcji to pasek przycisków u góry każdego ekranu. Po najechaniu kursorem na przycisk
+pojawia się jego nazwa.
+
+.Przyciski wyspy akcji
+image::wyspa-akcji.jpg[Wyspa akcji z ponumerowanymi przyciskami]
+
+[cols="^1,4,8",options="header"]
+|===
+| Nr | Przycisk | Działanie
+
+| 1 | Uruchom serwer | Uruchamia serwer z bieżącymi ustawieniami (<<uruchamianie>>).
+| 2 | Zatrzymaj serwer | Bezpiecznie zatrzymuje serwer, wcześniej robiąc kopię świata (<<zatrzymywanie>>).
+| 3 | Uruchom serwer ponownie | _Jeszcze niedostępne._
+| 4 | Wymuś zatrzymanie serwera | Kill — siłowo kończy serwer po potwierdzeniu (<<kill>>).
+| 5 | Utwórz kopię świata | _Jeszcze niedostępne._
+| 6 | Utwórz kopię serwera | _Jeszcze niedostępne._
+| 7 | Zmień hasło | Otwiera zmianę hasła panelu (<<zmiana-hasla>>).
+| 8 | Wyloguj się | Kończy sesję w przeglądarce. Serwer gry działa dalej.
+| 9 | Stan serwera | Aktualny stan, odświeżany co dwie sekundy (<<stany>>).
+|===
+
+Przycisk, którego nie można teraz użyć, jest wyszarzony. Na przykład zatrzymanego serwera nie
+da się zatrzymać, a działającego — uruchomić drugi raz.
+
+=== Menu boczne i przycisk strony głównej
+
+Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Sekcja *Konfiguracja* prowadzi do
+ekranów ustawień.
+
+.Menu boczne
+image::menu-boczne.jpg[Menu boczne z wyróżnionymi pozycjami Serwer i Ustawienia gry,pdfwidth=40%]
+
+[horizontal]
+1:: *Serwer* — tożsamość serwera, dostęp, świat i kopie automatyczne.
+2:: *Ustawienia gry* — poziom trudności i zasady świata.
+
+Pozycje *Test* w sekcjach *Operacje* i *Kopie bezpieczeństwa* to miejsca na przyszłe ekrany;
+na razie nic nie robią.
+
+Na każdym ekranie poza stroną główną obok przycisku menu jest mały przycisk z domkiem — wraca
+na stronę główną.
+
+.Przyciski nawigacji na ekranach ustawień
+image::przyciski-nawigacji.jpg[Przycisk menu i przycisk strony głównej w lewym dolnym rogu,pdfwidth=30%]
+
+[horizontal]
+1:: *Menu* — otwiera menu boczne.
+2:: *Strona główna* — wraca do ekranu głównego.
+
+=== Panel na telefonie i tablecie
+
+Panel dopasowuje się do ekranu telefonu i tabletu w obu orientacjach. Przyciski wyspy akcji
+układają się wtedy w dwóch rzędach, a formularze w jednej kolumnie.
+
+.Ekran „Serwer” na telefonie
+image::telefon-ekran-serwer.jpg[Ekran Serwer wyświetlony na telefonie,pdfwidth=35%]
+
+Aby otworzyć panel z innego urządzenia, trzeba zmienić adres nasłuchu (<<adres-i-port>>).
+
+[#ekran-serwer]
+== Ekran „Serwer”
+
+Ekran *Serwer* zawiera ustawienia, z którymi panel uruchamia serwer Valheim. Otworzysz go
+z menu bocznego: *Konfiguracja* → *Serwer*.
+
+[#fig-ekran-serwer]
+.Ekran „Serwer”
+image::ekran-serwer.jpg[Ekran Serwer z formularzem ustawień serwera]
+
+Pod każdym polem panel wyświetla opis: jakiej opcji serwera dotyczy, jakie wartości są
+dozwolone i jaka jest wartość domyślna. Formularz ma cztery sekcje.
+
+=== Sekcja „Serwer”
+
+.Sekcja „Serwer”
+image::serwer-sekcja-serwer.jpg[Pola Nazwa serwera, Port, Serwer publiczny, Crossplay i Identyfikator instancji,pdfwidth=65%]
+
+[cols="1,3",options="header"]
+|===
+| Pole | Znaczenie
+
+| Nazwa serwera
+| Nazwa widoczna na liście serwerów w grze. Od 1 do 64 znaków, bez cudzysłowu. Domyślnie `vDeck`.
+
+| Port
+| Port serwera; serwer używa też portu o jeden wyższego. Od 1024 do 65534. Domyślnie `2456`
+(czyli porty 2456–2457).
+
+| Serwer publiczny
+| Serwer widoczny na liście serwerów. Bez tej opcji dołączysz tylko przez „Dołącz przez IP”.
+
+| Crossplay
+| Pozwala dołączać graczom z każdej platformy (Steam, Xbox, Game Pass). Przekierowanie portów
+nie jest wtedy potrzebne, ale nie połączysz się przez lokalny adres IP.
+
+| Identyfikator instancji
+| Potrzebny tylko wtedy, gdy na jednym komputerze działa kilka serwerów crossplay. Zwykle
+zostaw puste.
+|===
+
+TIP: Jeśli znajomi mają się łączyć przez internet, nie otwieraj portów na routerze. Bezpieczniej
+jest użyć prywatnej sieci, np. Tailscale lub Hamachi — opisuje to <<gra-przez-internet>>.
+
+=== Sekcja „Dostęp”
+
+.Sekcja „Dostęp”
+image::serwer-sekcja-dostep.jpg[Pole Hasło serwera i pole wyboru Usuń hasło,pdfwidth=65%]
+
+*Hasło serwera* podają gracze przy dołączaniu do gry. Nie ma związku z hasłem do panelu.
+
+* Hasło ma od 5 do 64 znaków, bez cudzysłowu i bez spacji na początku i końcu.
+* Hasło nie może być fragmentem nazwy serwera.
+* Serwer publiczny musi mieć hasło.
+* Panel nigdy nie wyświetla zapisanego hasła — pokazuje tylko, czy jest ustawione. Puste pole
+  przy zapisie zostawia obecne hasło bez zmian.
+* Zaznacz *Usuń hasło*, aby serwer startował bez hasła.
+
+WARNING: Hasło serwera jest zapisane w pliku ustawień zwykłym tekstem. Nie używaj tego samego
+hasła co do innych kont.
+
+=== Sekcja „Świat i zapis”
+
+.Sekcja „Świat i zapis”
+image::serwer-sekcja-swiat.jpg[Pola Nazwa świata, Katalog zapisu, Interwał zapisu świata i Plik logu serwera,pdfwidth=65%]
+
+[cols="1,3",options="header"]
+|===
+| Pole | Znaczenie
+
+| Nazwa świata
+| Świat o tej nazwie zostanie wczytany, a jeśli nie istnieje — utworzony. Litery łacińskie,
+cyfry, spacje, `_` i `-`. Domyślnie `Dedicated`.
+
+| Katalog zapisu
+| Katalog ze światami i listami graczy (`adminlist.txt`, `bannedlist.txt`, `permittedlist.txt`).
+Ścieżka względna wewnątrz katalogu serwera. Domyślnie `valheim-data`.
+
+| Interwał zapisu świata (s)
+| Co ile sekund serwer zapisuje świat. Od 60 do 86400. Domyślnie 1800, czyli 30 minut.
+
+| Plik logu serwera
+| Tylko informacja: panel sam zapisuje log każdego uruchomienia w osobnym pliku (<<pliki>>).
+|===
+
+=== Sekcja „Kopie automatyczne”
+
+.Sekcja „Kopie automatyczne”
+image::serwer-sekcja-kopie.jpg[Pola Liczba kopii, Interwał pierwszej kopii i Interwał kolejnych kopii,pdfwidth=65%]
+
+Te kopie tworzy sam serwer Valheim, w trakcie gry. Domyślnie przechowuje 4 kopie: pierwszą po
+2 godzinach, a kolejne co 12 godzin. To coś innego niż kopia, którą panel robi przy
+zatrzymaniu (<<kopie>>).
+
+=== Zapisywanie ustawień
+
+Po zmianach naciśnij btn:[Zapisz ustawienia] na dole formularza.
+
+.Przycisk zapisu ustawień
+image::serwer-przycisk-zapisz.jpg[Przycisk Zapisz ustawienia w złotej ramce,pdfwidth=45%]
+
+Po udanym zapisie u góry formularza pojawi się zielony komunikat:
+
+.Potwierdzenie zapisu
+image::serwer-zapisano.jpg[Komunikat Ustawienia zostały zapisane,pdfwidth=90%]
+
+IMPORTANT: Nowe ustawienia obowiązują od *następnego* uruchomienia serwera. Działający serwer
+nie jest zatrzymywany — zatrzymaj go i uruchom ponownie, aby zmiany zadziałały.
+
+Jeżeli któreś pole ma niedozwoloną wartość, panel nic nie zapisuje i pokazuje czerwony
+komunikat z przyczyną. Popraw wartość według opisu pod polem i zapisz ponownie.
+
+[#ekran-ustawienia-gry]
+== Ekran „Ustawienia gry”
+
+Ekran *Ustawienia gry* określa poziom trudności i zasady świata. Otworzysz go z menu bocznego:
+*Konfiguracja* → *Ustawienia gry*.
+
+.Ekran „Ustawienia gry”
+image::ekran-ustawienia-gry.jpg[Ekran Ustawienia gry]
+
+=== Zestaw ustawień
+
+.Wybór gotowego zestawu ustawień
+image::gra-sekcja-zestaw.jpg[Lista Zestaw ustawień świata,pdfwidth=65%]
+
+Najprościej wybrać gotowy zestaw z listy *Zestaw ustawień świata*: Normalny, Swobodny, Łatwy,
+Trudny, Hardcore, Immersyjny albo Budowanie. Wartość *Brak* oznacza ustawienia domyślne gry.
+
+=== Konfiguracja zaawansowana
+
+Zaznacz *Konfiguracja zaawansowana*, aby zobaczyć sekcję *Zaawansowane* z pojedynczymi
+ustawieniami świata. Panel od razu zapamiętuje wybór.
+
+.Włączanie konfiguracji zaawansowanej
+image::gra-przelacznik-zaawansowane.jpg[Pole wyboru Konfiguracja zaawansowana w złotej ramce,pdfwidth=65%]
+
+.Sekcja „Zaawansowane”
+image::gra-sekcja-zaawansowane.jpg[Modyfikatory świata i klucze świata,pdfwidth=65%]
+
+* *Modyfikatory* — Walka, Kara za śmierć, Zasoby, Najazdy i Portale. Każdy ma wartość
+  *Domyślnie (wartość gry)* albo jedną z poziomów, np. *Trudno* lub *Więcej*. Modyfikatory
+  wybrane tutaj działają po zestawie ustawień, więc go uzupełniają lub zmieniają.
+* *Klucze świata* — Budowanie bez kosztów, Najazdy zależne od gracza, Pasywni przeciwnicy
+  i Bez mapy. Zaznaczony klucz włącza daną zasadę.
+
+NOTE: Ukrycie sekcji *Zaawansowane* nie kasuje ustawionych w niej wartości. Nadal obowiązują
+przy uruchomieniu serwera.
+
+Ustawienia zapisujesz przyciskiem btn:[Zapisz ustawienia]. Jak na ekranie *Serwer*, obowiązują
+od następnego uruchomienia serwera.
+
+[#praca-z-serwerem]
+== Uruchamianie i zatrzymywanie serwera
+
+[#uruchamianie]
+=== Uruchamianie
+
+Naciśnij przycisk *Uruchom serwer* (1 na wyspie akcji). Panel sprawdza ustawienia i uruchamia
+serwer. Stan zmienia się na *Uruchamianie*, a potem na *Uruchomiony*.
+
+NOTE: Stan *Uruchomiony* oznacza, że proces serwera działa. Zanim świat będzie gotowy do gry,
+może minąć jeszcze chwila — zwłaszcza przy pierwszym uruchomieniu, gdy serwer tworzy świat.
+
+Jeżeli serwer nie może wystartować, panel nic nie uruchamia i pokazuje komunikat z przyczyną.
+
+.Komunikat po nieudanej próbie uruchomienia
+image::start-blad-walidacji.jpg[Przycisk Uruchom serwer i komunikat o braku pliku valheim_server.exe,pdfwidth=80%]
+
+[horizontal]
+1:: Przycisk *Uruchom serwer*.
+2:: Komunikat z przyczyną — tutaj brak pliku `valheim_server.exe` w katalogu instalacji.
+
+Najczęstsze komunikaty opisuje <<problemy>>.
+
+[#zatrzymywanie]
+=== Zatrzymywanie
+
+Naciśnij przycisk *Zatrzymaj serwer* (2 na wyspie akcji). Panel najpierw kopiuje pliki świata,
+a dopiero potem prosi serwer o zamknięcie. Valheim zapisuje wtedy świat i kończy pracę.
+Przebieg pokazuje <<fig-zatrzymywanie>>.
+
+[#fig-zatrzymywanie]
+.Co się dzieje po naciśnięciu „Zatrzymaj serwer”
+image::zatrzymywanie-serwera.png[Schemat zatrzymywania serwera,pdfwidth=60%]
+
+W czasie zatrzymywania stan to *Zatrzymywanie*. Może to potrwać do kilku minut — poczekaj na
+wynik i nie zamykaj panelu.
+
+IMPORTANT: Nieudane zatrzymanie *nie wyłącza* serwera. Jeżeli kopia świata się nie uda albo
+serwer nie zakończy pracy na czas, serwer dalej działa, a pod wyspą akcji pojawia się
+komunikat z przyczyną. Usuń przyczynę (np. zwolnij miejsce na dysku) i ponów zatrzymanie.
+
+[#kill]
+=== Wymuszone zatrzymanie (Kill)
+
+Gdy serwer się zawiesił i zwykłe zatrzymanie nie działa, możesz go siłowo zakończyć
+przyciskiem *Wymuś zatrzymanie serwera* (4 na wyspie akcji).
+
+. Panel wyświetla stronę *Potwierdzenie wymuszonego zatrzymania* z opisem ryzyka.
+. Zaznacz *Akceptuję ryzyko utraty postępu dla tego uruchomienia*.
+. Naciśnij btn:[Potwierdź Kill] albo btn:[Anuluj], aby zrezygnować.
+
+Po potwierdzeniu panel próbuje zrobić kopię świata, a następnie od razu kończy proces serwera —
+także wtedy, gdy kopia się nie uda.
+
+CAUTION: Kill może spowodować utratę postępu od ostatniego zapisu świata, a kopia działającego
+świata może być niespójna. Używaj go tylko wtedy, gdy zwykłe zatrzymanie zawiodło.
+
+[#stany]
+=== Stany serwera
+
+[cols="1,3",options="header"]
+|===
+| Stan | Znaczenie
+
+| Zatrzymany | Serwer nie działa. Można go uruchomić.
+| Uruchamianie | Panel uruchamia proces serwera.
+| Uruchomiony | Proces serwera działa.
+| Zatrzymywanie | Trwa kopia świata i zamykanie serwera.
+| Błąd zatrzymania | Zatrzymanie się nie udało; serwer dalej działa. Przyczyna jest pod wyspą akcji.
+| Błąd | Serwer nie wystartował.
+| Awaria | Serwer zakończył pracę nieoczekiwanie.
+| Odzyskiwanie | Wykryto serwer pozostawiony po zamknięciu panelu (<<odzyskiwanie>>).
+|===
+
+[#odzyskiwanie]
+=== Serwer działający po zamknięciu panelu
+
+Zamknięcie panelu nie wyłącza działającego serwera — gracze mogą dalej grać. Po ponownym
+uruchomieniu panel wykrywa taki serwer i pokazuje stan *Odzyskiwanie*. Nowy start jest wtedy
+zablokowany, żeby nie uruchomić drugiej kopii serwera na tym samym świecie.
+
+Naciśnij btn:[Przejmij zarządzanie serwerem], aby panel znów nim sterował. Przejąć można tylko
+serwer uruchomiony wcześniej przez panel. Serwer uruchomiony poza panelem trzeba zatrzymać
+samodzielnie.
+
+[#zamykanie-panelu]
+=== Zamykanie panelu
+
+. Najlepiej najpierw zatrzymaj serwer (<<zatrzymywanie>>).
+. Przejdź do okna konsoli panelu i naciśnij kbd:[Ctrl+C].
+. Poczekaj, aż okno zakończy pracę. Jeżeli w tym czasie trwa zatrzymywanie serwera, zamykanie
+  może potrwać kilka minut.
+
+[#zmiana-hasla]
+== Zmiana hasła panelu
+
+Hasło panelu zmienisz przyciskiem *Zmień hasło* (7 na wyspie akcji).
+
+.Ekran zmiany hasła
+image::zmiana-hasla.jpg[Ekran Zmień hasło z polami haseł i wymaganiami,pdfwidth=48%]
+
+. Wpisz *Aktualne hasło*.
+. Wpisz *Nowe hasło* i powtórz je w polu *Powtórz nowe hasło*.
+. Naciśnij btn:[Zmień hasło]. Panel wyloguje Cię; zaloguj się nowym hasłem.
+
+Nowe hasło musi spełniać te same wymagania co przy pierwszym logowaniu.
+
+[#adres-i-port]
+== Zmiana portu i dostęp z innych urządzeń
+
+Port i adres panelu ustawiasz w pliku `start-vDeck.bat`. Zamknij panel, otwórz plik w Notatniku
+(prawy przycisk myszy → *Edytuj*) i zmień jedną z linii na początku pliku:
+
+[source,bat]
+----
+set "ADDRESS=127.0.0.1"
+set "PORT=8085"
+----
+
+[cols="1,3",options="header"]
+|===
+| Zmienna | Znaczenie
+
+| `PORT`
+| Port panelu. Zmień go, jeśli port 8085 jest zajęty przez inny program. Adres panelu zmieni
+się odpowiednio, np. `http://127.0.0.1:8090`.
+
+| `ADDRESS`
+| Adres, na którym panel czeka na połączenia. `127.0.0.1` oznacza „tylko ten komputer”. Aby
+otworzyć panel z telefonu lub innego komputera, wpisz adres IP tego komputera w sieci lokalnej
+albo `0.0.0.0`.
+|===
+
+WARNING: Panel używa połączenia HTTP bez szyfrowania, więc hasła są przesyłane otwartym
+tekstem. Otwieraj go na inne urządzenia tylko w zaufanej sieci domowej i nigdy nie udostępniaj
+go w internecie.
+
+NOTE: Nie dopisuj portu ani adresu jako argumentu przy uruchamianiu skryptu. Zmieniaj wyłącznie
+linie `set` — podwójnie podane ustawienie uniemożliwi start panelu.
+
+[#gra-przez-internet]
+== Gra ze znajomymi przez internet
+
+Gdy znajomi grają w tej samej sieci domowej, łączą się z serwerem bez żadnych dodatkowych
+kroków. Gdy są poza Twoim domem, serwer musi stać się dla nich osiągalny przez internet.
+Najczęściej poleca się w tym celu otwarcie (przekierowanie) portów na routerze. Ten rozdział
+wyjaśnia, dlaczego lepiej tego unikać i jak zrobić to bezpieczniej.
+
+[#ryzyko-portow]
+=== Dlaczego nie warto otwierać portów na routerze
+
+Router domyślnie nie wpuszcza do Twojej sieci żadnych połączeń z internetu, o które nie
+poprosiło któreś z Twoich urządzeń. Przekierowanie portu robi w tej ochronie stałą dziurę:
+od tej chwili *każdy* w internecie może połączyć się z Twoim komputerem na tym porcie.
+
+* *Twój komputer zostaje wystawiony na cały internet.* Automatyczne skanery bez przerwy
+  sprawdzają wszystkie adresy w sieci w poszukiwaniu otwartych portów. Otwarty serwer zostanie
+  znaleziony w ciągu godzin, nie tylko przez Twoich znajomych.
+* *Każdy błąd w serwerze staje się zagrożeniem.* Jeżeli w serwerze Valheim znajdzie się luka
+  bezpieczeństwa, może z niej skorzystać każdy, kto dotrze do otwartego portu — zanim
+  producent ją naprawi, a Ty zainstalujesz poprawkę.
+* *Ataki na łącze.* Ktoś, kto zna Twój publiczny adres IP, może zalać go ruchem (atak DDoS)
+  i odciąć od internetu cały dom, nie tylko grę.
+* *Zgadywanie hasła.* Hasło serwera jest wtedy jedynym zabezpieczeniem i każdy może próbować
+  je odgadnąć.
+* *Ujawnienie adresu domowego łącza.* Publiczny adres IP pozwala w przybliżeniu ustalić
+  lokalizację i dostawcę internetu.
+* *Łatwo o pomyłkę.* Zbyt szeroki zakres portów, włączone UPnP albo strefa DMZ w routerze mogą
+  wystawić do internetu znacznie więcej niż serwer gry, w tym panel vDeck, który używa
+  połączenia bez szyfrowania. Przekierowania zostają też aktywne, gdy już o nich zapomnisz.
+
+WARNING: Nigdy nie przekierowuj na routerze portu panelu (domyślnie `8085`) i nie umieszczaj
+komputera w strefie DMZ. Panel nie jest przeznaczony do wystawiania w internecie.
+
+[#prywatna-siec]
+=== Lepsze rozwiązanie: prywatna sieć
+
+Zamiast otwierać router, utwórz prywatną sieć wirtualną (VPN) tylko dla siebie i znajomych.
+Program VPN instalujesz na komputerze z serwerem, a każdy gracz na swoim komputerze. Komputery
+w tej sieci widzą się nawzajem tak, jakby stały w jednym domu, a dla reszty internetu serwer
+pozostaje niewidoczny.
+
+* Router zostaje zamknięty — nie trzeba niczego w nim zmieniać.
+* Z serwerem połączą się tylko osoby, które sam zaprosisz.
+* Ruch między komputerami jest szyfrowany.
+* Twój publiczny adres IP nie jest nikomu podawany.
+
+Polecamy jeden z dwóch darmowych programów:
+
+[cols="1,3",options="header"]
+|===
+| Program | Kiedy wybrać
+
+| Tailscale (zalecany)
+| Nowoczesny i szybki; zwykle działa bez żadnej konfiguracji. Konto zakładasz przez Google,
+Microsoft, Apple lub GitHub. Darmowy plan wystarcza do gry ze znajomymi.
+
+| Hamachi
+| Prosty program z jedną siecią chronioną hasłem; znajomi nie potrzebują zaproszeń. W darmowym
+planie sieć liczy najwyżej 5 komputerów (razem z serwerem).
+|===
+
+Gracze z obu programów dołączają do serwera tak samo: w Valheim wybierają *Dołącz do gry* →
+*Dołącz przez IP* i wpisują adres serwera w prywatnej sieci wraz z portem, np.
+`100.101.102.103:2456`.
+
+[#tailscale]
+=== Instrukcja: Tailscale
+
+Na komputerze z serwerem:
+
+. Pobierz program ze strony https://tailscale.com/download i zainstaluj go.
+. Uruchom Tailscale i zaloguj się, wybierając konto Google, Microsoft, Apple lub GitHub.
+. Kliknij ikonę Tailscale w zasobniku systemowym (obok zegara). Pod nazwą komputera widnieje
+  jego adres w prywatnej sieci, zaczynający się od `100.`. Zapisz go — to adres serwera.
+. Zaproś znajomych: otwórz w przeglądarce panel https://login.tailscale.com/admin/machines,
+  przy komputerze z serwerem wybierz menu *…* → *Share* i wyślij znajomym wygenerowany link.
+  Udostępnienie obejmuje tylko ten jeden komputer, a nie całą Twoją sieć.
+
+Na komputerze każdego gracza:
+
+. Zainstaluj Tailscale ze strony https://tailscale.com/download i zaloguj się własnym kontem.
+. Otwórz link otrzymany od właściciela serwera i zaakceptuj udostępnienie.
+. W Valheim wybierz *Dołącz do gry* → *Dołącz przez IP* i wpisz adres serwera z portem, np.
+  `100.101.102.103:2456`.
+
+[#hamachi]
+=== Instrukcja: Hamachi
+
+Na komputerze z serwerem:
+
+. Pobierz LogMeIn Hamachi ze strony https://vpn.net i zainstaluj go.
+. Uruchom program, naciśnij przycisk zasilania i zaloguj się lub załóż darmowe konto LogMeIn.
+. Wybierz *Sieć* → *Utwórz nową sieć* (w angielskiej wersji *Network* → *Create a new
+  network*). Podaj identyfikator sieci i trudne do odgadnięcia hasło.
+. Adres serwera w prywatnej sieci, zaczynający się od `25.`, widnieje u góry okna Hamachi,
+  obok przycisku zasilania. Przekaż znajomym ten adres oraz identyfikator i hasło sieci.
+
+Na komputerze każdego gracza:
+
+. Zainstaluj Hamachi, naciśnij przycisk zasilania i zaloguj się.
+. Wybierz *Sieć* → *Dołącz do istniejącej sieci* (*Network* → *Join an existing network*)
+  i wpisz identyfikator oraz hasło sieci.
+. W Valheim wybierz *Dołącz do gry* → *Dołącz przez IP* i wpisz adres serwera z portem, np.
+  `25.1.2.3:2456`.
+
+[#prywatna-siec-wskazowki]
+=== Wskazówki do gry w prywatnej sieci
+
+* *Serwer publiczny* na ekranie *Serwer* (<<ekran-serwer>>) możesz wyłączyć — gracze i tak
+  łączą się przez adres IP, a serwer nie pojawi się na publicznej liście. Mimo to zostaw
+  hasło serwera.
+* *Crossplay* zostaw wyłączony. Przy crossplay gracze łączą się przez serwery pośredniczące
+  producenta gry, a nie przez adres w prywatnej sieci.
+* Przy pierwszym uruchomieniu serwera Windows może zapytać, czy zezwolić programowi
+  `valheim_server.exe` na dostęp do sieci. Zezwól. Jeśli znajomi mimo to nie mogą się
+  połączyć, sprawdź w *Zaporze Windows Defender* → *Zezwalaj aplikacji na dostęp przez Zaporę
+  Windows*, czy `valheim_server.exe` ma zezwolenie dla sieci, do której należy Tailscale lub
+  Hamachi.
+* Port w adresie musi być taki sam jak pole *Port* na ekranie *Serwer* (domyślnie `2456`).
+
+WARNING: Jeśli ustawisz `ADDRESS=0.0.0.0` (<<adres-i-port>>), panel vDeck stanie się dostępny
+także dla wszystkich osób w Twojej prywatnej sieci. Zapraszaj do niej tylko zaufane osoby albo
+zostaw domyślny adres `127.0.0.1`.
+
+[#pliki]
+== Pliki, dane i kopie
+
+[#fig-pliki]
+.Gdzie vDeck przechowuje dane
+[cols="2,3",options="header"]
+|===
+| Miejsce | Zawartość
+
+| `.vDeck\config\vDeck.properties`
+| Ustawienia samego panelu.
+
+| `.vDeck\config\valheim-server.properties`
+| Ustawienia serwera z ekranów *Serwer* i *Ustawienia gry*, w tym hasło serwera.
+
+| `vdeck.db`
+| Konto administratora panelu. Powstaje przy pierwszym uruchomieniu.
+
+| `valheim-data`
+| Domyślny katalog światów (zmienisz go na ekranie *Serwer*).
+
+| `.vDeck\log`
+| Logi serwera gry, osobny plik dla każdego uruchomienia.
+
+| `.vDeck\shutdown-snapshots`
+| Kopie świata robione przez panel przy zatrzymaniu.
+|===
+
+Ścieżki w ustawieniach panelu muszą być względne i prowadzić do katalogów wewnątrz
+katalogu serwera.
+
+CAUTION: Pliki `.properties` edytuj ręcznie tylko przy zamkniętym panelu. Wygodniej i bezpieczniej
+jest zmieniać ustawienia w panelu, który sprawdza poprawność wartości.
+
+[#kopie]
+=== Kopie świata
+
+Przy każdym zatrzymaniu panel kopiuje pliki świata do katalogu `.vDeck\shutdown-snapshots` w katalogu
+serwera. Nazwę tego podkatalogu można zmienić ustawieniem `snapshot.directory` w pliku
+`.vDeck\config\vDeck.properties`; musi to być sama nazwa, bez ukośników. Zachowywana jest ostatnia kompletna kopia; nowa zastępuje ją dopiero wtedy, gdy
+powstanie w całości.
+
+NOTE: Kopia robiona w czasie działania serwera nie gwarantuje spójnego zapisu gry. Najbardziej
+aktualny i spójny jest zapis, który serwer robi sam przy poprawnym zatrzymaniu.
+
+[#aktualizacja]
+== Instalacja nowej wersji
+
+Automatyczna aktualizacja nie jest jeszcze dostępna. Aby zainstalować nową wersję:
+
+. Zatrzymaj serwer i zamknij panel.
+. Zrób kopię katalogu `.vDeck\config`, pliku `vdeck.db`, światów i kopii.
+. Wypakuj z nowej paczki katalogi `lib` i `jre` oraz plik `start-vDeck.bat`, zastępując stare.
+. *Nie* nadpisuj swoich plików w `.vDeck\config` szablonami z ZIP-a.
+. Jeśli `PORT` lub `ADDRESS` miały zmienione wartości, ustaw je ponownie w nowym `start-vDeck.bat`.
+
+[#problemy]
+== Rozwiązywanie problemów
+
+[qanda]
+Okno konsoli zgłasza brak katalogu `jre` albo pliku `lib\vdeck.jar`::
+  Paczka nie została wypakowana w całości. Wypakuj ponownie całą zawartość ZIP-a.
+
+Przeglądarka nie może połączyć się z panelem::
+  Sprawdź, czy okno konsoli panelu jest otwarte i czy nie ma w nim błędów. Upewnij się, że
+  wpisujesz adres z napisu `Uruchamianie vDeck. Panel: ...`. Jeśli port 8085 jest zajęty,
+  zmień `PORT` (<<adres-i-port>>).
+
+„W katalogu instalacji nie ma pliku valheim_server.exe.”::
+  Paczka vDeck została wypakowana w innym miejscu niż serwer gry. Przenieś jej zawartość obok
+  `valheim_server.exe`.
+
+„Port serwera albo port o jeden wyższy jest zajęty przez inny program.”::
+  Działa już inny serwer Valheim albo inny program używa tych portów. Zamknij go albo zmień
+  *Port* na ekranie *Serwer*.
+
+„Profil uruchomieniowy jest niekompletny.”::
+  Uzupełnij ustawienia na ekranie *Serwer* i zapisz je.
+
+„Serwer publiczny wymaga ustawienia hasła.”::
+  Ustaw hasło serwera albo odznacz *Serwer publiczny*.
+
+„Nie utworzono kompletnej kopii świata. Serwer pozostaje uruchomiony.”::
+  Sprawdź wolne miejsce na dysku i prawo zapisu w katalogu nadrzędnym serwera, potem ponów
+  zatrzymanie. W ostateczności użyj Kill (<<kill>>).
+
+„Brakuje wymaganych plików zapisu świata (.db/.fwl) lub katalogu worlds_local.”::
+  Świat nie został jeszcze zapisany przez serwer. Poczekaj na pierwszy zapis (interwał zapisu
+  świata) i ponów zatrzymanie, albo świadomie użyj Kill.
+
+Nie pamiętam hasła do panelu::
+  Panel nie ma funkcji przypominania hasła. Zamknij panel i usuń plik `vdeck.db` — przy
+  następnym starcie powstanie nowe konto `admin` z hasłem `admin`. Ustawienia serwera, światy
+  i kopie pozostaną nietknięte.
+
+Szczegóły błędów::
+  Panel zapisuje szczegóły problemów w oknie konsoli. Zachowaj jego treść, zgłaszając problem.
+
+[appendix]
+== Dołączone oprogramowanie
+
+Paczka zawiera środowisko Java *Eclipse Temurin JRE 25*
+(https://adoptium.net/temurin/releases/?version=25[adoptium.net]). Informacje licencyjne
+producenta znajdują się w katalogu `jre\legal`. Nie usuwaj ich przy dalszym przekazywaniu
+paczki.

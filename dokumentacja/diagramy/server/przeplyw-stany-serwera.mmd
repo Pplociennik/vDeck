@@ -1,19 +1,26 @@
-%% Diagram stanów: bieżący cykl życia serwera
 stateDiagram-v2
-    [*] --> STOPPED
-    STOPPED --> STARTING: utworzenie procesu
-    STARTING --> RUNNING: proces żyje po 5 sekundach
-    STARTING --> START_FAILED: proces zakończył się podczas startu
-    RUNNING --> CRASHED: proces zakończył się samodzielnie
-    START_FAILED --> STARTING: ponowne utworzenie procesu
-    CRASHED --> STARTING: ponowne utworzenie procesu
-    STARTING --> STOPPED: zamknięcie runtime i zakończenie procesu
-    RUNNING --> STOPPED: zamknięcie runtime i zakończenie procesu
-    note right of STOPPED
-        Błąd tworzenia procesu pozostawia poprzedni stan.
-        Nie ma jeszcze obsługi Stop, Restart i Kill z GUI.
+    [*] --> STOPPED: brak procesu
+    [*] --> RECOVERY_REQUIRED: żywy zapisany PID lub kandydat
+    STOPPED --> STARTING: Start
+    START_FAILED --> STARTING: Start
+    CRASHED --> STARTING: Start
+    STARTING --> RUNNING: 5 s życia
+    STARTING --> START_FAILED: onExit
+    RUNNING --> CRASHED: onExit bez Stop
+    RUNNING --> STOPPING: Stop lub potwierdzony Kill
+    STARTING --> STOPPING: shutdown
+    STOPPING --> STOP_FAILED: błąd lub deadline
+    STOP_FAILED --> STOPPING: nowa operacja
+    STOPPING --> STOPPED: obserwacja wyjścia
+    STOP_FAILED --> STOPPED: późniejsze wyjście
+    RECOVERY_REQUIRED --> RUNNING: jawna zweryfikowana adopcja
+    RECOVERY_REQUIRED --> STOPPED: brak żywego procesu i kandydata
+    note left of STOPPED
+        Błędny token przy pustym skanie trafia do kwarantanny.
+        Nieudana weryfikacja nowego procesu nie publikuje STARTING.
     end note
-    note right of RUNNING
-        Stan potwierdza przeżycie procesu, nie gotowość gry.
-        Widok aktualizuje się po odświeżeniu strony.
+    note right of STOP_FAILED
+        Proces i token pozostają.
+        Wyjście panelu nie kończy serwera.
+        Brak automatycznego Kill.
     end note

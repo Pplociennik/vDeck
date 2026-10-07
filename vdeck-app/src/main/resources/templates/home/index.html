@@ -5,11 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="#{home.title}">vDeck</title>
     <link rel="stylesheet" th:href="@{/css/base.css}">
+    <script type="module" th:src="@{/js/server-status.js}"></script>
 </head>
 <body>
 <!--
-    Panel home page. It shows the page background, the action island and the side menu only - the
-    content area stays empty until there is a feature to present in it.
+    Panel home page presenting control outcomes and an explicit recovery decision below the header.
 -->
 <div th:replace="~{common/island :: island}"></div>
 
@@ -19,6 +19,15 @@
        th:if="${serverStarted}" th:text="#{server.started}"></p>
     <p class="form-alert settings-message" role="alert"
        th:if="${serverErrorKey}" th:text="#{${serverErrorKey}}"></p>
+    <p class="form-success settings-message" role="status"
+       th:if="${serverStopping}" th:text="#{server.stopping}"></p>
+    <section th:if="${serverStatus.state.name() == 'RECOVERY_REQUIRED'}" class="settings-message">
+        <p class="form-alert" th:text="#{server.recovery.required}"></p>
+        <form th:if="${serverStatus.launchId != null}" th:action="@{/server/adopt}" method="post">
+            <input type="hidden" name="launchId" th:value="${serverStatus.launchId}">
+            <button class="form-submit" type="submit" th:text="#{server.recovery.adopt}"></button>
+        </form>
+    </section>
 </main>
 
 <div th:replace="~{common/home-button :: homeButton}"></div>

@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +47,10 @@ class WindowsProcessLauncherTest {
     private static final long PID = 42L;
     private static final Clock CLOCK = Clock.fixed( Instant.parse( "2026-10-06T12:00:00Z" ), ZoneOffset.UTC );
 
+    private List< Integer > observedFlags;
+
+    private boolean rejectDisarm;
+
     @Mock
     private Win32 nativeCalls;
 
@@ -54,6 +59,9 @@ class WindowsProcessLauncherTest {
 
     @Mock
     private ProcessHandle handle;
+
+    @Mock
+    private ProcessHandle.Info information;
 
     private WindowsProcessLauncher underTest;
 
@@ -66,6 +74,8 @@ class WindowsProcessLauncherTest {
     /** Creates fresh native boundaries and an absolute launch specification. */
     @BeforeEach
     void setUp() {
+        observedFlags = new ArrayList<>();
+        rejectDisarm = false;
         underTest = new WindowsProcessLauncher( nativeCalls, processLookup, CLOCK );
         Path base = Path.of( "test-installation" ).toAbsolutePath();
         specification = new LaunchSpec( base.resolve( "server.exe" ), List.of( "-password", "synthetic-secret" ),
@@ -84,11 +94,14 @@ class WindowsProcessLauncherTest {
         given( nativeCalls.assignProcessToJobObject( JOB, PROCESS ) ).willReturn( 1 );
         given( nativeCalls.resumeThread( THREAD ) ).willReturn( 1 );
         given( processLookup.apply( PID ) ).willReturn( Optional.of( handle ) );
+        given( handle.info() ).willReturn( information );
+        given( information.startInstant() ).willReturn( Optional.of( CLOCK.instant() ) );
 
         // WHEN
         var result = underTest.launch( specification );
 
         // THEN
+        assertThat( observedFlags ).containsExactly( Win32.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, 0 );
         assertThat( result.handle() ).isSameAs( handle );
         assertThat( result.startedAt() ).isEqualTo( CLOCK.instant() );
         assertThat( result.logFile() ).isEqualTo( specification.logFile() );
@@ -102,6 +115,7 @@ class WindowsProcessLauncherTest {
         order.verify( nativeCalls ).resumeThread( THREAD );
         order.verify( nativeCalls ).closeHandle( THREAD );
         order.verify( nativeCalls ).closeHandle( PROCESS );
+        order.verify( nativeCalls ).setInformationJobObject( eq( JOB ), anyInt(), any(), anyInt() );
         verify( nativeCalls, never() ).closeHandle( JOB );
         verify( nativeCalls, never() ).terminateProcess( any() );
     }
@@ -283,6 +297,8 @@ class WindowsProcessLauncherTest {
         givenCreatedProcess();
         given( nativeCalls.assignProcessToJobObject( JOB, PROCESS ) ).willReturn( 1 );
         given( processLookup.apply( PID ) ).willReturn( Optional.empty() ).willReturn( Optional.of( handle ) );
+        given( handle.info() ).willReturn( information );
+        given( information.startInstant() ).willReturn( Optional.of( CLOCK.instant() ) );
 
         // WHEN
         var thrown = catchThrowable( () -> underTest.launch( specification ) );
@@ -302,6 +318,8 @@ class WindowsProcessLauncherTest {
         givenCreatedProcess();
         given( nativeCalls.assignProcessToJobObject( JOB, PROCESS ) ).willReturn( 1 );
         given( processLookup.apply( PID ) ).willReturn( Optional.of( handle ) );
+        given( handle.info() ).willReturn( information );
+        given( information.startInstant() ).willReturn( Optional.of( CLOCK.instant() ) );
         underTest.launch( specification );
 
         // WHEN
@@ -351,14 +369,35 @@ class WindowsProcessLauncherTest {
     // HELPER METHODS
     // =================================================================================================
 
+
+    /** Failure to disarm kill-on-close is still an incomplete launch and releases its job. */
+    @Test
+    void shouldReapIncompleteLaunch_whenKillOnCloseCannotBeDisabled() {
+        // GIVEN
+        givenCreatedProcess();
+        rejectDisarm = true;
+        given( nativeCalls.assignProcessToJobObject( JOB, PROCESS ) ).willReturn( 1 );
+        given( nativeCalls.resumeThread( THREAD ) ).willReturn( 1 );
+        given( processLookup.apply( PID ) ).willReturn( Optional.of( handle ) );
+        given( handle.info() ).willReturn( information );
+        given( information.startInstant() ).willReturn( Optional.of( CLOCK.instant() ) );
+        // WHEN
+        var failure = catchThrowable( () -> underTest.launch( specification ) );
+        // THEN
+        assertThat( failure ).isInstanceOf( RuntimeException.class );
+        verify( nativeCalls ).closeHandle( JOB );
+    }
+
     private void givenConfiguredJob() {
         given( nativeCalls.createJobObject() ).willReturn( JOB );
         given( nativeCalls.setInformationJobObject( eq( JOB ),
                 eq( Win32.JOB_OBJECT_EXTENDED_LIMIT_INFORMATION ), any(), anyInt() ) ).willAnswer( invocation -> {
                     MemorySegment limits = invocation.getArgument( 2 );
-                    assertThat( limits.get( ValueLayout.JAVA_INT, Win32.LIMIT_FLAGS_OFFSET ) )
-                            .isEqualTo( Win32.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE );
-                    return 1;
+                    int flags = limits.get( ValueLayout.JAVA_INT, Win32.LIMIT_FLAGS_OFFSET );
+                    observedFlags.add( flags );
+                    assertThat( flags )
+                            .isIn( 0, Win32.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE );
+                    return flags == 0 && rejectDisarm ? 0 : 1;
                 } );
     }
 

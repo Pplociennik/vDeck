@@ -1,4 +1,6 @@
 spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 6m
   application:
     name: vdeck
   datasource:

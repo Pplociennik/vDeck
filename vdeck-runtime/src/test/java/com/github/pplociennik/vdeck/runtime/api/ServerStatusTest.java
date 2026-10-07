@@ -1,13 +1,15 @@
 package com.github.pplociennik.vdeck.runtime.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Path;
 import java.time.Instant;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
  * Verifies that each named factory produces a snapshot consistent with its state — in particular that
@@ -200,4 +202,83 @@ class ServerStatusTest {
         assertThat( thrown ).isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "logFile must not be null" );
     }
+    /** Failed Stop retains the launch token and every live process detail. */
+    @Test
+    void shouldRetainLaunchDetails_whenStopFailed() {
+        // GIVEN
+        ProcessHandle process = mock( ProcessHandle.class );
+        given( process.pid() ).willReturn( PID );
+        RunningServer server = new RunningServer( process, STARTED_AT, LOG_FILE );
+        // WHEN
+        underTest = ServerStatus.stopFailed( server, "current-launch", StopFailure.GRACEFUL );
+        // THEN
+        assertThat( underTest.getState() ).isEqualTo( ServerState.STOP_FAILED );
+        assertThat( underTest.getLaunchId() ).isEqualTo( "current-launch" );
+        assertThat( underTest.getPid() ).isEqualTo( PID );
+        assertThat( underTest.getStartedAt() ).isEqualTo( STARTED_AT );
+        assertThat( underTest.getLogFile() ).isEqualTo( LOG_FILE );
+        assertThat( underTest.getStopFailure() ).isEqualTo( StopFailure.GRACEFUL );
+    }
+
+    /** Starting, running and stopping snapshots preserve the same immutable launch correlation. */
+    @Test
+    void shouldPreserveCorrelation_whenLiveStateChanges() {
+        // GIVEN
+        ProcessHandle process = mock( ProcessHandle.class );
+        given( process.pid() ).willReturn( PID );
+        RunningServer server = new RunningServer( process, STARTED_AT, LOG_FILE );
+        // WHEN
+        var starting = ServerStatus.starting( server, "current-launch" );
+        var running = ServerStatus.running( server, "current-launch" );
+        underTest = ServerStatus.stopping( server, "current-launch" );
+        // THEN
+        assertThat( starting.getState() ).isEqualTo( ServerState.STARTING );
+        assertThat( running.getState() ).isEqualTo( ServerState.RUNNING );
+        assertThat( underTest.getState() ).isEqualTo( ServerState.STOPPING );
+        assertThat( starting.getLaunchId() ).isEqualTo( running.getLaunchId() ).isEqualTo( underTest.getLaunchId() );
+    }
+
+    /** An uncertain recovery does not invent process details or an adoptable launch. */
+    @Test
+    void shouldCarryOptionalAdoption_whenRecoveryIsRequired() {
+        // GIVEN
+        // Verified and unverified recovery choices.
+        // WHEN
+        underTest = ServerStatus.recoveryRequired( "saved-launch" );
+        var unknown = ServerStatus.recoveryRequired( null );
+        // THEN
+        assertThat( underTest.getLaunchId() ).isEqualTo( "saved-launch" );
+        assertThat( underTest.getPid() ).isNull();
+        assertThat( unknown.getState() ).isEqualTo( ServerState.RECOVERY_REQUIRED );
+        assertThat( unknown.getLaunchId() ).isNull();
+    }
+
+    /** New live factories enforce every non-null component explicitly. */
+    @Test
+    void shouldRejectNullComponents_whenBuildingCorrelatedStatus() {
+        // GIVEN
+        RunningServer server = new RunningServer( mock( ProcessHandle.class ), STARTED_AT, LOG_FILE );
+        // WHEN
+        var noStartServer = catchThrowable( () -> ServerStatus.starting( null, "id" ) );
+        var noStartId = catchThrowable( () -> ServerStatus.starting( server, null ) );
+        var noRunningServer = catchThrowable( () -> ServerStatus.running( null, "id" ) );
+        var noRunningId = catchThrowable( () -> ServerStatus.running( server, null ) );
+        var noStoppingServer = catchThrowable( () -> ServerStatus.stopping( null, "id" ) );
+        var noStoppingId = catchThrowable( () -> ServerStatus.stopping( server, null ) );
+        var noFailedServer = catchThrowable( () -> ServerStatus.stopFailed( null, "id", StopFailure.FORCE ) );
+        var noFailedId = catchThrowable( () -> ServerStatus.stopFailed( server, null, StopFailure.FORCE ) );
+        var noReason = catchThrowable( () -> ServerStatus.stopFailed( server, "id", null ) );
+        // THEN
+        assertThat( noStartServer ).isInstanceOf( NullPointerException.class );
+        assertThat( noStartId ).isInstanceOf( NullPointerException.class );
+        assertThat( noRunningServer ).isInstanceOf( NullPointerException.class );
+        assertThat( noRunningId ).isInstanceOf( NullPointerException.class );
+        assertThat( noStoppingServer ).isInstanceOf( NullPointerException.class );
+        assertThat( noStoppingId ).isInstanceOf( NullPointerException.class );
+        assertThat( noFailedServer ).isInstanceOf( NullPointerException.class );
+        assertThat( noFailedId ).isInstanceOf( NullPointerException.class );
+        assertThat( noReason ).isInstanceOf( NullPointerException.class );
+    }
+
+
 }

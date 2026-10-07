@@ -1,0 +1,30 @@
+%% Diagram przepływu: łagodny Stop i potwierdzony Kill
+flowchart TD
+    request[Stop / potwierdzony Kill / shutdown] --> admit{Aktualny launchId,<br/>stan i brak konfliktu?}
+    admit -- nie --> reject[Wyjątek procesu i komunikat]
+    admit -- tak --> stopping[STOPPING; deadline 5 min<br/>HTTP wraca po przyjęciu]
+    stopping --> snapshot[Worker: próba snapshotu PRE_STOP]
+    snapshot -- gotowy --> mode{Potwierdzony Kill?}
+    snapshot -- błąd kopii --> backup{Potwierdzony Kill<br/>i operacja nadal ważna?}
+    backup -- nie --> failed[STOP_FAILED<br/>Zachowaj żywy proces i token]
+    backup -- tak --> warning[WARN: błąd backupu<br/>Kontynuuj wymuszenie]
+    warning --> forceIdentity
+    snapshot -- anulowanie / deadline --> failed
+    mode -- tak --> forceIdentity[Zweryfikuj PID, czas, exe<br/>i uprawnienie operacji]
+    forceIdentity -- brak --> failed
+    forceIdentity -- zgodne --> force[destroyForcibly<br/>Czekaj do 10 s]
+    force -- obserwacja wyjścia --> stopped[STOPPED; usuń token<br/>Anuluj dalsze etapy]
+    force -- odmowa / błąd / brak wyjścia --> failed
+    mode -- nie --> identity[Zweryfikuj PID, czas i exe]
+    identity -- niepewne --> failed
+    identity -- zgodne --> ctrl[Helper CTRL+C do 10 s<br/>Czekaj do 120 s]
+    ctrl -- błąd helpera --> failed
+    ctrl --> exit{Zaobserwowano wyjście?}
+    exit -- tak --> stopped
+    exit -- nie --> retry[Drugie CTRL+C<br/>Czekaj do 30 s]
+    retry -- błąd --> failed
+    retry --> exit2{Zaobserwowano wyjście?}
+    exit2 -- tak --> stopped
+    exit2 -- nie --> failed
+    stopping -. deadline w dowolnym etapie .-> failed
+    failed --> close[Shutdown: callback i zwolnienie zasobów<br/>Serwer może przeżyć panel]

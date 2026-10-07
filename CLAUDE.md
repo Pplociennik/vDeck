@@ -4,11 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2:
+vDeck is an early-stage Maven reactor with three modules, matching `design.md` §2:
 
-- `vdeck-runtime` — pure Java, no Spring. Contains the runtime API, serialized lifecycle state
-  machine and Windows process launcher using FFM, including the job object binding server lifetime
-  to the panel. Normal shutdown currently terminates the server forcibly; graceful stop is not implemented.
+- `vdeck-runtime` — pure Java, no Spring. Owns the serialized lifecycle, Windows FFM launcher,
+  launch identity, complete BEST_EFFORT world snapshots, isolated CTRL+C helper, asynchronous Stop
+  and manually confirmed Kill. Failed Stop retains the process. Kill-on-close protects incomplete
+  creation only; a successfully created server can outlive the panel (AD-017). Installation FileLock,
+  a secret-free `.vDeck/server.pid` and explicit verified adoption prevent duplicate launches.
+- `vdeck-runner` — pure Java, no Spring. Provides `runner.VdeckRunner`, the executable CTRL+C
+  helper entry point. Builds a self-contained `target/vdeck-runner.jar`; install it in the
+  PathService installation directory, including for IDE and `spring-boot:run` usage.
+  Panel launching and auto-updates are future work.
 - `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, shared path/configuration
   infrastructure and the first implemented features: panel authentication (persisted admin account,
   Spring Security's generated login page, and two separate password screens — the forced
@@ -21,11 +27,32 @@ vDeck is an early-stage Maven reactor with two modules, matching `design.md` §2
   mirror script, and supplies the action island with runtime status. `LaunchProfileService` publishes an immutable
   `LaunchConfiguration` (secret-free profile plus password) after settings initialization and every
   successful profile save. Start captures it once for validation and command generation. The builder
-  returns `LaunchSpec` directly; the mirror script is rendered from that same specification. Start works; Stop, Restart and
-  Kill are not implemented. Status updates require a page refresh. Views with navigation embed the side menu
+  returns `LaunchSpec` directly; the mirror script is rendered from that same specification. Start, Stop and manually confirmed Kill are wired to the island.
+  Restart is not implemented. `server-status.js` polls the island every two seconds while visible. Views with navigation embed the side menu
   (`templates/common/side-menu.html` + `static/js/side-menu.js`) and, as a separate fragment, the round
-  home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` is the
-  only other ES module.
+  home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` controls the advanced settings section.
+
+`VdeckApplication.main()` starts only Spring. `config.ConsoleControlConfiguration` creates the idle
+`ConsoleControlSender` bean and injects it into runtime. Each signal request starts a short-lived
+runner process with `--ctrl-sender <pid> <creation-instant> <absolute-executable>`; no helper process
+or waiting thread is started during bean creation (AD-020). Helper exit codes are 0 (event sent), 1 (signal/identity failure) and 2 (invalid
+arguments). A malformed helper invocation never starts the panel. Successful sending does not prove
+that Valheim saved or exited. The stop plan is `.docs/plans/server-stop.md`. RCON is excluded from this implementation.
+AD-018 places snapshots in `<installation>/.vDeck/<snapshot.directory>` (`vDeck.properties`, default
+`shutdown-snapshots`, a single directory name) through `BackupPathService`; every directory vDeck creates lives
+below `.vDeck`. The root is resolved per launch and persisted in the `server.pid` token for adoption. Stop requires a complete snapshot
+before CTRL+C. Confirmed Kill attempts a snapshot, then immediately forces termination even if
+copying failed; it sends no CTRL+C and requires no additional confirmation (AD-017). Cancellation,
+deadline and identity checks still apply. Missing required source saves give WORLD_SAVE_MISSING.
+Snapshots retain `snapshot-latest` through atomic replacement, rollback and crash recovery (AD-019),
+with 8 GiB per set and 8192 entries. Obsolete `.old-*` and `.tmp-*` directories are cleaned; legacy
+`snapshot-<operationId>` directories are preserved. Windows file identity uses volume serial and
+128-bit FileId through FFM. Installation roots are canonicalized; directory checks reject redirects
+below their trusted root. Invalid recovery tokens are quarantined after an empty installation process
+scan. Adoption uses `ServerAdoptException` (AD-014). No automatic force is performed.
+Shutdown awaits the same five-minute operation through SmartLifecycle, then releases
+resources without terminating a surviving process. Real Valheim save consistency and CTRL+C behavior
+still require a Windows deployment test.
 
 Only packages holding real code exist; the rest of the `design.md` §3 tree is created when
 its feature is implemented. Do not infer missing architecture from the incomplete package layout.
@@ -88,7 +115,8 @@ passes keys, using enums implementing `shared.TranslationKeyIf` (for example
 `PasswordChangeMessage`) rather than string literals. Changing a text means changing the repository
 and shipping a new release.
 
-Every configured path goes through `PathService.getAbsolutePath(String)`: it must be relative, is
+Every configured path, including the AD-018 backup root, goes
+through `PathService.getAbsolutePath(String)`: it must be relative, is
 normalized, and after resolution must stay inside the installation directory.
 
 **Running from an IDE or via `spring-boot:run` requires `-Dvdeck.server-directory=<dir>`.**
@@ -192,6 +220,7 @@ Use the wrapper (`.\mvnw.cmd` in PowerShell, `./mvnw` in Bash) — it guarantees
 # Do NOT add -am: spring-boot:run would also fire on the aggregator, which has no main class
 # ("Unable to find a suitable main class"). Run install once so vdeck-runtime is resolvable.
 .\mvnw.cmd install -DskipTests
+Copy-Item vdeck-runner\target\vdeck-runner.jar D:\path\to\sandbox\vdeck-runner.jar
 .\mvnw.cmd -pl vdeck-app spring-boot:run `
   "-Dspring-boot.run.jvmArguments=--enable-native-access=ALL-UNNAMED -Dvdeck.server-directory=D:\path\to\sandbox"
 

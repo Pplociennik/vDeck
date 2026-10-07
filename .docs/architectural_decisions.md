@@ -235,3 +235,66 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** Każdy start zapisuje przez `-logFile` osobny log w `<game.log.directory>/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>.log`.
 - **Powód:** Historia uruchomień nie ginie przy ponownym starcie.
 - **Konsekwencja:** Panel nie przechwytuje konsoli, domyślny katalog to `.vDeck/log`, a dzienną retencją steruje `game.log.retention.days` z wartością domyślną 14; `game.log.retention.enabled=false` (domyślnie `true`) wyłącza retencję i zachowuje wszystkie logi.
+
+## AD-017 — Nieudany Stop pozostawia serwer uruchomiony
+
+- **Status:** obowiązująca (2026-10-07), zaakceptowana przez użytkownika.
+- **Decyzja:** Niepowodzenie łagodnego zatrzymania, także podczas zamykania panelu, nie upoważnia
+  do wymuszonego zakończenia serwera. `STOP_FAILED` zachowuje żywy proces. Wymuszenie wymaga
+  osobnej, ręcznie potwierdzonej akcji Kill dla konkretnego uruchomienia. Kill próbuje wykonać
+  snapshot, a następnie od razu wymusza zakończenie procesu, niezależnie od powodzenia kopii
+  (zmiana zaakceptowana 2026-10-07). Kill nie wysyła CTRL+C, nie czeka na próby łagodne i nie
+  wymaga dodatkowej zgody na brak backupu. Potwierdzenie obejmuje ryzyko utraty danych także
+  bez kopii; dotyczy jednej operacji i nie przechodzi na Stop ani kolejne żądania. Deadline,
+  anulowanie i zweryfikowana tożsamość procesu nadal obowiązują.
+- **Powód:** Zakończenie panelu i upływ timeoutu nie są zgodą na utratę niezapisanego postępu.
+- **Konsekwencja:** Job Object nie może zabijać uruchomionego serwera przy wyjściu panelu.
+  Serwer może przeżyć panel; przed nowym startem należy rozpoznać pozostałe procesy tej instalacji
+  i umożliwić ich jawne odzyskanie. Sprzątanie nieudanego, nieprzekazanego startu pozostaje osobną
+  odpowiedzialnością launchera. Nie wolno raportować `STOPPED` bez zaobserwowania wyjścia procesu.
+
+## AD-018 — Katalog snapshotów wewnątrz `.vDeck`
+
+- **Status:** obowiązująca (2026-10-07, zmieniona 2026-10-26), zaakceptowana przez użytkownika.
+- **Decyzja:** Snapshoty trafiają do `<instalacja>/.vDeck/<snapshot.directory>`. Nazwę jednego
+  podkatalogu `.vDeck` podaje `snapshot.directory` w `vDeck.properties` (domyślnie `shutdown-snapshots`).
+  Lokalizację obsługuje osobny resolver `BackupPathService` należący do `feature.backup`.
+  Wcześniejsza lokalizacja `<rodzic instalacji>/.vDeck-backups/<nazwa instalacji>` została wycofana.
+- **Powód:** Każdy katalog tworzony przez vDeck musi być podkatalogiem `.vDeck`; panel nie tworzy
+  niczego obok instalacji.
+- **Konsekwencja:** Ścieżka przechodzi przez `PathService.getAbsolutePath()`, a resolver odrzuca
+  wartość, która nie jest pojedynczym katalogiem bezpośrednio pod `.vDeck`, nakładanie się z
+  aktywnym zapisem świata oraz dowiązania i punkty reparsowania od `.vDeck` w dół. Katalog jest
+  rozwiązywany przy starcie serwera, zapisywany w tokenie `server.pid` i odczytywany przy adopcji,
+  więc późniejsza zmiana ustawienia nie przekierowuje kopii działającego serwera. Runtime odmawia
+  snapshotu poza `.vDeck`. Brak dostępu przerywa snapshot; nie powoduje cichego wyboru innego
+  katalogu. Kopie z dawnego `.vDeck-backups` nie są przenoszone automatycznie.
+
+## AD-019 — Tylko ostatni kompletny snapshot
+
+- **Status:** obowiązująca (2026-10-12), na podstawie decyzji użytkownika w planie
+  `plans/server-stop-review-fixes.md` z 2026-10-07.
+- **Decyzja:** Każda instalacja przechowuje ostatni kompletny snapshot w `snapshot-latest`.
+  Nowy zestaw powstaje w `.tmp-<uuid>`. Dopiero po sprawdzeniu kopii poprzedni zestaw trafia
+  atomowo do `.old-<uuid>`, a nowy na jego miejsce. Nieudana publikacja przywraca poprzedni zestaw.
+- **Powód:** Limit 32 wpisów bez sprzątania uniemożliwiał kolejne łagodne zatrzymania serwera.
+- **Konsekwencja:** Nie ma limitu liczby zatrzymań wynikającego z historii. Po publikacji poprzednia
+  kopia jest usuwana; błąd sprzątania daje WARN. Następna operacja usuwa pozostałości po awarii,
+  najpierw przywracając `.old-*`, jeżeli brakuje `snapshot-latest`. Limity 8 GiB i 8192 wpisów,
+  wymóg wolnego miejsca na nowy zestaw oraz pozostałe zasady AD-017 i AD-018 pozostają w mocy.
+  Katalogi `snapshot-<operationId>` wcześniejszej wersji nie są automatycznie usuwane.
+
+## AD-020 — Helper CTRL+C uruchamiany na żądanie przez bean panelu
+
+- **Status:** obowiązująca (2026-10-12), zaakceptowana przez użytkownika.
+- **Decyzja:** Panel tworzy singleton `ConsoleControlSender` bez własnego wątku oczekującego.
+  `JvmConsoleControlSender` uruchamia osobny proces dopiero na żądanie runtime. Punkt wejścia
+  helpera należy do modułu `vdeck-runner`, bez Springa; `VdeckApplication.main()` uruchamia
+  wyłącznie panel. Runner i panel zależą od runtime, runtime nie zależy od żadnego z nich.
+- **Powód:** Izolacja procesowych ustawień konsoli pozostaje konieczna, ale uruchomienie panelu
+  nie powinno znać protokołu helpera ani zależeć od logiki wysyłania CTRL+C.
+- **Konsekwencja:** Build dostarcza osobny `vdeck-runner.jar`, instalowany w katalogu instalacji
+  wskazywanym przez PathService. Konfiguracja Springa przekazuje gotowe polecenie beanowi, a runtime
+  korzysta z `ConsoleControlSender`. Helper zachowuje weryfikację tożsamości i kody wyjścia 0/1/2.
+  AD-017 pozostaje w mocy. Runner obecnie obsługuje tylko helper; uruchamianie panelu i updater
+  bez podwyższania uprawnień są przyszłym zakresem, wymagającym osobnego planu.

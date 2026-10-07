@@ -1,21 +1,12 @@
 package com.github.pplociennik.vdeck.runtime.api;
 
+
+
 /**
  * Lifecycle states of the single Valheim server process managed by vDeck.
  *
- * <p>This enum declares only the states the implemented start path can reach:
- *
- * <pre>
- * STOPPED --- start ---&gt; STARTING --- process stayed alive ---&gt; RUNNING
- *                            |                                     |
- *                            | process exited                      | process exited
- *                            v                                     v
- *                       START_FAILED                            CRASHED
- * </pre>
- *
- * <p>The stopping half of the lifecycle agreed in {@code design.md} §8 — {@code STOPPING},
- * {@code STOP_FAILED} and {@code RECOVERY_REQUIRED} — is added together with the features that can
- * actually produce those states, so no constant exists that no code can reach.
+ * <p>Starting, stopping, failed-stop and recovery states block a new launch. Failed stop retains
+ * the managed process; only observed exit completes a stop. Recovery requires an explicit decision.
  */
 public enum ServerState {
 
@@ -42,7 +33,25 @@ public enum ServerState {
     /**
      * The process exited on its own while it was running, without the panel asking for it.
      */
-    CRASHED;
+    CRASHED,
+
+    /** A snapshot or graceful signal is in progress; conflicting commands are refused. */
+    STOPPING,
+
+    /** Stop failed and the still-live process remains managed; a new launch is prohibited. */
+    STOP_FAILED,
+
+    /** A previous or externally started server must be resolved before a new launch. */
+    RECOVERY_REQUIRED;
+
+    /**
+     * Tells whether an administrator may request Stop or a manually confirmed Kill.
+     *
+     * @return true for running and failed-stop processes only
+     */
+    public boolean isStoppable() {
+        return this == RUNNING || this == STOP_FAILED;
+    }
 
     /**
      * Tells whether a start may be requested while the server is in this state. A terminal failure is

@@ -172,7 +172,9 @@ body::before {
 /* Header strip keeping the island centred at the top of the page; it never gives up its height. */
 .island-header {
     display: flex;
+    flex-direction: column;
     flex: 0 0 auto;
+    align-items: center;
     justify-content: center;
     padding: var(--space-md) var(--space-sm) 0;
 }
@@ -229,6 +231,7 @@ body::before {
     padding-block-start: calc(var(--island-status-block-size) - var(--island-status-protrusion));
     translate: -50% 0;
     background-color: var(--island-status-surface);
+    color: var(--island-status-color);
     clip-path: polygon(
             0 0,
             100% 0,
@@ -244,27 +247,30 @@ body::before {
     inline-size: var(--island-status-dot-size);
     block-size: var(--island-status-dot-size);
     border-radius: 50%;
-    background-color: var(--island-status-color);
+    background-color: currentColor;
 }
 
 .island-status__label {
-    color: var(--island-status-color);
+    color: inherit;
     font-size: var(--island-status-font-size);
     line-height: 1;
     white-space: nowrap;
 }
 
-.island-status.is-starting {
-    --island-status-color: var(--island-status-color-pending);
+.island-status.is-starting,
+.island-status.is-stopping {
+    color: var(--island-status-color-pending);
 }
 
 .island-status.is-running {
-    --island-status-color: var(--island-status-color-running);
+    color: var(--island-status-color-running);
 }
 
 .island-status.is-start-failed,
-.island-status.is-crashed {
-    --island-status-color: var(--island-status-color-failed);
+.island-status.is-crashed,
+.island-status.is-stop-failed,
+.island-status.is-recovery-required {
+    color: var(--island-status-color-failed);
 }
 
 /*
@@ -1138,4 +1144,12 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
     .side-menu-panel {
         transform: none;
     }
+}
+
+/* Bounded textual stop diagnostics remain readable on narrow screens. */
+.island-stop-message {
+    max-inline-size: var(--island-stop-message-width);
+    margin-inline: auto;
+    text-align: center;
+    font-size: var(--island-status-font-size);
 }

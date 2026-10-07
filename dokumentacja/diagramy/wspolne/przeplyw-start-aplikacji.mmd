@@ -1,12 +1,17 @@
 %% Diagram przepływu: start aplikacji vDeck i przygotowanie środowiska
 flowchart TD
-    start([Uruchomienie VdeckApplication]) --> home{Ustawiono<br/>vdeck.server-directory?}
+    start([Uruchomienie VdeckApplication]) --> spring[SpringApplication.run]
+    spring --> home{Ustawiono<br/>vdeck.server-directory?}
     home -- tak --> configured[Katalog bazowy = wartość override]
     home -- nie --> appHome[Katalog bazowy = ApplicationHome.getDir]
     configured --> real[PathServiceImpl: toRealPath i sprawdzenie,<br/>czy to katalog]
     appHome --> real
     real -- nie jest katalogiem --> fail([PathResolutionException:<br/>start przerwany])
-    real -- ok --> schema[Hibernate ddl-auto=update:<br/>utworzenie lub aktualizacja tabeli panel_users]
+    real -- ok --> sender[ConsoleControlConfiguration:<br/>bean ConsoleControlSender z poleceniem runnera<br/>Bez procesu i wątku oczekującego]
+    sender --> lock{FileLock .vDeck/vdeck.lock<br/>zdobyty?}
+    lock -- nie --> lockFail([Drugi panel: start przerwany])
+    lock -- tak --> recovery[Walidacja tokenu i skan procesu<br/>STOPPED albo RECOVERY_REQUIRED]
+    recovery --> schema[Hibernate ddl-auto=update:<br/>utworzenie lub aktualizacja tabeli panel_users]
     schema --> props[SystemPropertiesInitializer: loadFile dla każdego pliku ustawień<br/>vDeck.properties, valheim-server.properties<br/>PathService.getConfigurationFile → .vDeck/config/plik]
     props --> exists{Plik ustawień<br/>istnieje?}
     exists -- nie --> create[Utworzenie katalogu .vDeck/config<br/>i zapis pliku z wartościami domyślnymi enuma]

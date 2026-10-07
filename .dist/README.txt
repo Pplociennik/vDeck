@@ -1,0 +1,71 @@
+vDeck — lokalny panel serwera Valheim
+
+vDeck pozwala zarządzać dedykowanym serwerem Valheim przez przeglądarkę:
+edytować ustawienia, uruchamiać i zatrzymywać serwer oraz obserwować jego stan.
+Przed zatrzymaniem wykonuje kopię plików świata. Projekt jest we wczesnej fazie rozwoju.
+
+WYMAGANIA
+- Windows x64.
+- Zainstalowany Valheim Dedicated Server, w tym valheim_server.exe.
+- Przeglądarka internetowa i prawo zapisu w katalogu instalacji.
+- Wolne miejsce na dane świata i nową kopię obok poprzedniej.
+
+Pełna instrukcja obsługi ze zrzutami ekranu: vDeck-instrukcja.pdf.
+
+Paczka zawiera Eclipse Temurin JRE 25. Nie trzeba instalować Javy ani ustawiać JAVA_HOME.
+Pliki serwera Valheim nie są częścią tej paczki.
+
+PIERWSZE URUCHOMIENIE
+1. Wypakuj całą zawartość ZIP-a do katalogu Valheim Dedicated Server.
+   start-vDeck.bat ma leżeć obok valheim_server.exe.
+   Zachowaj podkatalogi lib (pliki programu), jre oraz .vDeck, w tym .vDeck\config.
+2. Uruchom start-vDeck.bat. Skrypt korzysta wyłącznie z dołączonej Javy.
+3. Poczekaj na uruchomienie panelu i otwórz http://127.0.0.1:8085.
+4. Zaloguj się: użytkownik admin, hasło początkowe admin.
+   Panel od razu wymaga ustawienia własnego hasła.
+5. Uzupełnij ekran „Serwer” i „Ustawienia gry”. Hasło serwera gry jest niezależne
+   od hasła panelu i w dostarczonym profilu pozostaje puste.
+6. Uruchom serwer przyciskiem Start. Pozostaw okno panelu otwarte.
+
+USTAWIENIA I DANE
+- .vDeck\config\vDeck.properties — ustawienia panelu i logów gry.
+- .vDeck\config\valheim-server.properties — profil uruchomieniowy serwera Valheim.
+- vdeck.db — konto administratora panelu; baza powstaje przy pierwszym uruchomieniu.
+- valheim-data — domyślny katalog zapisu świata; można go zmienić w panelu.
+- .vDeck\log — domyślne logi serwera gry.
+- .vDeck\shutdown-snapshots — kopie świata z zatrzymania;nazwę podkatalogu ustawia snapshot.directory w vDeck.properties.
+
+Ścieżki w ustawieniach muszą być względne i prowadzić do katalogów wewnątrz instalacji.
+Ręczne zmiany plików properties wykonuj przy wyłączonym panelu.
+
+ZATRZYMYWANIE
+Zatrzymaj serwer przyciskiem Stop i poczekaj na wynik. Panel zamkniesz przez Ctrl+C
+w jego oknie; zamykanie może potrwać kilka minut. Nieudany Stop pozostawia serwer
+uruchomiony. Wymuszone Kill wymaga potwierdzenia i może spowodować utratę postępu.
+Kopia działającego świata nie gwarantuje spójnego zapisu gry.
+
+PONOWNE WDROŻENIE
+Paczka jest przeznaczona do pierwszej instalacji. Przy wymianie wersji zachowaj
+własne .vDeck\config, bazę vdeck.db, światy i kopie. Nie nadpisuj ustawień szablonami
+z ZIP-a. Automatyczna aktualizacja aplikacji nie jest jeszcze dostępna.
+
+GDY PANEL NIE STARTUJE
+Wypakuj całą paczkę i sprawdź komunikaty w oknie. Port 8085 musi być wolny.
+Aby użyć innego portu, otwórz start-vDeck.bat w Notatniku i zmień wartość
+w linii set "PORT=8085". Adres panelu zmieni się odpowiednio.
+
+DOSTĘP Z INNYCH KOMPUTERÓW
+Domyślnie panel działa tylko na tym komputerze (set "ADDRESS=127.0.0.1" w start-vDeck.bat).
+Aby otworzyć go z innego urządzenia, wpisz tam adres IP tego komputera w sieci lokalnej
+lub 0.0.0.0. Rób to wyłącznie w zaufanej sieci: panel używa HTTP bez szyfrowania,
+więc hasła są przesyłane otwartym tekstem. Nie udostępniaj panelu w internecie.
+
+GRA ZE ZNAJOMYMI PRZEZ INTERNET
+Nie otwieraj portów na routerze: wystawia to komputer na cały internet. Zamiast tego
+użyj prywatnej sieci Tailscale (zalecane) lub Hamachi. Szczegóły i instrukcje krok po
+kroku znajdziesz w rozdziale „Gra ze znajomymi przez internet” w vDeck-instrukcja.pdf.
+
+DOŁĄCZONE ŚRODOWISKO JAVA
+Eclipse Temurin: https://adoptium.net/temurin/releases/?version=25
+Dystrybucja JRE zachowuje katalog jre\legal oraz pozostałe informacje licencyjne
+producenta. Nie usuwaj ich przy dalszym przekazywaniu paczki.

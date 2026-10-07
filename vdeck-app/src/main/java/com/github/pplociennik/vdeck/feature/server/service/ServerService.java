@@ -1,6 +1,9 @@
 package com.github.pplociennik.vdeck.feature.server.service;
 
+import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import com.github.pplociennik.vdeck.runtime.api.ServerStatus;
 import jakarta.annotation.Nonnull;
 
@@ -44,6 +47,45 @@ public interface ServerService {
      *         if a check refuses the launch, or the process cannot be created
      */
     void start();
+
+    /**
+     * Admits an asynchronous graceful stop without force permission.
+     *
+     * @param launchId
+     *         launch selected in the submitted island
+     * @throws NullPointerException
+     *         if the identifier is null
+     * @throws ServerStopException
+     *         if admission fails or the form is stale
+     */
+    void stop( @Nonnull String launchId );
+
+    /**
+     * Admits immediate Kill after explicit acceptance of data-loss risk for this launch.
+     * The runtime first attempts a snapshot, then forces termination even if the snapshot fails.
+     *
+     * @param launchId
+     *         launch from the confirmation screen
+     * @param confirmed
+     *         explicit acceptance, validated again on the server
+     * @throws NullPointerException
+     *         if the identifier is null
+     * @throws ServerKillException
+     *         if risk was not accepted or admission fails
+     */
+    void kill( @Nonnull String launchId, boolean confirmed );
+
+    /**
+     * Explicitly restores management of a saved, reverified server after panel restart.
+     *
+     * @param launchId
+     *         saved launch offered by the runtime
+     * @throws NullPointerException
+     *         if the identifier is null
+     * @throws ServerAdoptException
+     *         if recovery is rejected or fails
+     */
+    void adopt( @Nonnull String launchId );
 
     /**
      * Returns what the runtime currently knows about the managed server. The result is a snapshot that

@@ -45,8 +45,8 @@ class ConsoleControlConfigurationTest {
     @Test
     void shouldCreateIdleSender_whenRunnerPathIsResolved() {
         // GIVEN
-        given( paths.getAbsolutePath( "vdeck-runner.jar" ) )
-                .willReturn( Path.of( "installation with spaces", "vdeck-runner.jar" ).toAbsolutePath() );
+        given( paths.getAbsolutePath( "lib/vdeck-runner.jar" ) )
+                .willReturn( Path.of( "installation with spaces", "lib", "vdeck-runner.jar" ).toAbsolutePath() );
         // WHEN
         var sender = underTest.consoleControlSender( paths );
         // THEN
@@ -58,7 +58,7 @@ class ConsoleControlConfigurationTest {
     void shouldRejectComposition_whenRunnerPathIsRejected() {
         // GIVEN
         var expected = new IllegalArgumentException( "Synthetic unsafe installation path" );
-        given( paths.getAbsolutePath( "vdeck-runner.jar" ) ).willThrow( expected );
+        given( paths.getAbsolutePath( "lib/vdeck-runner.jar" ) ).willThrow( expected );
         // WHEN
         var failure = catchThrowable( () -> underTest.consoleControlSender( paths ) );
         // THEN

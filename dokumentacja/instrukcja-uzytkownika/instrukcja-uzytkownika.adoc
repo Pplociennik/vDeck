@@ -698,10 +698,10 @@ jest zmieniać ustawienia w panelu, który sprawdza poprawność wartości.
 [#kopie]
 === Kopie świata
 
-Przy każdym zatrzymaniu panel kopiuje pliki świata do katalogu `.vDeck\shutdown-snapshots` w katalogu
-serwera. Nazwę tego podkatalogu można zmienić ustawieniem `snapshot.directory` w pliku
-`.vDeck\config\vDeck.properties`; musi to być sama nazwa, bez ukośników. Zachowywana jest ostatnia kompletna kopia; nowa zastępuje ją dopiero wtedy, gdy
-powstanie w całości.
+Przy każdym zatrzymaniu panel kopiuje pliki świata do katalogu `.vDeck\shutdown-snapshots`
+w katalogu serwera. Nazwę tego podkatalogu można zmienić ustawieniem `snapshot.directory`
+w pliku `.vDeck\config\vDeck.properties`; musi to być sama nazwa, bez ukośników. Zachowywana
+jest ostatnia kompletna kopia; nowa zastępuje ją dopiero wtedy, gdy powstanie w całości.
 
 NOTE: Kopia robiona w czasie działania serwera nie gwarantuje spójnego zapisu gry. Najbardziej
 aktualny i spójny jest zapis, który serwer robi sam przy poprawnym zatrzymaniu.

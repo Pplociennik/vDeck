@@ -1,0 +1,12 @@
+{
+  "name": "vdeck-instrukcja-zrzuty",
+  "private": true,
+  "description": "Odtwarza zrzuty ekranu instrukcji obslugi vDeck na swiezo wypakowanej paczce.",
+  "type": "module",
+  "scripts": {
+    "zrzuty": "node zrzuty-ekranu.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.64.0"
+  }
+}

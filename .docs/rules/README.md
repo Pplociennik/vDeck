@@ -15,7 +15,7 @@ Przed zmianą interfejsu użytkownika należy dodatkowo przeczytać `../ui.md`.
 | [`../design.md`](../design.md) | Uzgodniona architektura, granice modułów i feature'ów oraz zachowanie systemu. |
 | [`../ui.md`](../ui.md) | Zasady tworzenia interfejsu, stylowania i używania ikon SVG. |
 | [`clean-code.md`](clean-code.md) | Czytelność, projektowanie klas, nazewnictwo, nullability oraz frontend. |
-| [`documentation.md`](documentation.md) | Dokumentacja zmian, dokumentacja projektowa w `dokumentacja/` i obowiązkowy angielski Javadoc. |
+| [`documentation.md`](documentation.md) | Dokumentacja zmian, dokumentacja projektowa i instrukcja obsługi w `dokumentacja/` oraz obowiązkowy angielski Javadoc. |
 | [`formating.md`](formating.md) | Wygląd kodu: wcięcia, odstępy, importy i kolejność elementów w klasie. |
 | [`integration-tests.md`](integration-tests.md) | Izolacja, struktura i uruchamianie testów integracyjnych. |
 | [`maven.md`](maven.md) | Minimalna, czytelna konfiguracja POM i zarządzanie wersjami. |
@@ -75,6 +75,8 @@ Zmiana jest kompletna, gdy wszystkie punkty mające zastosowanie są spełnione:
   wyjątki; pasywne typy korzystają wyłącznie z jawnych wyjątków opisanych w `unit-tests.md`;
 - wszystkie wymagane Javadoc są aktualne i napisane po angielsku;
 - odpowiednia dokumentacja została zaktualizowana razem ze zmianą;
+- zmiana zachowania widocznego dla użytkownika jest opisana w instrukcji obsługi, a jej zrzuty
+  ekranu i rysunki pokazują aktualny interfejs (AD-022, `documentation.md` §3.6);
 - POM zawiera wyłącznie potrzebne wpisy i spełnia reguły Maven, jeżeli został zmieniony;
 - nie pozostawiono martwego kodu, nieaktualnych komentarzy, sekretów, przypadkowych plików ani zmian
   niezwiązanych z zakresem;

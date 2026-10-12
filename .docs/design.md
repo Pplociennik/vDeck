@@ -47,17 +47,21 @@ model feature'a może używać adnotacji JPA, a repozytoria Spring Data są jego
 persystencji. Interfejsy serwisów wyznaczają kontrakty dla konsumentów bez wprowadzania osobnych
 portów i adapterów dla każdej operacji.
 
-Projekt składa się z trzech modułów Maven pod wspólnym parentem:
+Projekt składa się z trzech modułów kodu i modułu pakującego pod wspólnym parentem:
 
 | Moduł | Odpowiedzialność |
 |---|---|
 | `vdeck-runtime` | Czysta Java: cykl życia serwera, procesy, sygnały, logi, snapshoty i granice zależne od platformy. Bez Springa. |
 | `vdeck-runner` | Czysta Java: osobny wykonywalny punkt wejścia helpera CTRL+C (AD-020). |
 | `vdeck-app` | Aplikacja Spring Boot: web, bezpieczeństwo, konfiguracja, persystencja oraz integracja z runtime. |
+| `.dist` (`vdeck-dist`) | Końcowy moduł `pom`: szablony instalacji, dołączone JRE i budowanie dystrybucji ZIP. |
 
 `vdeck-app` i `vdeck-runner` zależą od `vdeck-runtime`; nie zależą od siebie. Runtime nigdy nie
 zależy od aplikacji, runnera ani od Springa. Aplikacja korzysta z fasady `runtime.api`, a szczegóły cyklu życia
 i implementacje Windows pozostają wewnętrzne dla runtime.
+
+Moduł dystrybucji zależy od obu wykonywalnych artefaktów, aby Maven pakował je dopiero po
+zakończeniu ich buildów, także przy pracy równoległej. Zależności te służą wyłącznie pakowaniu.
 
 W `vdeck-app` obowiązuje package-by-feature. Wszystkie pionowe funkcjonalności znajdują się pod
 wspólnym pakietem `com.github.pplociennik.vdeck.feature`. Kod webowy, logika aplikacyjna i
@@ -90,6 +94,15 @@ obszary runtime, w tym przyszłe RCON i automatyzację, opisują dalsze sekcje d
 ```text
 vdeck/                                           ← parent i agregator Maven
 ├── pom.xml
+├── .dist/                                      ← moduł vdeck-dist i szablon dystrybucji
+│   ├── pom.xml
+│   ├── assembly.xml
+│   ├── start-vDeck.bat
+│   ├── README.md
+│   ├── README.txt
+│   ├── .vDeck/config/                          ← domyślne pliki properties
+│   ├── lib/                                    ← generowane vdeck.jar i vdeck-runner.jar
+│   └── jre/                                   ← pobrane i zweryfikowane JRE 25
 ├── .docs/
 │   ├── architectural_decisions.md
 │   ├── design.md
@@ -106,11 +119,17 @@ vdeck/                                           ← parent i agregator Maven
 │
 ├── dokumentacja/                                ← dokumentacja projektowa systemu
 │   ├── dokumentacja-projektowa.md
-│   └── diagramy/                                ← źródła diagramów Mermaid (.mmd)
-│       ├── <feature>/                           ← jeden katalog = jeden feature
-│       │   └── img/                             ← obrazki .svg osadzane w dokumentacji
-│       └── wspolne/                             ← diagramy przekrojowe i infrastruktury
-│           └── img/
+│   ├── diagramy/                                ← źródła diagramów Mermaid (.mmd)
+│   │   ├── <feature>/                           ← jeden katalog = jeden feature
+│   │   │   └── img/                             ← obrazki .svg osadzane w dokumentacji
+│   │   └── wspolne/                             ← diagramy przekrojowe i infrastruktury
+│   │       └── img/
+│   └── instrukcja-uzytkownika/                  ← instrukcja obsługi (AsciiDoc → PDF w ZIP-ie)
+│       ├── instrukcja-uzytkownika.adoc
+│       ├── motyw/                               ← motyw PDF
+│       ├── rysunki/                             ← źródła .mmd rysunków instrukcji
+│       ├── img/                                 ← zrzuty ekranu i wygenerowane rysunki
+│       └── zrzuty/                              ← skrypt Playwright odtwarzający zrzuty
 │
 ├── vdeck-runtime/                               ← czysta Java, bez Springa
 │   ├── pom.xml
@@ -381,11 +400,42 @@ występować w encjach należących do `..domain..` oraz w technicznych podpakie
 
 ## 5. Katalog instalacji i danych
 
-W dystrybucji produkcyjnej `vdeck.jar` znajduje się w tym samym katalogu co `valheim_server.exe`.
+W dystrybucji produkcyjnej `start-vDeck.bat` znajduje się w tym samym katalogu co `valheim_server.exe`,
+a oba JAR-y w jego podkatalogu `lib`.
+`mvnw clean package` buduje `target/vDeck-dist-${project.version}.zip`, zgodnie z AD-021.
+ZIP nie ma katalogu nadrzędnego: jego całą zawartość wypakowuje się do instalacji Valheim.
+Zawiera oba JAR-y w `lib`, `start-vDeck.bat`, README.md i README.txt, instrukcję obsługi
+`vDeck-instrukcja.pdf`, domyślne pliki w `.vDeck/config` oraz pełne Eclipse Temurin JRE 25 dla
+Windows x64 w `jre`.
+
+Instrukcja obsługi powstaje z `dokumentacja/instrukcja-uzytkownika/instrukcja-uzytkownika.adoc`
+(AD-022). W fazie `prepare-package` modułu `.dist` Asciidoctor Maven Plugin z AsciidoctorJ PDF
+generuje `.dist/target/instrukcja/vDeck-instrukcja.pdf`, wstawiając wersję z `pom.xml`. Ostrzeżenie
+Asciidoctora, np. brakujący obrazek albo zły odnośnik, przerywa build. Zrzuty ekranu i rysunki są
+wersjonowanymi plikami w `img/`. Zrzuty odtwarza skrypt Playwright `zrzuty/zrzuty-ekranu.mjs`,
+uruchamiany ręcznie na świeżo wypakowanej paczce, a nie przez Maven.
+
+Maven AntRun pobiera przypięte w `.dist/pom.xml` wydanie JRE, weryfikuje SHA-256 i odtwarza
+katalog `jre`. Archiwum pobrania jest buforowane w `.dist/target` do następnego `clean`.
+Maven Resources kopiuje `vdeck-app/target/vdeck.jar` i `vdeck-runner/target/vdeck-runner.jar`
+do `.dist/lib` bez filtrowania; następujący po nim Maven Assembly tworzy ZIP z jawnej listy plików.
+Szablony są wersjonowane, a JAR-y, JRE i `node_modules` skryptu zrzutów ignorowane przez Git. `clean` usuwa wygenerowane pliki,
+zachowując szablony. Zwykłe `test` nie pobiera JRE i nie buduje paczki.
+
+BAT korzysta z `jre/bin/java.exe` niezależnie od `PATH` i `JAVA_HOME`. Ustawia katalog roboczy
+na swój katalog, przekazuje `--enable-native-access=ALL-UNNAMED` oraz jawne
+`-Dvdeck.server-directory` równe katalogowi skryptu, bo `ApplicationHome` wskazałby `lib`.
+Adres nasłuchu bierze ze zmiennej `ADDRESS` (domyślnie `127.0.0.1`), a port ze zmiennej `PORT`, obie na początku skryptu
+(domyślnie `8085`), przekazywanej jako `--server.port`. Pozostałe argumenty przekazuje Springowi.
+Brak JRE lub któregoś JAR-a daje czytelny błąd i nie uruchamia systemowej Javy.
+Plik BAT ma końce linii CRLF i zawiera wyłącznie ASCII: `cmd.exe` błędnie parsuje wielobajtowe
+znaki UTF-8, dlatego komentarze są angielskie, a polskie komunikaty nie mają znaków diakrytycznych.
+Helper uruchamia `javaw.exe` z tego samego JRE przez `java.home`.
+
 Katalog instalacji jest ustalany przez
 `new ApplicationHome(VdeckApplication.class).getDir().toPath().toRealPath()`, a nie na podstawie
-bieżącego katalogu procesu. Jest on również jawnym katalogiem roboczym procesu Valheim. Uruchomienie
-z IDE i testy mogą korzystać z nadpisania `vdeck.server-directory`.
+bieżącego katalogu procesu. Jest on również jawnym katalogiem roboczym procesu Valheim. Skrypt
+dystrybucji, uruchomienie z IDE i testy korzystają z nadpisania `vdeck.server-directory`.
 
 Wybrana instalacja jest kanonizowana przez `toRealPath()` w `PathService` i na wejściu runtime.
 Spacje, polskie znaki i przekierowania powyżej instalacji nie są odrzucane. Kontrola katalogów tokenu
@@ -481,10 +531,15 @@ Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
 Podstawowy układ danych:
 
 ```text
-<ApplicationHome>/
+<katalog instalacji>/
 ├── valheim_server.exe
-├── vdeck.jar
-├── vdeck-runner.jar                  ← wykonywalny helper z modułu vdeck-runner
+├── lib/
+│   ├── vdeck.jar
+│   └── vdeck-runner.jar              ← wykonywalny helper z modułu vdeck-runner
+├── start-vDeck.bat                   ← start przez dołączoną Javę
+├── README.md
+├── README.txt
+├── jre/                             ← Eclipse Temurin JRE 25, Windows x64
 ├── .vDeck/
 │   ├── config/                        ← wszystkie pliki ustawień (AD-010)
 │   │   ├── vDeck.properties
@@ -550,11 +605,12 @@ FreeConsole → AttachConsole(pid) → SetConsoleCtrlHandler(NULL, TRUE)
 Izoluje to procesowe ustawienia konsoli i obsługę CTRL+C od głównej JVM. Zgodnie z AD-020 helper
 jest osobnym artefaktem `vdeck-runner.jar`, budowanym wraz z panelem przez `mvnw package`.
 Zawiera runtime i zależności wykonawcze, bez Springa. Plik z `vdeck-runner/target/vdeck-runner.jar`
-należy umieścić w katalogu instalacji także podczas uruchamiania panelu z IDE lub `spring-boot:run`.
+należy umieścić jako `lib/vdeck-runner.jar` w katalogu instalacji także podczas uruchamiania panelu
+z IDE lub `spring-boot:run`.
 Punkt wejścia panelu uruchamia wyłącznie Springa.
 
 `ConsoleControlConfiguration` tworzy singleton `ConsoleControlSender` z implementacją
-`JvmConsoleControlSender`. Konfiguracja rozwiązuje `vdeck-runner.jar` przez
+`JvmConsoleControlSender`. Konfiguracja rozwiązuje `lib/vdeck-runner.jar` przez
 `PathService.getAbsolutePath()` i przekazuje gotową listę argumentów uruchomienia do konstruktora.
 Bean nie tworzy procesu ani wątku przy starcie panelu. `ServerRuntimeConfiguration` wstrzykuje go
 do runtime; worker zatrzymania wywołuje go po wymaganym snapshotcie. Każdy sygnał uruchamia nowy

@@ -293,8 +293,47 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
   wyłącznie panel. Runner i panel zależą od runtime, runtime nie zależy od żadnego z nich.
 - **Powód:** Izolacja procesowych ustawień konsoli pozostaje konieczna, ale uruchomienie panelu
   nie powinno znać protokołu helpera ani zależeć od logiki wysyłania CTRL+C.
-- **Konsekwencja:** Build dostarcza osobny `vdeck-runner.jar`, instalowany w katalogu instalacji
-  wskazywanym przez PathService. Konfiguracja Springa przekazuje gotowe polecenie beanowi, a runtime
+- **Konsekwencja:** Build dostarcza osobny `vdeck-runner.jar`, instalowany jako
+  `lib/vdeck-runner.jar` w katalogu instalacji wskazywanym przez PathService (AD-021). Konfiguracja Springa przekazuje gotowe polecenie beanowi, a runtime
   korzysta z `ConsoleControlSender`. Helper zachowuje weryfikację tożsamości i kody wyjścia 0/1/2.
   AD-017 pozostaje w mocy. Runner obecnie obsługuje tylko helper; uruchamianie panelu i updater
   bez podwyższania uprawnień są przyszłym zakresem, wymagającym osobnego planu.
+
+## AD-021 — Dystrybucja ZIP z dołączonym JRE 25
+
+- **Status:** obowiązująca (2026-10-12), zaakceptowana przez użytkownika.
+- **Decyzja:** Katalog `.dist` zawiera skrypt BAT, README w formatach Markdown i tekstowym oraz
+  szablony `.vDeck/config/*.properties`. Końcowy moduł Maven `vdeck-dist` kopiuje do jego
+  podkatalogu `lib` oba wykonywalne JAR-y przez Maven Resources i pakuje zawartość przez Maven Assembly do
+  `target/vDeck-dist-${project.version}.zip` w głównym katalogu projektu.
+- **Powód:** Jedna paczka ma zawierać komplet plików potrzebnych do uruchomienia panelu,
+  bez ręcznego kopiowania helpera i instalowania Javy przez użytkownika.
+- **Konsekwencja:** Paczka dla Windows x64 zawiera pełne Eclipse Temurin JRE 25 w `jre`, wraz
+  z informacjami licencyjnymi. Build pobiera przypięte wydanie i sprawdza zapisaną SHA-256 przed
+  rozpakowaniem. BAT używa wyłącznie dołączonej Javy, ustawia katalog roboczy na instalację
+  i bierze adres nasłuchu ze zmiennej `ADDRESS` (domyślnie `127.0.0.1`), a port ze zmiennej `PORT`
+  (domyślnie `8085`). Zmiana adresu na sieciowy jest świadomą decyzją użytkownika (panel używa HTTP).
+  Ponieważ JAR-y leżą w `lib`, BAT zawsze przekazuje `vdeck.server-directory` z katalogiem
+  instalacji; bezpośrednie `java -jar lib\vdeck.jar` bez tego nadpisania nie jest wspieranym
+  sposobem uruchomienia. Helper używa tego samego JRE przez `java.home`.
+  Generowane JAR-y i JRE nie są wersjonowane. Szablony zachowują domyślne ustawienia i puste
+  hasło serwera; ZIP nie zawiera bazy, logów ani danych użytkownika. Valheim jest instalowany osobno.
+
+## AD-022 — Instrukcja obsługi PDF zawsze aktualna
+
+- **Status:** obowiązująca (2026-10-12), zaakceptowana przez użytkownika.
+- **Decyzja:** Paczka dystrybucyjna zawiera polską instrukcję obsługi `vDeck-instrukcja.pdf`
+  ze zrzutami ekranu i rysunkami. Źródłem jest
+  `dokumentacja/instrukcja-uzytkownika/instrukcja-uzytkownika.adoc` (AsciiDoc), a moduł `vdeck-dist`
+  generuje z niego PDF w każdym `package` przez Asciidoctor Maven Plugin i AsciidoctorJ PDF.
+  **Instrukcja musi być zawsze aktualna:** każda zmiana zachowania widocznego dla użytkownika
+  aktualizuje w tej samej zmianie jej treść, zrzuty ekranu i rysunki.
+- **Powód:** Użytkownik końcowy dostaje jeden wygodny dokument razem z programem. Tekstowe źródło
+  w repozytorium da się przeglądać w diffie i budować bez zewnętrznych narzędzi, a nieaktualna
+  instrukcja wprowadzałaby użytkownika w błąd.
+- **Konsekwencja:** Instrukcja opisuje tylko funkcje zaimplementowane; przyciski przyszłych funkcji
+  oznacza jako niedostępne. Etykiety podaje dokładnie jak `messages.properties`. Ostrzeżenie
+  Asciidoctora, np. brakujący obrazek, przerywa build. Zrzuty ekranu odtwarza ręcznie skrypt
+  Playwright `zrzuty/zrzuty-ekranu.mjs` na świeżo wypakowanej paczce; rysunki pochodzą z plików
+  `.mmd` w `rysunki/`, renderowanych przez mermaid-cli do PNG. Zmiana UI bez odświeżenia zrzutów
+  albo zmiana zachowania bez poprawienia instrukcji jest niekompletna (`.docs/rules/documentation.md`).

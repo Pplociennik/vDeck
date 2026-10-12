@@ -23,6 +23,7 @@
 		<module>vdeck-runtime</module>
 		<module>vdeck-runner</module>
 		<module>vdeck-app</module>
+		<module>.dist</module>
 	</modules>
 
 	<dependencyManagement>

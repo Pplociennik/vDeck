@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.2.0 https://maven.apache.org/xsd/assembly-2.2.0.xsd">
+    <id>dist</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+    <fileSets>
+        <!-- Explicit inputs keep databases, logs, build metadata and cached downloads out of the release. -->
+        <fileSet>
+            <directory>${project.basedir}</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>start-vDeck.bat</include>
+                <include>README.md</include>
+                <include>README.txt</include>
+                <include>lib/vdeck.jar</include>
+                <include>lib/vdeck-runner.jar</include>
+                <include>.vDeck/config/vDeck.properties</include>
+                <include>.vDeck/config/valheim-server.properties</include>
+                <include>jre/**</include>
+            </includes>
+        </fileSet>
+        <!-- The user manual PDF is generated from dokumentacja/instrukcja-uzytkownika during the build. -->
+        <fileSet>
+            <directory>${project.build.directory}/instrukcja</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>vDeck-instrukcja.pdf</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+</assembly>

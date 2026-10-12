@@ -1,0 +1,104 @@
+# Motyw PDF instrukcji obslugi vDeck.
+# Rozszerza domyslny motyw asciidoctor-pdf, ktorego wbudowane fonty obejmuja polskie znaki.
+# Akcent pochodzi z --color-accent panelu (css/variables.css); na bialym papierze tekst
+# i naglowki uzywaja ciemniejszego odcienia tej samej barwy, aby zachowac czytelnosc.
+extends: default
+page:
+  size: A4
+  margin: [20mm, 18mm, 20mm, 18mm]
+base:
+  font-color: '#2b2621'
+  font-size: 10.5
+  line-height: 1.4
+role:
+  muted:
+    font-color: '#6f665a'
+heading:
+  font-color: '#7a5214'
+  font-style: bold
+  h1-font-size: 24
+  h2-font-size: 17
+  h3-font-size: 13
+  margin-top: 14
+  # Keeps a heading on the same page as the block that follows it.
+  min-height-after: auto
+link:
+  font-color: '#8a5c12'
+# The cover reuses the panel's page background, so the manual looks like the application itself.
+title-page:
+  background-color: '#100e0c'
+  background-image: image:../../../vdeck-app/src/main/resources/static/img/page-background.jpg[fit=cover]
+  text-align: left
+  title:
+    top: 10%
+    font-color: '#e8b45a'
+    font-size: 44
+    font-style: bold
+  subtitle:
+    font-color: '#f2ede2'
+    font-size: 17
+    font-style: normal
+  revision:
+    font-color: '#c3b9a6'
+  authors:
+    font-color: '#c3b9a6'
+caption:
+  font-color: '#6f665a'
+  font-style: italic
+  align: center
+image:
+  align: center
+admonition:
+  column-rule-color: '#e8b45a'
+  column-rule-width: 1.5
+  icon:
+    note:
+      stroke-color: '#5a7a9a'
+    tip:
+      stroke-color: '#6f9a5c'
+    important:
+      stroke-color: '#b8862e'
+    warning:
+      stroke-color: '#c0563f'
+    caution:
+      stroke-color: '#c0563f'
+table:
+  head:
+    background-color: '#f3ead8'
+  border-color: '#d8cbb3'
+  grid-color: '#d8cbb3'
+code:
+  background-color: '#f6f1e7'
+  border-color: '#d8cbb3'
+codespan:
+  font-color: '#7a3e1c'
+header:
+  height: 12mm
+  line-height: 1
+  border-color: '#e8b45a'
+  border-width: 0.5
+  font-color: '#6f665a'
+  font-size: 8.5
+  recto:
+    right:
+      content: 'vDeck — instrukcja obsługi'
+  verso:
+    left:
+      content: 'vDeck — instrukcja obsługi'
+footer:
+  height: 12mm
+  line-height: 1
+  border-color: '#e8b45a'
+  border-width: 0.5
+  font-color: '#6f665a'
+  font-size: 8.5
+  recto:
+    left:
+      content: 'Wersja {revnumber}'
+    right:
+      content: '{page-number} / {page-count}'
+  verso:
+    left:
+      content: '{page-number} / {page-count}'
+    right:
+      content: 'Wersja {revnumber}'

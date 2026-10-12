@@ -1,7 +1,7 @@
 %% Diagram przepływu: techniczny helper CTRL+C
 flowchart TD
     request([Worker runtime: żądanie sygnału<br/>po wymaganym snapshotcie]) --> bean[Bean ConsoleControlSender:<br/>JvmConsoleControlSender]
-    bean --> launch[Nowy proces javaw.exe -jar vdeck-runner.jar<br/>Limit czasu i nadzór wyłącznie nad helperem]
+    bean --> launch[Nowy proces javaw.exe -jar lib/vdeck-runner.jar<br/>Limit czasu i nadzór wyłącznie nad helperem]
     launch -- błąd startu lub timeout --> failure([Błąd helpera: Stop zachowuje serwer])
     launch -- uruchomiony --> command[VdeckRunner: tryb --ctrl-sender<br/>Bez Springa i uruchamiania panelu]
     command --> parse[ControlSenderCommand:<br/>PID, czas utworzenia i absolutny plik exe]

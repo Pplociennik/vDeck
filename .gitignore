@@ -12,6 +12,14 @@ vdeck.lock
 server.pid
 vdeck-logs/
 
+### Distribution staging ###
+/.dist/lib/
+/.dist/jre/
+!/.dist/.vDeck/config/vDeck.properties
+
+### User manual screenshot tooling ###
+/dokumentacja/instrukcja-uzytkownika/zrzuty/node_modules/
+
 ### STS ###
 .apt_generated
 .classpath

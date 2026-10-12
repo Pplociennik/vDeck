@@ -83,7 +83,7 @@ class InstallationPathIntegrationTest {
         assertThat( resolved ).isEqualTo( expected );
         assertThat( runtime.status().getState() ).isEqualTo( ServerState.STOPPED );
         assertThat( consoleControlSender ).isInstanceOf( JvmConsoleControlSender.class );
-        assertThat( expected.resolve( "vdeck-runner.jar" ) ).doesNotExist();
+        assertThat( expected.resolve( "lib" ).resolve( "vdeck-runner.jar" ) ).doesNotExist();
         assertThat( underTest.getConfigurationFile( "vDeck.properties" ) ).isRegularFile();
         assertThat( backupRoot ).isEqualTo( expected.resolve( ".vDeck" ).resolve( "shutdown-snapshots" ) );
     }

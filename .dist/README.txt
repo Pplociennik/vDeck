@@ -33,7 +33,8 @@ USTAWIENIA I DANE
 - vdeck.db — konto administratora panelu; baza powstaje przy pierwszym uruchomieniu.
 - valheim-data — domyślny katalog zapisu świata; można go zmienić w panelu.
 - .vDeck\log — domyślne logi serwera gry.
-- .vDeck\shutdown-snapshots — kopie świata z zatrzymania;nazwę podkatalogu ustawia snapshot.directory w vDeck.properties.
+- .vDeck\shutdown-snapshots — kopie świata z zatrzymania; nazwę podkatalogu ustawia
+  snapshot.directory w vDeck.properties.
 
 Ścieżki w ustawieniach muszą być względne i prowadzić do katalogów wewnątrz instalacji.
 Ręczne zmiany plików properties wykonuj przy wyłączonym panelu.

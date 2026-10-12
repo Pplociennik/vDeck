@@ -1,6 +1,10 @@
 %% Diagram przepływu: start aplikacji vDeck i przygotowanie środowiska
 flowchart TD
-    start([Uruchomienie VdeckApplication]) --> spring[SpringApplication.run]
+    bat([start-vDeck.bat]) --> files{Dołączone JRE<br/>i oba JAR-y obecne?}
+    files -- nie --> missing([Komunikat i kod 1])
+    files -- tak --> bundled[jre/bin/java.exe<br/>Katalog roboczy = instalacja<br/>Dostęp natywny, adres 127.0.0.1]
+    bundled --> start([Uruchomienie VdeckApplication])
+    start --> spring[SpringApplication.run]
     spring --> home{Ustawiono<br/>vdeck.server-directory?}
     home -- tak --> configured[Katalog bazowy = wartość override]
     home -- nie --> appHome[Katalog bazowy = ApplicationHome.getDir]

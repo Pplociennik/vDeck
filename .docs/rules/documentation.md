@@ -38,7 +38,8 @@ powstają osobno i nie są dopisywane do dokumentów z decyzjami i głównymi za
 ## 3. Dokumentacja projektowa systemu w katalogu `dokumentacja/`
 
 Poza regułami i decyzjami z `.docs` repozytorium utrzymuje osobną dokumentację projektową opisującą
-sam system: jego funkcjonalności i sposób ich działania. `.docs` odpowiada na pytanie „dlaczego tak
+sam system: jego funkcjonalności i sposób ich działania. Ten sam katalog zawiera instrukcję obsługi
+dla użytkownika końcowego, opisaną w sekcji 3.6. `.docs` odpowiada na pytanie „dlaczego tak
 zdecydowaliśmy”, a `dokumentacja/` na pytanie „co system robi i jak to realizuje”. Nie powielamy
 treści między tymi katalogami; zamiast kopiowania decyzji wstawiamy odnośnik do właściwego dokumentu
 w `.docs`.
@@ -53,18 +54,19 @@ vdeck/
 ├── pom.xml
 └── dokumentacja/
     ├── dokumentacja-projektowa.md          ← główny dokument opisujący system
-    └── diagramy/
-        ├── mermaid-config.json             ← konfiguracja renderowania obrazków
-        ├── <feature>/                      ← jeden katalog = jeden feature
-        │   ├── klasy-<obszar>.mmd          ← źródło diagramu
-        │   ├── przeplyw-<proces>.mmd
-        │   └── img/                        ← obrazki wygenerowane ze źródeł
-        │       ├── klasy-<obszar>.svg
-        │       └── przeplyw-<proces>.svg
-        └── wspolne/                        ← diagramy nienależące do żadnego feature'a
-            ├── przeplyw-<proces>.mmd
-            └── img/
-                └── przeplyw-<proces>.svg
+    ├── diagramy/
+    │   ├── mermaid-config.json             ← konfiguracja renderowania obrazków
+    │   ├── <feature>/                      ← jeden katalog = jeden feature
+    │   │   ├── klasy-<obszar>.mmd          ← źródło diagramu
+    │   │   ├── przeplyw-<proces>.mmd
+    │   │   └── img/                        ← obrazki wygenerowane ze źródeł
+    │   │       ├── klasy-<obszar>.svg
+    │   │       └── przeplyw-<proces>.svg
+    │   └── wspolne/                        ← diagramy nienależące do żadnego feature'a
+    │       ├── przeplyw-<proces>.mmd
+    │       └── img/
+    │           └── przeplyw-<proces>.svg
+    └── instrukcja-uzytkownika/             ← instrukcja obsługi, osobne reguły w sekcji 3.6
 ```
 
 - `dokumentacja-projektowa.md` jest jedynym punktem wejścia. Jeżeli dokument urośnie na tyle, że
@@ -192,6 +194,65 @@ kolejność kroków albo wariant błędu, traktujemy jak błąd w dokumentacji.
 
 Refaktoryzacja bez zmiany zachowania wymaga aktualizacji tylko wtedy, gdy unieważnia nazwy albo
 strukturę pokazaną w dokumencie lub na diagramie.
+
+### 3.6 Instrukcja obsługi użytkownika
+
+Zgodnie z AD-022 katalog `dokumentacja/instrukcja-uzytkownika/` zawiera polską instrukcję obsługi
+dla użytkownika końcowego. Build modułu `.dist` konwertuje ją do `vDeck-instrukcja.pdf` dołączanego
+do paczki ZIP. Dokumentacja projektowa opisuje, jak system działa; instrukcja — jak z niego korzystać.
+
+```text
+dokumentacja/instrukcja-uzytkownika/
+├── instrukcja-uzytkownika.adoc   ← źródło (AsciiDoc), jedyny punkt wejścia
+├── motyw/vdeck-theme.yml         ← motyw PDF: kolory, okładka, nagłówek i stopka
+├── rysunki/<nazwa>.mmd           ← źródła rysunków (Mermaid)
+├── img/                          ← zrzuty ekranu (.jpg) i rysunki wygenerowane z rysunki/ (.png)
+└── zrzuty/zrzuty-ekranu.mjs      ← skrypt Playwright odtwarzający wszystkie zrzuty ekranu
+```
+
+**Instrukcja musi być zawsze aktualna.** W tej samej zmianie co kod aktualizujemy jej treść, zrzuty
+ekranu i rysunki, gdy zmiana:
+
+- dodaje, usuwa albo zmienia ekran, przycisk, pole, komunikat lub etykietę widoczną dla użytkownika;
+- zmienia przebieg czynności użytkownika, warunki, wartości domyślne albo limity opisane w instrukcji;
+- zmienia instalację, uruchomienie, pliki ustawień, zawartość paczki lub wymagania systemowe;
+- udostępnia funkcję dotąd oznaczoną w instrukcji jako niedostępna.
+
+Zasady treści:
+
+- Piszemy po polsku, prosto i w formie instrukcji krok po kroku, dla osoby bez wiedzy technicznej.
+  Nie opisujemy klas, pakietów ani architektury — od tego jest dokumentacja projektowa.
+- Etykiety ekranów, przycisków i komunikatów podajemy dokładnie tak jak w `messages.properties`.
+- Opisujemy wyłącznie zaimplementowane zachowanie; przyciski przyszłych funkcji oznaczamy jako
+  niedostępne.
+- Czytelność PDF ma pierwszeństwo: krótkie kroki, tabele zamiast długich akapitów, ramki
+  `NOTE`/`TIP`/`IMPORTANT`/`WARNING`/`CAUTION` dla uwag oraz odsyłacze `<<...>>` między rozdziałami.
+
+Zasady obrazów:
+
+- Każdy zrzut ekranu tworzy skrypt `zrzuty/zrzuty-ekranu.mjs`; nie wklejamy ręcznie robionych zrzutów,
+  bo nie dałoby się ich odtworzyć po zmianie interfejsu. Nowy zrzut oznacza nowy krok w skrypcie.
+- Skrypt uruchamiamy na świeżo wypakowanej paczce z danymi przykładowymi, nigdy na prawdziwej
+  instalacji. Polecenia i wymagania opisuje komentarz na początku skryptu.
+- Zrzut pokazuje tylko potrzebny fragment: sekcję formularza, przycisk albo kadr wokół elementu,
+  a pełny ekran tylko dla orientacji. Ważne miejsca oznaczamy ramką lub numerem (funkcja `mark`),
+  a numery objaśniamy pod rysunkiem w tej samej kolejności.
+- Rysunki, np. schematy przebiegu, zapisujemy jako `.mmd` w `rysunki/` i renderujemy do PNG,
+  bo konwerter PDF nie obsługuje etykiet SVG z mermaid-cli:
+
+  ```powershell
+  npx -y @mermaid-js/mermaid-cli `
+    -i dokumentacja\instrukcja-uzytkownika\rysunki\<nazwa>.mmd `
+    -o dokumentacja\instrukcja-uzytkownika\img\<nazwa>.png `
+    -b white -s 2 -c dokumentacja\diagramy\mermaid-config.json
+  ```
+
+- Każdy obraz ma tytuł (podpis „Rysunek N.”), tekst alternatywny i szerokość `pdfwidth` dobraną tak,
+  aby tekst na obrazie był czytelny na stronie A4. W `img/` nie zostawiamy nieużywanych plików.
+
+Build przerywa ostrzeżenie Asciidoctora, np. brakujący obrazek albo nieistniejący odnośnik. Po zmianie
+instrukcji generujemy PDF (`.\mvnw.cmd package` albo samo wykonanie `user-manual-pdf` modułu `.dist`)
+i przeglądamy zmienione strony.
 
 ## 4. Zakres obowiązkowego Javadoc
 
@@ -373,4 +434,6 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
 - czy każdy diagram jest podlinkowany w dokumentacji i nie pozostał żaden osierocony plik `.mmd`
   ani `.svg`;
 - czy dokumentacja nie przedstawia niezaimplementowanego zachowania jako gotowego;
+- czy zmiana widoczna dla użytkownika jest opisana w instrukcji obsługi, zrzuty ekranu zostały
+  odtworzone skryptem, a PDF buduje się bez ostrzeżeń i został przejrzany;
 - czy odnośniki i nazwy plików nadal są poprawne.

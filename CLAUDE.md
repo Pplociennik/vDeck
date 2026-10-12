@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-vDeck is an early-stage Maven reactor with three modules, matching `design.md` §2:
+vDeck is an early-stage Maven reactor with three code modules and one distribution module, matching `design.md` §2:
 
 - `vdeck-runtime` — pure Java, no Spring. Owns the serialized lifecycle, Windows FFM launcher,
   launch identity, complete BEST_EFFORT world snapshots, isolated CTRL+C helper, asynchronous Stop
@@ -12,8 +12,10 @@ vDeck is an early-stage Maven reactor with three modules, matching `design.md` �
   creation only; a successfully created server can outlive the panel (AD-017). Installation FileLock,
   a secret-free `.vDeck/server.pid` and explicit verified adoption prevent duplicate launches.
 - `vdeck-runner` — pure Java, no Spring. Provides `runner.VdeckRunner`, the executable CTRL+C
-  helper entry point. Builds a self-contained `target/vdeck-runner.jar`; install it in the
-  PathService installation directory, including for IDE and `spring-boot:run` usage.
+  helper entry point. Builds a self-contained `target/vdeck-runner.jar`; install it as
+  `lib/vdeck-runner.jar` in the PathService installation directory, including for IDE and
+  `spring-boot:run` usage. The distribution keeps both JARs in `lib`, so its start script must pass
+  `vdeck.server-directory` (AD-021).
   Panel launching and auto-updates are future work.
 - `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, shared path/configuration
   infrastructure and the first implemented features: panel authentication (persisted admin account,
@@ -31,6 +33,18 @@ vDeck is an early-stage Maven reactor with three modules, matching `design.md` �
   Restart is not implemented. `server-status.js` polls the island every two seconds while visible. Views with navigation embed the side menu
   (`templates/common/side-menu.html` + `static/js/side-menu.js`) and, as a separate fragment, the round
   home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` controls the advanced settings section.
+- `.dist` (`vdeck-dist`) — packaging-only module depending on app and runner. Builds
+  `target/vDeck-dist-${project.version}.zip` from the root reactor's `package` phase. Contains the
+  BAT launcher, user READMEs and `.vDeck/config` defaults. AntRun downloads the pinned Windows x64
+  Temurin JRE 25 and checks SHA-256; Asciidoctor converts the Polish user manual
+  (`dokumentacja/instrukcja-uzytkownika/instrukcja-uzytkownika.adoc`) to `vDeck-instrukcja.pdf`,
+  failing on any warning such as a missing image; Resources stages both executable JARs; Assembly
+  creates the ZIP. AD-022: the manual must always be current — every user-visible change updates its
+  text, screenshots (`zrzuty/zrzuty-ekranu.mjs`, Playwright, run by hand against a freshly extracted
+  package) and drawings (`rysunki/*.mmd` rendered to PNG) in the same change (`documentation.md` §3.6).
+  Generated `.dist/jre` and JARs are ignored by Git and removed by `clean`, while templates remain.
+  The launcher uses the bundled JRE, sets the installation as its working directory and binds to
+  loopback by default. Test extracted copies instead of running the versioned staging directory.
 
 `VdeckApplication.main()` starts only Spring. `config.ConsoleControlConfiguration` creates the idle
 `ConsoleControlSender` bean and injects it into runtime. Each signal request starts a short-lived
@@ -213,20 +227,21 @@ Use the wrapper (`.\mvnw.cmd` in PowerShell, `./mvnw` in Bash) — it guarantees
 .\mvnw.cmd test                                  # full test suite, whole reactor
 .\mvnw.cmd test -pl vdeck-app -Dtest=ClassName   # single test class
 .\mvnw.cmd test -pl vdeck-app -Dtest=ClassName#methodName
-.\mvnw.cmd package                               # executable jar in vdeck-app/target/
+.\mvnw.cmd package                               # target/vDeck-dist-<version>.zip with both JARs and JRE 25
 .\mvnw.cmd -pl vdeck-app spring-boot:build-image # OCI image
 
 # Run the app. The override is mandatory — see "Configuration channels" above.
 # Do NOT add -am: spring-boot:run would also fire on the aggregator, which has no main class
 # ("Unable to find a suitable main class"). Run install once so vdeck-runtime is resolvable.
 .\mvnw.cmd install -DskipTests
-Copy-Item vdeck-runner\target\vdeck-runner.jar D:\path\to\sandbox\vdeck-runner.jar
+New-Item -ItemType Directory -Force D:\path\to\sandbox\lib
+Copy-Item vdeck-runner\target\vdeck-runner.jar D:\path\to\sandbox\lib\vdeck-runner.jar
 .\mvnw.cmd -pl vdeck-app spring-boot:run `
   "-Dspring-boot.run.jvmArguments=--enable-native-access=ALL-UNNAMED -Dvdeck.server-directory=D:\path\to\sandbox"
 
 # Run a packaged panel against an explicit installation directory.
 java --enable-native-access=ALL-UNNAMED "-Dvdeck.server-directory=D:\path\to\sandbox" `
-  -jar vdeck-app\target\vdeck-app-0.0.1-SNAPSHOT.jar
+  -jar vdeck-app\target\vdeck.jar
 ```
 
 There is no linter or formatter configured.
@@ -238,3 +253,6 @@ The following warning is expected:
 - `Mockito is currently self-attaching to enable the inline-mock-maker.` Mockito 5 self-attaches on
   JDK 25. Harmless today; it needs a `-javaagent` entry in the surefire configuration before a future
   JDK turns it into an error.
+- `sun.misc.Unsafe::arrayBaseOffset has been called by org.jruby.util.StringSupport` during the
+  `.dist` user manual conversion. JRuby, which runs Asciidoctor, still uses `sun.misc.Unsafe`;
+  harmless until a JDK removes the method, which requires an asciidoctorj release on a newer JRuby.

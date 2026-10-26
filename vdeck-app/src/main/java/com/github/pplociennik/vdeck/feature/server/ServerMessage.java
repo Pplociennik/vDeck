@@ -60,7 +60,20 @@ public enum ServerMessage implements TranslationKeyIf {
     /**
      * Every check passed but the operating system refused to create the process.
      */
-    START_FAILED( "server.error.startFailed" );
+    START_FAILED( "server.error.startFailed" ),
+
+    /** Stale launch, invalid state, or concurrent work refused a stop. */
+    STOP_REJECTED( "server.error.stopRejected" ),
+    /** A confirmed Kill request could not be admitted. */
+    KILL_REJECTED( "server.error.killRejected" ),
+    /** Force permission was not explicitly accepted. */
+    CONFIRMATION_REQUIRED( "server.error.confirmationRequired" ),
+    /** The selected saved launch cannot be adopted. */
+    ADOPT_REJECTED( "server.error.adoptRejected" ),
+    /** Adoption admission failed technically. */
+    ADOPT_FAILED( "server.error.adoptFailed" ),
+    /** Runtime stop admission failed technically. */
+    STOP_FAILED( "server.error.stopFailed" );
 
     private final String key;
 
@@ -68,6 +81,7 @@ public enum ServerMessage implements TranslationKeyIf {
         this.key = requireNonNull( key, "key must not be null" );
     }
 
+    /** {@inheritDoc} */
     @Override
     public @Nonnull String getKey() {
         return key;

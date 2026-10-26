@@ -1,9 +1,14 @@
 package com.github.pplociennik.vdeck.config;
 
 import com.github.pplociennik.vdeck.runtime.api.ServerRuntime;
+import com.github.pplociennik.vdeck.runtime.lifecycle.ManagedLaunchStore;
 import com.github.pplociennik.vdeck.runtime.lifecycle.ServerStateMachine;
+import com.github.pplociennik.vdeck.runtime.snapshot.FileWorldSnapshotStore;
+import com.github.pplociennik.vdeck.runtime.spi.ConsoleControlSender;
 import com.github.pplociennik.vdeck.runtime.spi.GameProcessLauncher;
+import com.github.pplociennik.vdeck.runtime.windows.WindowsFileIdentityReader;
 import com.github.pplociennik.vdeck.runtime.windows.WindowsProcessLauncher;
+import com.github.pplociennik.vdeck.shared.service.PathService;
 import jakarta.annotation.Nonnull;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,10 +20,8 @@ import org.springframework.context.annotation.Configuration;
  * is the only place in the application holding its lifecycle state. Consumers inject
  * {@link ServerRuntime}; nobody injects the state machine or the launcher.
  *
- * <p>The bean's {@code close()} is called by Spring when the context shuts down, which stops the
- * runtime's event queue. The server process itself is ended by the operating system, because the
- * launcher places it in a job object tied to this process's lifetime — that is what also covers a
- * panel that is killed or crashes, where no Spring callback runs at all.
+ * <p>ServerShutdownLifecycle first awaits asynchronous graceful shutdown. Bean destruction then
+ * releases resources without killing a surviving server; the durable token supports explicit recovery.
  */
 @Configuration( proxyBeanMethods = false )
 class ServerRuntimeConfiguration {
@@ -40,11 +43,24 @@ class ServerRuntimeConfiguration {
      *
      * @param gameProcessLauncher
      *         boundary used to create the server process
+     * @param paths
+     *         authorized installation paths
+     * @param consoleControlSender
+     *         idle bean that launches an isolated helper only when a signal is requested
      * @return the application's only server runtime
      */
     @Bean
     @Nonnull
-    ServerRuntime serverRuntime( @Nonnull GameProcessLauncher gameProcessLauncher ) {
-        return new ServerStateMachine( gameProcessLauncher );
+    ServerRuntime serverRuntime( @Nonnull GameProcessLauncher gameProcessLauncher,
+                                 @Nonnull PathService paths, @Nonnull ConsoleControlSender consoleControlSender ) {
+        ManagedLaunchStore store = new ManagedLaunchStore( paths.getBaseDirectory() );
+        try {
+            return new ServerStateMachine( gameProcessLauncher,
+                    new FileWorldSnapshotStore( paths.getBaseDirectory(), new WindowsFileIdentityReader() ),
+                    consoleControlSender, store );
+        } catch ( RuntimeException exception ) {
+            store.close();
+            throw exception;
+        }
     }
 }

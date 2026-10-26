@@ -6,24 +6,40 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.Mockito.RETURNS_DEFAULTS;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.github.pplociennik.vdeck.runtime.api.LaunchSpec;
+import com.github.pplociennik.vdeck.runtime.api.ProcessIdentity;
 import com.github.pplociennik.vdeck.runtime.api.RunningServer;
 import com.github.pplociennik.vdeck.runtime.api.ServerState;
 import com.github.pplociennik.vdeck.runtime.api.ServerStatus;
+import com.github.pplociennik.vdeck.runtime.api.StopFailure;
+import com.github.pplociennik.vdeck.runtime.api.StopRequest;
+import com.github.pplociennik.vdeck.runtime.api.WorldContext;
+import com.github.pplociennik.vdeck.runtime.api.WorldSaveMissingException;
+import com.github.pplociennik.vdeck.runtime.spi.ConsoleControlSender;
 import com.github.pplociennik.vdeck.runtime.spi.GameProcessLauncher;
+import com.github.pplociennik.vdeck.runtime.spi.WorldSnapshotStore;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -31,13 +47,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Stream;
 
 /**
  * Verifies that the runtime keeps exactly one authoritative view of the managed server: that a start
@@ -299,7 +323,7 @@ class ServerStateMachineTest {
      * does not leave a server behind for the operating system to reap.
      */
     @Test
-    void shouldStopManagedProcess_whenRuntimeIsClosed() {
+    void shouldRetainManagedProcess_whenRuntimeIsClosed() {
         // GIVEN
         givenProcessIsCreated();
         givenProcessStaysAlive();
@@ -310,8 +334,9 @@ class ServerStateMachineTest {
         underTest.close();
 
         // THEN
-        verify( processHandle ).destroy();
-        assertThat( underTest.status() ).isEqualTo( ServerStatus.stopped() );
+        verify( processHandle, never() ).destroy();
+        verify( processHandle, never() ).destroyForcibly();
+        assertThat( underTest.status().getState() ).isEqualTo( ServerState.RUNNING );
     }
 
     /**
@@ -493,9 +518,9 @@ class ServerStateMachineTest {
         assertThat( result.getState() ).isEqualTo( ServerState.STARTING );
     }
 
-    /** Verifies that late exit delivery after shutdown cannot turn a stopped runtime into a failed start. */
+    /** Verifies that late notifications cannot falsify an unobserved process exit after resource cleanup. */
     @Test
-    void shouldRemainStopped_whenClosedDuringStartAndExitArrivesLater() {
+    void shouldRetainLastState_whenClosedDuringStartAndExitArrivesLater() {
         // GIVEN
         givenControlledQueue();
         givenProcessIsCreated();
@@ -508,19 +533,19 @@ class ServerStateMachineTest {
         confirmations.getFirst().run();
 
         // THEN
-        assertThat( underTest.status() ).isEqualTo( ServerStatus.stopped() );
-        verify( processHandle ).destroy();
+        assertThat( underTest.status().getState() ).isEqualTo( ServerState.STARTING );
+        verify( processHandle, never() ).destroy();
+        verify( processHandle, never() ).destroyForcibly();
         verify( controlledQueue ).shutdownNow();
     }
 
-    /** Verifies that a termination failure still shuts down the lifecycle executor. */
+    /** Verifies that closing resources never attempts to terminate the managed process. */
     @Test
-    void shouldCloseQueue_whenProcessTerminationThrows() {
+    void shouldCloseQueueWithoutTermination_whenProcessIsManaged() {
         // GIVEN
         givenControlledQueue();
         givenProcessIsCreated();
         underTest.start( launchSpec() );
-        given( processHandle.destroy() ).willThrow( new IllegalStateException( "Synthetic termination failure" ) );
 
         // WHEN
         var thrown = catchThrowable( underTest::close );
@@ -645,4 +670,635 @@ class ServerStateMachineTest {
         return new LaunchSpec( EXECUTABLE, List.of( "-nographics" ), Map.of( "SteamAppId", "892970" ),
                 EXECUTABLE.getParent(), LOG_FILE );
     }
+
+    /** Deterministic stop cases share the production state machine and replace only external boundaries. */
+    @Nested
+    class StopOperations {
+
+        // =================================================================================================
+        // FIELDS
+        // =================================================================================================
+        @TempDir
+        private Path directory;
+        private ManualScheduler queue;
+        private ManualWorkers worker;
+        private WorldSnapshotStore snapshots;
+        private ConsoleControlSender signals;
+        private ManagedLaunchStore store;
+        private AtomicBoolean alive;
+        private ProcessHandle.Info information;
+        private LaunchSpec spec;
+        private WorldContext world;
+        private String id;
+
+        // =================================================================================================
+        // BEFORE METHODS
+        // =================================================================================================
+        /** Starts a verified fixture without real processes, clocks, delays, or native signals. */
+        @BeforeEach
+        void prepareStop() throws Exception {
+            underTest.close();
+            queue = new ManualScheduler();
+            worker = new ManualWorkers();
+            snapshots = mock( WorldSnapshotStore.class );
+            signals = mock( ConsoleControlSender.class );
+            store = mock( ManagedLaunchStore.class );
+            alive = new AtomicBoolean( true );
+            information = mock( ProcessHandle.Info.class );
+            Path executable = Files.writeString( directory.resolve( "valheim_server.exe" ), "fixture" );
+            spec = new LaunchSpec( executable, List.of(), Map.of(), directory, directory.resolve( "run.log" ) );
+            world = new WorldContext( "Captured", directory.resolve( "save" ), directory.resolve( "backups" ) );
+            underTest = new ServerStateMachine( launcher, queue,
+                    new StopEnvironment( snapshots, signals, store, worker, Stream::empty,
+                            pid -> Optional.of( processHandle ) ) );
+            given( processHandle.pid() ).willReturn( PID );
+            given( processHandle.onExit() ).willReturn( exitFuture );
+            given( processHandle.isAlive() ).willAnswer( invocation -> alive.get() );
+            given( processHandle.info() ).willReturn( information );
+            given( information.startInstant() ).willReturn( Optional.of( STARTED_AT ) );
+            given( information.command() ).willReturn( Optional.of( executable.toString() ) );
+            RunningServer server = new RunningServer( processHandle, STARTED_AT, spec.logFile() );
+            given( launcher.launch( spec ) ).willReturn( server );
+            id = underTest.start( spec, world ).getLaunchId();
+            queue.runScheduled( 5 );
+            clearInvocations( store );
+        }
+
+        // =================================================================================================
+        // TESTS
+        // =================================================================================================
+        /** Success follows observed process exit, never merely helper success. */
+        @Test
+        void shouldCompleteStop_whenProcessExitIsObserved() {
+            // GIVEN
+            var result = underTest.stop( StopRequest.graceful( id ) ).toCompletableFuture();
+            worker.runNext();
+            worker.runNext();
+            // WHEN
+            alive.set( false );
+            exitFuture.complete( processHandle );
+            // THEN
+            assertThat( result ).isCompleted();
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPED );
+            verify( processHandle, never() ).destroyForcibly();
+            verify( store ).clear();
+        }
+
+        /** Both failed graceful attempts preserve the process and never authorize Kill. */
+        @Test
+        void shouldRetainProcess_whenBothGracefulAttemptsExpire() {
+            // GIVEN
+            var result = underTest.stop( StopRequest.graceful( id ) ).toCompletableFuture();
+            // WHEN
+            runGracefulLadder();
+            // THEN
+            assertThat( result ).isCompletedExceptionally();
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOP_FAILED );
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.GRACEFUL );
+            assertThat( underTest.status().getPid() ).isEqualTo( PID );
+            verify( signals, times( 2 ) ).send( any(), any() );
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        /** Snapshot failure stops ordinary Stop before any signal or force. */
+        @Test
+        void shouldForbidEverySignal_whenSnapshotFails() {
+            // GIVEN
+            doThrow( new IllegalStateException( "Snapshot failed" ) )
+                    .when( snapshots ).create( any(), any(), any() );
+            var result = underTest.stop( StopRequest.graceful( id ) ).toCompletableFuture();
+            // WHEN
+            worker.runNext();
+            // THEN
+            assertThat( result ).isCompletedExceptionally();
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.SNAPSHOT );
+            verifyNoInteractions( signals );
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        /**
+         * Backup I/O, absent first saves and other snapshot failures never revoke confirmed force.
+         *
+         * @param failureKind
+         *         failed backup boundary
+         */
+        @ParameterizedTest
+        @ValueSource( strings = { "missingSave", "storage", "other" } )
+        void shouldForceDespiteSnapshotFailure_whenKillIsConfirmed( String failureKind ) {
+            // GIVEN
+            RuntimeException problem = switch ( failureKind ) {
+                case "missingSave" -> new WorldSaveMissingException( new IOException( "missing database" ) );
+                case "storage" -> new UncheckedIOException( new IOException( "disk full" ) );
+                default -> new IllegalStateException( "snapshot failed" );
+            };
+            doThrow( problem ).when( snapshots ).create( any(), any(), any() );
+            given( processHandle.destroyForcibly() ).willReturn( true );
+            var result = underTest.stop( StopRequest.confirmedKill( id ) ).toCompletableFuture();
+            // WHEN
+            worker.runNext();
+            worker.runNext();
+            // THEN
+            verify( snapshots ).create( any(), any(), any() );
+            verify( processHandle ).destroyForcibly();
+            verifyNoInteractions( signals );
+            assertThat( result ).isNotDone();
+            alive.set( false );
+            exitFuture.complete( processHandle );
+            assertThat( result ).isCompleted();
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPED );
+        }
+
+        /** Missing world data is a distinct refusal for ordinary Stop, with the live process retained. */
+        @Test
+        void shouldRetainProcess_whenGracefulStopHasNoSavedWorld() {
+            // GIVEN
+            doThrow( new WorldSaveMissingException( new IOException( "missing database" ) ) )
+                    .when( snapshots ).create( any(), any(), any() );
+            // WHEN
+            var result = underTest.stop( StopRequest.graceful( id ) ).toCompletableFuture();
+            worker.runNext();
+            // THEN
+            assertThat( result ).isCompletedExceptionally();
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.WORLD_SAVE_MISSING );
+            verifyNoInteractions( signals );
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        /** Cancellation is control flow, not a failed backup, and cannot authorize late force. */
+        @Test
+        void shouldRetainProcess_whenKillSnapshotIsCancelled() {
+            // GIVEN
+            doThrow( new CancellationException( "cancelled" ) ).when( snapshots ).create( any(), any(), any() );
+            // WHEN
+            var result = underTest.stop( StopRequest.confirmedKill( id ) ).toCompletableFuture();
+            worker.runNext();
+            // THEN
+            assertThat( result ).isCompletedExceptionally();
+            verify( processHandle, never() ).destroyForcibly();
+            verifyNoInteractions( signals );
+        }
+
+        /** Even after a failed backup, force must verify the original PID, creation time and executable. */
+        @Test
+        void shouldRefuseForce_whenIdentityChangesAfterSnapshot() {
+            // GIVEN
+            doThrow( new UncheckedIOException( new IOException( "snapshot failed" ) ) )
+                    .when( snapshots ).create( any(), any(), any() );
+            var result = underTest.stop( StopRequest.confirmedKill( id ) ).toCompletableFuture();
+            worker.runNext();
+            given( information.startInstant() ).willReturn( Optional.of( STARTED_AT.plusSeconds( 1 ) ) );
+            // WHEN
+            worker.runNext();
+            // THEN
+            assertThat( result ).isCompletedExceptionally();
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOP_FAILED );
+            verify( processHandle, never() ).destroyForcibly();
+            verifyNoInteractions( signals );
+        }
+
+        /** A delayed force task cannot run after the operation's deadline. */
+        @Test
+        void shouldRefuseForce_whenDeadlineExpiresAfterSnapshot() {
+            // GIVEN
+            var result = underTest.stop( StopRequest.confirmedKill( id ) ).toCompletableFuture();
+            worker.runNext();
+            // WHEN
+            queue.runScheduled( 300 );
+            worker.runNext();
+            // THEN
+            assertThat( result ).isCompletedExceptionally();
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.DEADLINE );
+            verify( processHandle, never() ).destroyForcibly();
+            verifyNoInteractions( signals );
+        }
+
+        /**
+         * Native refusal and force exceptions preserve ownership of a still-live process.
+         *
+         * @param throwsException
+         *         whether the process boundary throws instead of returning false
+         */
+        @ParameterizedTest
+        @ValueSource( booleans = { false, true } )
+        void shouldRetainProcess_whenForceIsRefused( boolean throwsException ) {
+            // GIVEN
+            if ( throwsException ) {
+                given( processHandle.destroyForcibly() ).willThrow( new IllegalStateException( "native failure" ) );
+            } else {
+                given( processHandle.destroyForcibly() ).willReturn( false );
+            }
+            var result = underTest.stop( StopRequest.confirmedKill( id ) ).toCompletableFuture();
+            // WHEN
+            worker.runNext();
+            worker.runNext();
+            // THEN
+            assertThat( result ).isCompletedExceptionally();
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.FORCE );
+            assertThat( underTest.status().getPid() ).isEqualTo( PID );
+            verifyNoInteractions( signals );
+        }
+
+        /** If the server exits during copying, Kill completes without attempting to terminate another process. */
+        @Test
+        void shouldCompleteWithoutForce_whenProcessExitsDuringSnapshot() {
+            // GIVEN
+            underTest.stop( StopRequest.confirmedKill( id ) );
+            alive.set( false );
+            // WHEN
+            worker.runNext();
+            // THEN
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPED );
+            verify( processHandle, never() ).destroyForcibly();
+            verifyNoInteractions( signals );
+        }
+
+        /** Confirmed Kill forces after its snapshot attempt without graceful signals or wait timers. */
+        @Test
+        void shouldForceOnce_whenManualKillIsConfirmed() {
+            // GIVEN
+            given( processHandle.destroyForcibly() ).willReturn( true );
+            var result = underTest.stop( StopRequest.confirmedKill( id ) ).toCompletableFuture();
+            worker.runNext();
+            verify( snapshots ).create( any(), any(), any() );
+            verify( processHandle, never() ).destroyForcibly();
+            // WHEN
+            worker.runNext();
+            // THEN
+            verify( processHandle ).destroyForcibly();
+            verifyNoInteractions( signals );
+            assertThat( result ).isNotDone();
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPING );
+        }
+
+        /** API success without observed exit remains a failure rather than false STOPPED. */
+        @Test
+        void shouldKeepProcessManaged_whenForceDoesNotProduceExit() {
+            // GIVEN
+            given( processHandle.destroyForcibly() ).willReturn( true );
+            underTest.stop( StopRequest.confirmedKill( id ) );
+            worker.runNext();
+            worker.runNext();
+            // WHEN
+            queue.runScheduled( 10 );
+            // THEN
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOP_FAILED );
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.FORCE );
+        }
+
+        /** Deadline cancellation prevents a pending worker from sending a late signal. */
+        @Test
+        void shouldCancelLateWork_whenDeadlineExpiresBeforeSnapshot() {
+            // GIVEN
+            underTest.stop( StopRequest.confirmedKill( id ) );
+            // WHEN
+            queue.runScheduled( 300 );
+            worker.runNext();
+            // THEN
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.DEADLINE );
+            verifyNoInteractions( snapshots, signals );
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        /** Process reuse is rejected before sending a helper signal. */
+        @Test
+        void shouldRejectSignal_whenCreationTimeNoLongerMatches() {
+            // GIVEN
+            underTest.stop( StopRequest.graceful( id ) );
+            worker.runNext();
+            given( information.startInstant() ).willReturn( Optional.of( STARTED_AT.plusSeconds( 1 ) ) );
+            // WHEN
+            worker.runNext();
+            // THEN
+            assertThat( underTest.status().getStopFailure() ).isEqualTo( StopFailure.IDENTITY );
+            verifyNoInteractions( signals );
+        }
+
+        /** A form from an earlier launch cannot even start a snapshot. */
+        @Test
+        void shouldRejectStaleForm_whenLaunchIdentifierDiffers() {
+            // GIVEN
+            var request = StopRequest.graceful( "old-launch" );
+            // WHEN
+            var failure = catchThrowable( () -> underTest.stop( request ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( IllegalStateException.class );
+            assertThat( worker.tasks ).isEmpty();
+            verifyNoInteractions( snapshots, signals );
+        }
+
+        /** Start and competing stop requests cannot interleave with an accepted operation. */
+        @Test
+        void shouldRejectConflictingCommands_whenStopIsInProgress() {
+            // GIVEN
+            underTest.stop( StopRequest.graceful( id ) );
+            // WHEN
+            var kill = catchThrowable( () -> underTest.stop( StopRequest.confirmedKill( id ) ) );
+            var start = catchThrowable( () -> underTest.start( spec ) );
+            // THEN
+            assertThat( kill ).isInstanceOf( IllegalStateException.class );
+            assertThat( start ).isInstanceOf( IllegalStateException.class );
+        }
+
+        /** Shutdown joins a running Stop without extending its deadline or authorizing force. */
+        @Test
+        void shouldJoinExistingStop_whenPanelShutsDown() {
+            // GIVEN
+            var result = underTest.stop( StopRequest.graceful( id ) );
+            // WHEN
+            var shutdown = underTest.shutdown();
+            runGracefulLadder();
+            underTest.close();
+            // THEN
+            assertThat( shutdown ).isSameAs( result );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOP_FAILED );
+            verify( processHandle, never() ).destroy();
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        /** A late exit after failed Stop restores STOPPED without changing the failed completion. */
+        @Test
+        void shouldObserveLateExit_whenStopPreviouslyFailed() {
+            // GIVEN
+            var result = underTest.stop( StopRequest.graceful( id ) ).toCompletableFuture();
+            runGracefulLadder();
+            // WHEN
+            alive.set( false );
+            exitFuture.complete( processHandle );
+            // THEN
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPED );
+            assertThat( result ).isCompletedExceptionally();
+        }
+
+        /** Null arguments are rejected without admitting an operation. */
+        @Test
+        void shouldRejectNull_whenStopRequestIsMissing() {
+            // GIVEN
+            // No request.
+            // WHEN
+            var failure = catchThrowable( () -> underTest.stop( null ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( NullPointerException.class );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.RUNNING );
+        }
+
+        /** An invalidated token revokes a previously offered recovery launch before adoption. */
+        @Test
+        void shouldRevokeAdoption_whenPreviouslyValidTokenBecomesUnreadable() {
+            // GIVEN
+            underTest.close();
+            var saved = new ManagedLaunch( id, new ProcessIdentity( PID, STARTED_AT, spec.executable() ),
+                    world, spec.logFile() );
+            given( store.read() ).willReturn( Optional.of( saved ) );
+            given( store.executable() ).willReturn( spec.executable() );
+            underTest = new ServerStateMachine( launcher, new ManualScheduler(),
+                    new StopEnvironment( snapshots, signals, store, new ManualWorkers(),
+                            () -> Stream.of( processHandle ), pid -> Optional.of( processHandle ) ) );
+            catchThrowable( () -> underTest.start( spec, world ) );
+            assertThat( underTest.status().getLaunchId() ).isEqualTo( id );
+            given( store.read() ).willThrow( new IllegalArgumentException( "Token changed" ) );
+            // WHEN
+            var failure = catchThrowable( () -> underTest.adopt( id ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( IllegalStateException.class );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.RECOVERY_REQUIRED );
+            assertThat( underTest.status().getLaunchId() ).isNull();
+            verifyNoInteractions( signals );
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        // =================================================================================================
+        // HELPER METHODS
+        // =================================================================================================
+
+        /** A live saved PID without readable metadata must never be mistaken for an absent server. */
+        @Test
+        void shouldBlockStart_whenSavedLiveProcessMetadataIsUnavailable() {
+            // GIVEN
+            underTest.close();
+            ManagedLaunch saved = new ManagedLaunch( id,
+                    new ProcessIdentity( PID, STARTED_AT, spec.executable() ),
+                    world, spec.logFile() );
+            given( store.read() ).willReturn( Optional.of( saved ) );
+            underTest = new ServerStateMachine( launcher, new ManualScheduler(),
+                    new StopEnvironment( snapshots, signals, store, new ManualWorkers(), Stream::empty,
+                            pid -> Optional.of( processHandle ) ) );
+            // WHEN
+            var failure = catchThrowable( () -> underTest.start( spec, world ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( IllegalStateException.class );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.RECOVERY_REQUIRED );
+            assertThat( underTest.status().getLaunchId() ).isNull();
+            verify( store, never() ).clear();
+        }
+
+        /** Recovery is explicit and verifies the complete saved identity before restoring ownership. */
+        @Test
+        void shouldAdoptSavedLaunch_whenIdentityMatchesAndAdminSelectsIt() {
+            // GIVEN
+            underTest.close();
+            ManagedLaunch saved = new ManagedLaunch( id,
+                    new ProcessIdentity( PID, STARTED_AT, spec.executable() ),
+                    world, spec.logFile() );
+            given( store.read() ).willReturn( Optional.of( saved ) );
+            given( store.executable() ).willReturn( spec.executable() );
+            underTest = new ServerStateMachine( launcher, new ManualScheduler(),
+                    new StopEnvironment( snapshots, signals, store, new ManualWorkers(),
+                            () -> Stream.of( processHandle ), pid -> Optional.of( processHandle ) ) );
+            underTest.status();
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPED );
+            // WHEN
+            underTest.adopt( id );
+            // THEN
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.RUNNING );
+            assertThat( underTest.status().getLaunchId() ).isEqualTo( id );
+            verifyNoInteractions( signals );
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        /** Invalid metadata cannot block a new start after a complete empty process scan. */
+        @Test
+        void shouldQuarantineInvalidToken_whenNoServerRemains() {
+            // GIVEN
+            underTest.close();
+            given( store.read() ).willThrow( new IllegalArgumentException( "Invalid token" ) );
+            underTest = new ServerStateMachine( launcher, new ManualScheduler(),
+                    new StopEnvironment( snapshots, signals, store, new ManualWorkers(), Stream::empty,
+                            pid -> Optional.empty() ) );
+            // WHEN
+            var result = underTest.start( spec, world );
+            // THEN
+            assertThat( result.getState() ).isEqualTo( ServerState.STARTING );
+            verify( store ).quarantine();
+            verify( store, never() ).clear();
+        }
+
+        /** A malformed token never grants permission to duplicate a live installation process. */
+        @Test
+        void shouldBlockStart_whenInvalidTokenHasLiveInstallationProcess() {
+            // GIVEN
+            underTest.close();
+            given( store.read() ).willThrow( new IllegalArgumentException( "Invalid token" ) );
+            given( store.executable() ).willReturn( spec.executable() );
+            underTest = new ServerStateMachine( launcher, new ManualScheduler(),
+                    new StopEnvironment( snapshots, signals, store, new ManualWorkers(),
+                            () -> Stream.of( processHandle ), pid -> Optional.empty() ) );
+            // WHEN
+            var failure = catchThrowable( () -> underTest.start( spec, world ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( IllegalStateException.class );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.RECOVERY_REQUIRED );
+            verify( store, never() ).quarantine();
+            verify( store, never() ).clear();
+        }
+
+        /** A failed identity capture cleans up creation before publishing ownership or callbacks. */
+        @Test
+        void shouldCleanFailedStart_whenProcessIdentityIsUnavailable() {
+            // GIVEN
+            underTest.close();
+            underTest = new ServerStateMachine( launcher, new ManualScheduler(),
+                    new StopEnvironment( snapshots, signals, store, new ManualWorkers(), Stream::empty,
+                            pid -> Optional.empty() ) );
+            given( information.startInstant() ).willReturn( Optional.empty() );
+            clearInvocations( store, processHandle );
+            // WHEN
+            var failure = catchThrowable( () -> underTest.start( spec, world ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( IllegalStateException.class );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPED );
+            verify( processHandle ).destroyForcibly();
+            verify( processHandle, never() ).onExit();
+            verify( store, never() ).write( any() );
+        }
+
+        /** Metadata persistence failure retains a launch which can still admit a stop. */
+        @Test
+        void shouldRetainOwnership_whenRecoveryTokenWriteFails() {
+            // GIVEN
+            underTest.close();
+            queue = new ManualScheduler();
+            underTest = new ServerStateMachine( launcher, queue,
+                    new StopEnvironment( snapshots, signals, store, new ManualWorkers(), Stream::empty,
+                            pid -> Optional.empty() ) );
+            doThrow( new UncheckedIOException( new IOException( "Storage failed" ) ) ).when( store ).write( any() );
+            // WHEN
+            var failure = catchThrowable( () -> underTest.start( spec, world ) );
+            queue.runScheduled( 5 );
+            String launchId = underTest.status().getLaunchId();
+            var stopped = underTest.stop( StopRequest.graceful( launchId ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( UncheckedIOException.class );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPING );
+            assertThat( stopped ).isNotNull();
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
+        /** A complete runtime refuses the legacy overload before creating an unmanaged process. */
+        @Test
+        void shouldRequireWorldContext_whenStartingCompleteRuntime() {
+            // GIVEN
+            clearInvocations( launcher );
+            // WHEN
+            var failure = catchThrowable( () -> underTest.start( spec ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( IllegalStateException.class );
+            verifyNoInteractions( launcher );
+        }
+
+        private void runGracefulLadder() {
+            worker.runNext();
+            worker.runNext();
+            queue.runScheduled( 120 );
+            worker.runNext();
+            queue.runScheduled( 30 );
+        }
+
+
+    }
+
+    /** Inline serial event queue with explicit timer delivery; never sleeps or reads a wall clock. */
+    private static final class ManualScheduler extends AbstractExecutorService implements ScheduledExecutorService {
+        private final List< TimedTask > timers = new ArrayList<>();
+        private boolean closed;
+
+        /** {@inheritDoc} */
+        @Override
+        public void execute( Runnable command ) {
+            if ( closed ) {
+                throw new java.util.concurrent.RejectedExecutionException();
+            }
+            command.run();
+        }
+        /** {@inheritDoc} */
+        @Override
+        public ScheduledFuture< ? > schedule( Runnable command, long delay, TimeUnit unit ) {
+            timers.add( new TimedTask( unit.toSeconds( delay ), command ) );
+            return mock( ScheduledFuture.class );
+        }
+        private void runScheduled( long seconds ) {
+            TimedTask selected = timers.stream().filter( task -> task.seconds() == seconds ).findFirst().orElseThrow();
+            timers.remove( selected );
+            selected.command().run();
+        }
+        /** {@inheritDoc} */
+        @Override
+        public < V > ScheduledFuture< V > schedule( Callable< V > callable, long delay, TimeUnit unit ) {
+            throw new UnsupportedOperationException();
+        }
+        /** {@inheritDoc} */
+        @Override
+        public ScheduledFuture< ? > scheduleAtFixedRate( Runnable task, long initial, long period, TimeUnit unit ) {
+            throw new UnsupportedOperationException();
+        }
+        /** {@inheritDoc} */
+        @Override
+        public ScheduledFuture< ? > scheduleWithFixedDelay( Runnable task, long initial, long delay, TimeUnit unit ) {
+            throw new UnsupportedOperationException();
+        }
+        /** {@inheritDoc} */
+        @Override
+        public void shutdown() { closed = true; }
+        /** {@inheritDoc} */
+        @Override
+        public List< Runnable > shutdownNow() { closed = true; return List.of(); }
+        /** {@inheritDoc} */
+        @Override
+        public boolean isShutdown() { return closed; }
+        /** {@inheritDoc} */
+        @Override
+        public boolean isTerminated() { return closed; }
+        /** {@inheritDoc} */
+        @Override
+        public boolean awaitTermination( long timeout, TimeUnit unit ) { return closed; }
+    }
+
+    /** Manually delivered worker tasks make snapshot/timeout races deterministic. */
+    private static final class ManualWorkers extends AbstractExecutorService {
+        private final List< Runnable > tasks = new ArrayList<>();
+        private boolean closed;
+        /** {@inheritDoc} */
+        @Override
+        public void execute( Runnable command ) { tasks.add( command ); }
+        private void runNext() { tasks.removeFirst().run(); }
+        /** {@inheritDoc} */
+        @Override
+        public void shutdown() { closed = true; }
+        /** {@inheritDoc} */
+        @Override
+        public List< Runnable > shutdownNow() { closed = true; return List.of(); }
+        /** {@inheritDoc} */
+        @Override
+        public boolean isShutdown() { return closed; }
+        /** {@inheritDoc} */
+        @Override
+        public boolean isTerminated() { return closed; }
+        /** {@inheritDoc} */
+        @Override
+        public boolean awaitTermination( long timeout, TimeUnit unit ) { return closed; }
+    }
+
+    /** A scheduled callback and its delay, used only by the deterministic scheduler. */
+    private record TimedTask( long seconds, Runnable command ) {
+    }
+
 }

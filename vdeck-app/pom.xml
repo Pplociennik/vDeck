@@ -116,6 +116,7 @@
     </dependencies>
 
     <build>
+        <finalName>vdeck</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

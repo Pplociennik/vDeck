@@ -3,9 +3,13 @@ package com.github.pplociennik.vdeck.feature.server;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 /** Verifies translation of process exceptions into safe flash messages. */
@@ -30,6 +34,35 @@ class ServerExceptionHandlerTest {
     // =================================================================================================
     // TESTS
     // =================================================================================================
+
+    /** Adoption errors expose only the translation key when redirecting home. */
+    @Test
+    void shouldFlashAdoptionMessage_whenRecoveryFails() {
+        // GIVEN
+        var failure = new ServerAdoptException( ServerMessage.ADOPT_FAILED, new RuntimeException( "Technical" ) );
+        var attributes = new RedirectAttributesModelMap();
+        // WHEN
+        var result = underTest.handleAdoptNotPerformed( failure, attributes );
+        // THEN
+        assertThat( result ).isEqualTo( "redirect:/" );
+        assertThat( attributes.getFlashAttributes().get( "serverErrorKey" ) ).isEqualTo( "server.error.adoptFailed" );
+        assertThat( attributes.getFlashAttributes() ).hasSize( 1 );
+    }
+
+    /** Adoption advice enforces its required input contract before storing any flash message. */
+    @Test
+    void shouldRejectMissingInput_whenAdoptionHandlerReceivesNull() {
+        // GIVEN
+        var rejection = new ServerAdoptException( ServerMessage.ADOPT_REJECTED, null );
+        var attributes = new RedirectAttributesModelMap();
+        // WHEN
+        var exceptionFailure = catchThrowable( () -> underTest.handleAdoptNotPerformed( null, attributes ) );
+        var attributesFailure = catchThrowable( () -> underTest.handleAdoptNotPerformed( rejection, null ) );
+        // THEN
+        assertThat( exceptionFailure ).isInstanceOf( NullPointerException.class );
+        assertThat( attributesFailure ).isInstanceOf( NullPointerException.class );
+        assertThat( attributes.getFlashAttributes() ).isEmpty();
+    }
 
     /** Verifies that a rejection carries its translation key across the redirect home. */
     @Test
@@ -91,4 +124,75 @@ class ServerExceptionHandlerTest {
         // THEN
         assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( "redirectAttributes" );
     }
+    /** Kill validation returns to its confirmation screen without preserving force permission. */
+    @Test
+    void shouldReturnToConfirmation_whenSubmittedKillIsRejected() {
+        // GIVEN
+        var rejection = new ServerKillException(
+                ServerMessage.CONFIRMATION_REQUIRED, null );
+        var attributes = new RedirectAttributesModelMap();
+        var request = new MockHttpServletRequest( "POST", "/server/kill" );
+        request.setParameter( "launchId", "selected-launch" );
+        // WHEN
+        var result = underTest.handleKillNotPerformed( rejection, attributes, request );
+        // THEN
+        assertThat( result ).isEqualTo( "redirect:/server/kill-confirmation?launchId=selected-launch" );
+        assertThat( attributes.getFlashAttributes() ).containsOnlyKeys( "serverErrorKey" );
+    }
+
+    /** Untrusted launch text is never inserted into a redirect target. */
+    @Test
+    void shouldReturnHome_whenKillIdentifierIsUnsafe() {
+        // GIVEN
+        var rejection = new ServerKillException(
+                ServerMessage.KILL_REJECTED, new IllegalArgumentException( "Technical" ) );
+        var attributes = new RedirectAttributesModelMap();
+        var request = new MockHttpServletRequest( "POST", "/server/kill" );
+        request.setParameter( "launchId", "unsafe?redirect=elsewhere" );
+        // WHEN
+        var result = underTest.handleKillNotPerformed( rejection, attributes, request );
+        // THEN
+        assertThat( result ).isEqualTo( "redirect:/" );
+        assertThat( attributes.getFlashAttributes() ).containsOnlyKeys( "serverErrorKey" );
+    }
+
+    /** Failed Stop publishes its key without disclosing its technical cause. */
+    @Test
+    void shouldReturnHome_whenStopFailsAdmission() {
+        // GIVEN
+        var failure = new ServerStopException(
+                ServerMessage.STOP_FAILED, new IllegalArgumentException( "Technical" ) );
+        var attributes = new RedirectAttributesModelMap();
+        // WHEN
+        var result = underTest.handleStopNotPerformed( failure, attributes );
+        // THEN
+        assertThat( result ).isEqualTo( "redirect:/" );
+        assertThat( attributes.getFlashAttributes().get( "serverErrorKey" ) )
+                .isEqualTo( ServerMessage.STOP_FAILED.getKey() );
+    }
+
+    /** Every new advice boundary rejects null before publishing a flash. */
+    @Test
+    void shouldRejectNullBoundaries_whenControlAdviceIsCalled() {
+        // GIVEN
+        var attributes = new RedirectAttributesModelMap();
+        var request = new MockHttpServletRequest();
+        var stop = new ServerStopException( ServerMessage.STOP_REJECTED, null );
+        var kill = new ServerKillException( ServerMessage.KILL_REJECTED, null );
+        // WHEN
+        var noStop = catchThrowable( () -> underTest.handleStopNotPerformed( null, attributes ) );
+        var noStopFlash = catchThrowable( () -> underTest.handleStopNotPerformed( stop, null ) );
+        var noKill = catchThrowable( () -> underTest.handleKillNotPerformed( null, attributes, request ) );
+        var noKillFlash = catchThrowable( () -> underTest.handleKillNotPerformed( kill, null, request ) );
+        var noRequest = catchThrowable( () -> underTest.handleKillNotPerformed( kill, attributes, null ) );
+        // THEN
+        assertThat( noStop ).isInstanceOf( NullPointerException.class );
+        assertThat( noStopFlash ).isInstanceOf( NullPointerException.class );
+        assertThat( noKill ).isInstanceOf( NullPointerException.class );
+        assertThat( noKillFlash ).isInstanceOf( NullPointerException.class );
+        assertThat( noRequest ).isInstanceOf( NullPointerException.class );
+        assertThat( attributes.getFlashAttributes() ).isEmpty();
+    }
+
+
 }

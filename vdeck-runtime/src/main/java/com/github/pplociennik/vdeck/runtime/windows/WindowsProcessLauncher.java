@@ -22,35 +22,18 @@ import java.util.function.LongFunction;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Creates the Valheim server process on Windows through {@code CreateProcessW}, and binds its lifetime
- * to the panel's by placing it in a job object.
- *
- * <p>The order of the native calls is what makes the binding airtight:
- *
- * <pre>
- * CreateJobObject
- *   -&gt; SetInformationJobObject( KILL_ON_JOB_CLOSE )
- *   -&gt; CreateProcessW( CREATE_SUSPENDED )    the process exists but has not run yet
- *   -&gt; AssignProcessToJobObject
- *   -&gt; ResumeThread                          only now does the server begin to execute
- * </pre>
- *
- * <p>Creating the process suspended matters: without it there is a window in which the process is
- * already running but not yet in the job, and a panel that died inside that window would leave an
- * orphan. Nothing the server does can escape the job afterwards.
- *
- * <p><strong>The job handle is deliberately never closed.</strong> It is released by the operating
- * system when the panel process ends — however it ends — and that release is what terminates the
- * server. Closing it earlier would kill the server immediately.
- *
- * <p>This class is not thread-safe. It is called only from the runtime's single lifecycle thread.
+ * Creates an isolated Windows server console through CreateProcessW. A kill-on-close job protects
+ * incomplete process creation: assignment precedes resumption and every failed handoff closes the job.
+ * After capturing the operating-system start time, the launcher disables kill-on-close before returning
+ * ownership to the runtime. Closing the panel therefore preserves a successfully created live server.
+ * This launcher is confined to the runtime's lifecycle thread.
  */
 @Log4j2
 public final class WindowsProcessLauncher implements GameProcessLauncher {
 
     /**
-     * Handle of the job owning the current server, held open for as long as the panel lives. A
-     * previous job is closed when a new server is started, which also reaps anything still left in it.
+     * Handle of the most recent job after its kill-on-close policy has been disabled.
+     * The next launch closes this handle without terminating any successfully created server.
      */
     private MemorySegment jobHandle;
 
@@ -73,7 +56,7 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
      * @param processLookup
      *         lookup of the Java handle for a created process
      * @param clock
-     *         source of process creation timestamps
+     *         source of diagnostic request timestamps
      * @throws NullPointerException
      *         if any dependency is null
      */
@@ -85,6 +68,7 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
         this.clock = requireNonNull( clock, "clock must not be null" );
     }
 
+    /** {@inheritDoc} */
     @Override
     public @Nonnull RunningServer launch( @Nonnull LaunchSpec launchSpec ) {
         requireNonNull( launchSpec, "launchSpec must not be null" );
@@ -94,12 +78,16 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
         MemorySegment job = createKillOnCloseJob();
         try ( Arena arena = Arena.ofConfined() ) {
             long pid = createProcessInJob( arena, launchSpec, job );
-            Instant startedAt = clock.instant();
+            Instant requestedAt = clock.instant();
             ProcessHandle handle = processLookup.apply( pid ).orElseThrow(
                     () -> new UncheckedIOException( new IOException(
                             "Server process " + pid + " disappeared immediately after being created" ) ) );
+            Instant startedAt = handle.info().startInstant().orElseThrow(
+                    () -> new IllegalStateException( "Created process has no operating-system start time" ) );
+            releaseKillOnClose( job );
             jobHandle = job;
-            log.info( "Created server process {} bound to the panel's lifetime", pid );
+            log.info( "Created server process {}; job no longer terminates it when the panel exits", pid );
+            log.debug( "Process identity captured at {}", requestedAt );
             return new RunningServer( handle, startedAt, launchSpec.logFile() );
         } catch ( RuntimeException exception ) {
             // The job owns nothing useful now; closing it reaps a process that may have been created
@@ -195,6 +183,18 @@ public final class WindowsProcessLauncher implements GameProcessLauncher {
         nativeCalls.closeHandle( jobHandle );
         jobHandle = null;
         log.debug( "Released the job object of the previous server" );
+    }
+
+    /** A successfully handed-off server may survive failed stop and panel exit (AD-017). */
+    private void releaseKillOnClose( MemorySegment job ) {
+        try ( Arena arena = Arena.ofConfined() ) {
+            MemorySegment limits = arena.allocate( Win32.JOBOBJECT_EXTENDED_LIMIT_INFORMATION );
+            limits.set( ValueLayout.JAVA_INT, Win32.LIMIT_FLAGS_OFFSET, 0 );
+            if ( nativeCalls.setInformationJobObject( job, Win32.JOB_OBJECT_EXTENDED_LIMIT_INFORMATION, limits,
+                    ( int ) limits.byteSize() ) == 0 ) {
+                throw failure( "SetInformationJobObject release kill-on-close", nativeCalls.getLastError() );
+            }
+        }
     }
 
     /**

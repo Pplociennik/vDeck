@@ -27,7 +27,11 @@
       "PowerShell(Set-Content *)",
       "PowerShell(.\\\\mvnw.cmd -q compile)",
       "PowerShell($files = @\\(\"przeplyw-zmiana-hasla\",\"przeplyw-logowanie\",\"klasy-komponenty\"\\); foreach \\($f in $files\\) { npx -y @mermaid-js/mermaid-cli -i \"dokumentacja\\\\diagramy\\\\authentication\\\\$f.mmd\" -o \"dokumentacja\\\\diagramy\\\\authentication\\\\img\\\\$f.svg\" -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json })",
-      "Bash(cd *)"
+      "Bash(cd *)",
+      "Bash(xargs grep -n \"\")",
+      "Bash(npx -y @mermaid-js/mermaid-cli@11.4.2 -i przeplyw-snapshot.mmd -o img/przeplyw-snapshot.svg)",
+      "Bash(sed -i 's/\\\\.vDeck\\\\\\\\backups/.vDeck\\\\\\\\shutdown-snapshots/g' dokumentacja/instrukcja-uzytkownika/instrukcja-uzytkownika.adoc)",
+      "Bash(sed -i 's/\"Backup directory must be/\"Snapshot directory must be/; s/\"Backup directory overlaps/\"Snapshot directory overlaps/; s/\"Backup directory chain/\"Snapshot directory chain/' vdeck-app/src/main/java/com/github/pplociennik/vdeck/feature/backup/service/impl/BackupPathServiceImpl.java)"
     ]
   }
 }

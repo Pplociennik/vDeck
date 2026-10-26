@@ -20,9 +20,10 @@ import static java.util.Objects.requireNonNull;
  * This is the only component allowed to turn a configured path string into a {@link Path}, so that
  * normalization and containment checks are applied consistently everywhere in the panel.
  *
- * <p>The base directory is the directory holding {@code vdeck.jar} and {@code valheim_server.exe}.
- * It is derived from {@link ApplicationHome} unless the {@code vdeck.server-directory} override is
- * configured, which is what IDE runs and manual test installations use. Resolution happens once,
+ * <p>The base directory is the directory holding {@code valheim_server.exe}. It is derived from
+ * {@link ApplicationHome} unless the {@code vdeck.server-directory} override is configured, which is
+ * what the distribution's start script (its JARs live in {@code lib}), IDE runs and manual test
+ * installations use. Resolution happens once,
  * during construction, so a misconfigured directory aborts the panel start instead of failing later.
  *
  * <p>Instances are immutable after construction and perform no writes. Every method touches the file

@@ -1,6 +1,6 @@
 # vDeck — dokumentacja projektowa
 
-> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-09-29
+> Status: opis zaimplementowanego stanu systemu · Aktualizacja: 2026-10-12
 
 Dokument opisuje, **co system robi i jak to realizuje**. Uzasadnienia decyzji projektowych znajdują się
 w [`.docs/architectural_decisions.md`](../.docs/architectural_decisions.md) oraz
@@ -18,6 +18,8 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [1.1 Przeznaczenie systemu](#11-przeznaczenie-systemu)
   - [1.2 Moduły i stos technologiczny](#12-moduły-i-stos-technologiczny)
   - [1.3 Uruchomienie panelu](#13-uruchomienie-panelu)
+  - [1.4 Budowanie dystrybucji](#14-budowanie-dystrybucji)
+  - [1.5 Instrukcja obsługi](#15-instrukcja-obsługi)
 - [2. Architektura aplikacji](#2-architektura-aplikacji)
   - [2.1 Podział na pakiety](#21-podział-na-pakiety)
   - [2.2 Start aplikacji](#22-start-aplikacji)
@@ -45,6 +47,8 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.6 Serwer i Ustawienia gry](#56-serwer-i-ustawienia-gry)
   - [5.7 Uruchamianie serwera](#57-uruchamianie-serwera)
   - [5.8 Przycisk strony głównej](#58-przycisk-strony-głównej)
+  - [5.9 Techniczny helper CTRL+C](#59-techniczny-helper-ctrlc)
+  - [5.10 Zatrzymanie, snapshoty i odzyskiwanie](#510-zatrzymanie-snapshoty-i-odzyskiwanie)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -62,7 +66,7 @@ dystrybuowana razem z instalacją serwera, uruchamiana na tej samej maszynie i o
 przeglądarki. Docelowy zakres produktu obejmuje sterowanie cyklem życia serwera, konfigurację profilu
 uruchomieniowego, zarządzanie światami i kopiami bezpieczeństwa, podgląd logów, listy graczy oraz
 opcjonalne RCON i mody. Obecnie zaimplementowana jest infrastruktura konfiguracji, uwierzytelnianie
-dostępu do panelu, definiowanie profilu uruchomieniowego oraz uruchamianie serwera Valheim.
+dostępu do panelu, profil uruchomieniowy, Start, Stop, ręcznie potwierdzony Kill, snapshoty i minimalne recovery.
 
 Wspierany jest wyłącznie Windows.
 
@@ -71,9 +75,13 @@ Wspierany jest wyłącznie Windows.
 | Moduł Maven | Odpowiedzialność | Stan |
 |---|---|---|
 | `vdeck-runtime` | Czysta Java: proces serwera i jego stan. Bez Springa. | Fasada runtime, kolejka zdarzeń i launcher Windows przez FFM |
+| `vdeck-runner` | Czysta Java: wykonywalny helper CTRL+C. Bez Springa. | `VdeckRunner`, samodzielny `vdeck-runner.jar`; uruchamianie panelu i aktualizacje pozostają przyszłym zakresem |
 | `vdeck-app` | Aplikacja Spring Boot: web, bezpieczeństwo, konfiguracja, persystencja. | Feature'y panelu, w tym walidacja i przygotowanie startu |
+| `.dist` (`vdeck-dist`) | Końcowy moduł pakujący. | ZIP z oboma JAR-ami, JRE 25, BAT-em, README, instrukcją obsługi PDF i domyślną konfiguracją |
 
-Zależność jest jednostronna: `vdeck-app` zależy od `vdeck-runtime`.
+`vdeck-app` i `vdeck-runner` zależą od `vdeck-runtime`, bez zależności między sobą.
+Runtime otrzymuje gotowy bean `ConsoleControlSender` i nie zna modułu runnera.
+Moduł `.dist` zależy od obu wykonywalnych modułów, aby pakować ich gotowe artefakty.
 
 Stos: Java 25, Maven (wrapper 3.9.16), Spring Boot 4.1.0, Spring MVC + Thymeleaf, Spring Security,
 Spring Data JPA + SQLite (`org.xerial:sqlite-jdbc`), Log4j2 jako jedyne API i backend logowania,
@@ -84,27 +92,91 @@ Lombok, JUnit 5 + AssertJ + Mockito.
 Port panelu w `application.yaml` wynosi `8085`. Plik nie ustawia adresu nasłuchu; uruchomienie
 przeznaczone wyłącznie do obsługi lokalnej wymaga `--server.address=127.0.0.1`.
 
-Uruchomienie produkcyjne:
+Paczka dystrybucyjna zawiera pełne JRE 25 dla Windows x64. Nie wymaga Javy zainstalowanej
+w systemie ani ustawionego `JAVA_HOME`. Jej zawartość należy wypakować do instalacji Valheim,
+tak aby `start-vDeck.bat` leżał obok `valheim_server.exe`:
 
 ```powershell
-.\mvnw.cmd package
-java --enable-native-access=ALL-UNNAMED -jar vdeck-app\target\vdeck-app-0.0.1-SNAPSHOT.jar --server.address=127.0.0.1
+D:\sciezka\do\instalacji\start-vDeck.bat
 ```
 
-Nazwa artefaktu buildu to `vdeck-app-<wersja>.jar`; dokumenty projektowe mówią o `vdeck.jar` jako
-nazwie pliku w gotowej instalacji obok `valheim_server.exe`. Katalog, w którym leży uruchomiony jar,
-jest katalogiem instalacyjnym opisanym w sekcji [3.3](#33-rozwiązywanie-ścieżek). Przy pierwszym
-starcie powstaje w nim katalog `.vDeck/config` z plikami `vDeck.properties` i
-`valheim-server.properties` oraz plik bazy `vdeck.db`.
+Oba JAR-y leżą w podkatalogu `lib`. Skrypt ustawia katalog roboczy na swój katalog i uruchamia
+`jre\bin\java.exe -jar lib\vdeck.jar` z `--enable-native-access=ALL-UNNAMED`
+i jawnym `-Dvdeck.server-directory` równym katalogowi skryptu — bez niego `ApplicationHome`
+wskazałby `lib`. Na początku skryptu zmienna `ADDRESS` (domyślnie `127.0.0.1`) ustawia adres
+nasłuchu przekazywany jako `--server.address`, a zmienna `PORT` (domyślnie `8085`) port przekazywany
+jako `--server.port`. Adres inny niż `127.0.0.1` wystawia panel HTTP do sieci, więc należy go używać
+tylko w zaufanej sieci. Inne dodatkowe argumenty skryptu trafiają do Springa; portu nie
+należy podawać jako argumentu, bo zdublowana właściwość daje wartość `8085,8086`.
+Brak JRE lub JAR-a przerywa uruchomienie z komunikatem. Skrypt nie korzysta z Javy z `PATH`.
+Helper CTRL+C używa `javaw.exe` z tego samego JRE. Domyślny adres panelu:
+`http://127.0.0.1:8085`; pierwsze logowanie to `admin` / `admin` z wymuszoną zmianą hasła.
+
+Artefakt aplikacji ma stałą nazwę `vdeck.jar`, a helper `vdeck-runner.jar`.
+Katalog instalacyjny opisuje sekcja [3.3](#33-rozwiązywanie-ścieżek). Paczka zawiera szablony
+`.vDeck/config/vDeck.properties` i `.vDeck/config/valheim-server.properties`; baza `vdeck.db`
+powstaje przy pierwszym uruchomieniu. Paczka służy pierwszej instalacji: przy wymianie wersji
+należy zachować istniejące ustawienia, bazę i światy zamiast nadpisywać je szablonami.
 
 Uruchomienie z IDE lub przez `spring-boot:run` **wymaga** wskazania katalogu instalacyjnego, ponieważ
 bez niego `ApplicationHome` wskazuje na `vdeck-app/target/classes`:
 
 ```powershell
 .\mvnw.cmd install -DskipTests
+New-Item -ItemType Directory -Force D:\sciezka\do\sandboxa\lib
+Copy-Item vdeck-runner\target\vdeck-runner.jar D:\sciezka\do\sandboxa\lib\vdeck-runner.jar
 .\mvnw.cmd -pl vdeck-app spring-boot:run `
   "-Dspring-boot.run.jvmArguments=--enable-native-access=ALL-UNNAMED -Dvdeck.server-directory=D:\sciezka\do\sandboxa"
 ```
+
+### 1.4 Budowanie dystrybucji
+
+Pełny build z głównego katalogu repozytorium wymaga JDK 25:
+
+```powershell
+.\mvnw.cmd clean package
+```
+
+Wynik to `target/vDeck-dist-<wersja projektu>.zip`; wersja pochodzi z głównego `pom.xml`.
+ZIP nie zawiera dodatkowego katalogu nadrzędnego. Skład paczki określa `.dist/assembly.xml`:
+oba JAR-y w `lib`, `start-vDeck.bat`, README.md, README.txt, instrukcję obsługi `vDeck-instrukcja.pdf`,
+dwa pliki `.vDeck/config/*.properties` i pełny katalog `jre` z informacjami licencyjnymi. Baza, logi, pliki builda i cache pobrań
+nie są pakowane. Pliki Valheim instaluje się osobno.
+
+Końcowy moduł `.dist` wymusza kolejność przez zależności od aplikacji i runnera.
+W `prepare-package` Maven AntRun pobiera przypięte wydanie Temurin JRE 25 dla Windows x64
+i sprawdza SHA-256 z `.dist/pom.xml` przed rozpakowaniem. Błąd pobrania, sumy lub struktury JRE
+przerywa build. Każdy build odtwarza `.dist/jre`, aby usunąć pozostałości poprzedniego wydania.
+W tej samej fazie Asciidoctor Maven Plugin z AsciidoctorJ PDF konwertuje instrukcję obsługi
+(sekcja [1.5](#15-instrukcja-obsługi)) do `.dist/target/instrukcja/vDeck-instrukcja.pdf`; ostrzeżenie
+konwersji, np. brakujący obrazek, przerywa build.
+W fazie `package` Maven Resources kopiuje wykonywalne JAR-y bez filtrowania,
+a Maven Assembly tworzy ZIP. Zwykłe `test` nie pobiera JRE i nie pakuje dystrybucji.
+
+JRE jest pobierane przy pierwszym `package` po `clean`. Kolejne `package` korzysta z archiwum
+w `.dist/target`, ponownie sprawdzając sumę. `clean` usuwa wygenerowane JAR-y, JRE i wyniki
+buildu, zachowując wersjonowane szablony `.dist`. Próby uruchomienia wykonuje się na wypakowanej
+paczce poza `.dist`, aby nie zmieniać domyślnych ustawień przeznaczonych do dystrybucji.
+
+![Diagram przepływu: budowanie dystrybucji vDeck](diagramy/wspolne/img/przeplyw-pakowanie-dystrybucji.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-pakowanie-dystrybucji.mmd`](diagramy/wspolne/przeplyw-pakowanie-dystrybucji.mmd)
+
+### 1.5 Instrukcja obsługi
+
+Polska instrukcja dla użytkownika końcowego powstaje z
+[`instrukcja-uzytkownika/instrukcja-uzytkownika.adoc`](instrukcja-uzytkownika/instrukcja-uzytkownika.adoc)
+i trafia do paczki jako `vDeck-instrukcja.pdf` (AD-022). Opisuje instalację, pierwsze logowanie,
+nawigację, ekrany *Serwer* i *Ustawienia gry*, uruchamianie i zatrzymywanie serwera, zmianę hasła,
+portu i adresu, pliki danych oraz rozwiązywanie problemów. Wersja w stopce stron pochodzi z `pom.xml`,
+a wygląd z motywu `instrukcja-uzytkownika/motyw/vdeck-theme.yml`, który wykorzystuje tło panelu na okładce.
+
+Zrzuty ekranu w `instrukcja-uzytkownika/img/` odtwarza skrypt Playwright
+`instrukcja-uzytkownika/zrzuty/zrzuty-ekranu.mjs`. Uruchamia się go ręcznie na panelu ze świeżo
+wypakowanej paczki: skrypt zmienia hasło administratora, zapisuje przykładowy profil, wykonuje kadry
+pojedynczych sekcji i oznacza ważne miejsca ramkami oraz numerami. Rysunki instrukcji mają źródła
+`.mmd` w `instrukcja-uzytkownika/rysunki/` i są renderowane do PNG. Zasady aktualizacji opisuje
+`.docs/rules/documentation.md` §3.6.
 
 ---
 
@@ -137,6 +209,11 @@ Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, 
 bazy, przygotowanie plików ustawień i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
 bazowego przerywa start, zamiast pozwolić aplikacji działać z niepoprawną konfiguracją.
 
+`VdeckApplication.main()` uruchamia wyłącznie Springa. `config.ConsoleControlConfiguration`
+tworzy bean `ConsoleControlSender`, który przy starcie nie tworzy procesu ani wątku oczekującego.
+`ServerRuntimeConfiguration` wstrzykuje go do runtime. Osobny punkt wejścia helpera należy do
+modułu runnera; jego kontrakt opisuje [5.9](#59-techniczny-helper-ctrlc).
+
 ![Diagram przepływu: start aplikacji vDeck i przygotowanie środowiska](diagramy/wspolne/img/przeplyw-start-aplikacji.svg)
 
 Źródło diagramu: [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd)
@@ -152,6 +229,7 @@ samym wyjątkiem procesu.
 | Wyjątek procesu | Rzucany przez | Obsługuje | Co trafia do przekierowania |
 |---|---|---|---|
 | `feature.server.exc.ServerStartException` | `ServerStartValidator`, `ServerServiceImpl` | `ServerExceptionHandler` | klucz `ServerMessage` w `serverErrorKey`, zawsze na `/` |
+| `feature.server.exc.ServerAdoptException` | `ServerServiceImpl` | `ServerExceptionHandler` | ADOPT_REJECTED lub ADOPT_FAILED w `serverErrorKey`, na `/` |
 | `feature.launch.exc.LaunchProfileUpdateException` | `ServerSettingsController`, `GameSettingsController`, `LaunchProfileServiceImpl` | `LaunchProfileExceptionHandler` | klucz `LaunchProfileMessage` i przesłany formularz (ekranu „Serwer” zawsze bez hasła) |
 | `feature.authentication.exc.PasswordChangeException` | oba kontrolery zmiany hasła, `PanelUserServiceImpl` | `PasswordChangeExceptionHandler` | wyłącznie klucz `PasswordChangeMessage` — formularz hasła jest zawsze pusty |
 
@@ -214,6 +292,7 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 | `game.log.retention.enabled` | Czy przed startem usuwać stare logi gry; `false` zachowuje wszystkie logi, wartość inna niż `true`/`false` używa domyślnej | tak | `true` |
 | `game.log.retention.days` | Nieujemna liczba dni retencji logów gry przy włączonej retencji; wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
 | `server.start.script` | Skrypt producenta czytany po `SteamAppId`, nigdy wykonywany przez panel | tak | `start_headless_server.bat` |
+| `snapshot.directory` | Nazwa jednego podkatalogu `.vDeck` na snapshoty świata (AD-018); separator, `.` lub `..` przerywa start serwera | tak | `shutdown-snapshots` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 
 Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obowiązkowe. Wartość
@@ -267,10 +346,12 @@ Zasady obsługi plików:
 ### 3.3 Rozwiązywanie ścieżek
 
 `PathService` jest jedynym komponentem zamieniającym skonfigurowany tekst na `Path`, dzięki czemu
-normalizacja i kontrola zasięgu obowiązują w całym panelu.
+normalizacja i kontrola zasięgu obowiązują w całym panelu. Stały zewnętrzny katalog snapshotów
+jest osobnym wyjątkiem AD-018: rozwiązuje go `BackupPathService`, opisany w [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie).
 
-Katalog bazowy (instalacyjny) to katalog zawierający `vdeck.jar` i `valheim_server.exe`. Jest brany z
-`ApplicationHome`, chyba że ustawiono override `vdeck.server-directory`. Rozwiązanie następuje raz,
+Katalog bazowy (instalacyjny) to katalog zawierający `valheim_server.exe`. Jest brany z
+`ApplicationHome`, chyba że ustawiono override `vdeck.server-directory`. Skrypt dystrybucji zawsze
+go ustawia, ponieważ JAR-y leżą w podkatalogu `lib`. Rozwiązanie następuje raz,
 podczas konstrukcji, więc błędna konfiguracja przerywa start panelu.
 
 `getAbsolutePath( String )` odrzuca wartość, która:
@@ -592,7 +673,7 @@ Wyspa dzieli się na trzy grupy akcji rozdzielone pionowymi liniami o wysokości
 
 | Grupa | Szerokość | Akcje | Stan |
 |---|---|---|---|
-| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Start wysyła `POST /server/start`; pozostałe akcje nie są zaimplementowane |
+| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Start: `POST /server/start`; Stop: `POST /server/stop`; Kill: potwierdzenie i `POST /server/kill`; Restart pozostaje bez akcji |
 | Kopie bezpieczeństwa | nieco węższa | utworzenie kopii świata, utworzenie kopii serwera | Przyciski bez akcji — funkcjonalność nie jest zaimplementowana |
 | Zarządzanie panelem | wąska | zmiana hasła, wylogowanie | Działa: odnośnik do `/change-password` oraz formularz `POST /logout` obsługiwany przez domyślne wylogowanie Spring Security |
 
@@ -601,10 +682,12 @@ Na wąskich ekranach grupy zawijają się do kolejnych wierszy, a separatory —
 między sąsiadami — są ukrywane.
 
 Pod wyspą znajduje się znacznik stanu (`island-status`). `ServerStatusAdvice` dostarcza aktualny
-`serverStatus` przy każdym renderowaniu. Start jest wyłączony podczas `STARTING` i `RUNNING`.
-Stan wymaga odświeżenia strony; nie ma automatycznego odpytywania ani SSE dla tego komponentu.
+`serverStatus` przy każdym renderowaniu. Start jest dostępny tylko w STOPPED, START_FAILED i CRASHED;
+Stop i Kill tylko w RUNNING lub STOP_FAILED. `server-status.js` co 2 sekundy pobiera fragment
+`GET /server/status`, gdy strona jest widoczna. Jedno żądanie naraz, timeout 5 s i zachowanie
+poprzedniego widoku przy błędzie; aktywny fokus w wyspie zapobiega utracie fokusu przy wymianie.
 
-Formularze startu i wylogowania korzystają z `th:action`, więc Thymeleaf dokłada do nich ukryty token CSRF
+Formularze Start, Stop, Kill i wylogowania korzystają z `th:action`, więc Thymeleaf dokłada do nich ukryty token CSRF
 wymagany przez łańcuch bezpieczeństwa. Wyspa nie jest osadzana na ekranie wymuszonej zmiany hasła
 początkowego — konto przed zmianą hasła nie może wykonać żadnej z jej akcji.
 
@@ -623,8 +706,8 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
 ### 5.4 Ekrany panelu
 
 - **Strona główna** (`home/index.html`, `HomeController`, adres `/`) osadza wyspę akcji nad pustym
-  obszarem treści oraz menu boczne. Na tym etapie pokazuje wyłącznie tło panelu, wyspę i menu —
-  treść pojawi się razem z funkcjonalnościami, które ma prezentować.
+  obszarem treści oraz menu boczne. Pokazuje komunikaty sterowania serwerem i minimalną opcję jawnej adopcji
+  po restarcie panelu, kiedy istnieje pasujący token uruchomienia.
 - **Wymuszona zmiana hasła początkowego** (`authentication/initial-password-change.html`) to
   wyśrodkowana karta na wspólnej powierzchni `.surface`, **bez wyspy, bez menu bocznego i bez
   jakiejkolwiek innej akcji**: nagłówek z ikoną klucza, opis, opcjonalny komunikat błędu z `role="alert"` oraz formularz
@@ -923,11 +1006,11 @@ dostarczeniem zdarzeń oraz potwierdzeń startu bez oczekiwania na upływ czasu.
 
 Źródło diagramu: [`diagramy/server/przeplyw-stany-serwera.mmd`](diagramy/server/przeplyw-stany-serwera.mmd)
 
-Obecna implementacja wiąże proces z panelem przez job object Windows z
-`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`. Awaria panelu kończy serwer wymuszenie. Normalne zamknięcie
-kontekstu wywołuje `ServerStateMachine.close()`, które również kończy proces bez drabiny zapisu
-świata i CTRL+C. Może to utracić niezapisany postęp. Stop, Restart i Kill z GUI, snapshoty,
-łagodne zatrzymanie, odzyskiwanie i adopcja nie są zaimplementowane.
+Zgodnie z AD-017 `KILL_ON_JOB_CLOSE` chroni tylko nieukończone tworzenie procesu.
+Launcher wyłącza flagę przed udanym przekazaniem własności runtime. Nieudany Stop pozostawia
+żywy serwer, również po zamknięciu lub awarii panelu. `close()` zamyka zasoby bez kończenia procesu;
+asynchroniczny `ServerShutdownLifecycle` wcześniej próbuje wykonać zwykły Stop. Mechanizm
+odzyskiwania i token zapobiegają uruchomieniu drugiej instancji; szczegóły w [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie).
 
 `WindowsProcessLauncher` otrzymuje granicę wywołań `Win32`, funkcję wyszukiwania `ProcessHandle`
 i zegar. Testy zastępują granice systemowe bez uruchamiania procesów. Błąd konfiguracji joba
@@ -959,6 +1042,123 @@ stronę główną. Nazwę dostępną i podpowiedź daje klucz `homeButton.label`
   powiększa obszar aktywny do `--control-touch-size`.
 - Otwarte menu boczne wysuwa się w miejscu przycisku, więc przycisk leży pod menu i jest ukryty na
   czas jego otwarcia; ukrycie usuwa go też z kolejności tabulacji.
+
+### 5.9 Techniczny helper CTRL+C
+
+Zaimplementowany helper wysyła CTRL+C na żądanie `ServerStateMachine`. Bean `ConsoleControlSender`
+jest tworzony przy starcie panelu i pozostaje bezczynny do wywołania przez worker zatrzymania.
+Po wymaganym snapshotcie implementacja `JvmConsoleControlSender` uruchamia osobną JVM
+z pliku `<instalacja>/lib/vdeck-runner.jar` z argumentami:
+`--ctrl-sender <pid> <creation-instant> <absolute-executable>` i włączonym dostępem natywnym.
+Argumenty nie zawierają hasła ani opcji profilu serwera. `JvmConsoleControlSender` uruchamia `javaw.exe` przez ProcessBuilder, bez powłoki,
+z zamkniętym stdin i odrzuconym wyjściem. Timeout helpera wynosi najwyżej 10 s;
+sprzątanie po timeout dotyczy tylko helpera.
+
+Polecenie przekazuje konfiguracja Springa po rozwiązaniu ścieżki przez `PathService`.
+Każde wywołanie uruchamia nowy proces; bean nie utrzymuje stale działającego helpera.
+Brak lub uszkodzenie JAR-a powoduje błąd helpera przy żądaniu sygnału; Stop pozostawia serwer uruchomiony.
+Artefakt jest wymagany także dla IDE i `spring-boot:run` — brak fallbacku do punktu wejścia panelu.
+
+`runner.VdeckRunner` obsługuje wyłącznie tryb techniczny, bez Springa, bazy i ustawień panelu.
+`runtime.api.ControlSenderCommand` wymaga dokładnie czterech argumentów i waliduje PID,
+czas oraz absolutną, znormalizowaną ścieżkę. `runtime.api.ProcessIdentity` potwierdza PID,
+rzeczywisty czas utworzenia z `ProcessHandle.Info.startInstant()`, plik wykonywalny rozwiązany
+przez `toRealPath()` i żywotność procesu. Czas pobrany z zegara panelu nie wystarcza jako token.
+
+`runtime.windows.WindowsConsoleControlSender` sprawdza tożsamość przed zmianą konsoli, wykonuje
+`FreeConsole`, `AttachConsole`, ustawia ignorowanie CTRL+C przez helper, ponownie weryfikuje proces
+i wysyła `GenerateConsoleCtrlEvent( 0, 0 )`. Po przyłączeniu zawsze próbuje odłączyć konsolę,
+także przy błędzie. Błąd sprzątania jest dołączany do pierwotnego jako wyjątek suppressed.
+Wywołań tych nie wolno wykonywać w głównej JVM panelu, ponieważ zmieniają jej ustawienia konsoli.
+
+| Kod wyjścia helpera | Znaczenie |
+|---|---|
+| `0` | Wysłano CTRL+C; nie potwierdza to zapisu świata ani wyjścia serwera |
+| `1` | Błąd sygnału, sprzątania lub weryfikacji tożsamości |
+| `2` | Błędne argumenty; nie tworzono granicy natywnej ani kontekstu Springa |
+
+Testy jednostkowe zastępują procesy i Win32, a pliki exe są pustymi plikami w `@TempDir`.
+Nie wysyłają sygnału do rzeczywistego serwera. Potwierdzenie zachowania CTRL+C i spójności zapisu
+na rzeczywistym Valheim pozostaje testem wdrożeniowym Windows.
+
+![Diagram przepływu: techniczny helper CTRL+C](diagramy/server/img/przeplyw-helper-ctrl-c.svg)
+
+Źródło diagramu: [`diagramy/server/przeplyw-helper-ctrl-c.mmd`](diagramy/server/przeplyw-helper-ctrl-c.mmd)
+
+### 5.10 Zatrzymanie, snapshoty i odzyskiwanie
+
+Wyspa wysyła Stop z ukrytym launchId. Kill otwiera `GET /server/kill-confirmation`, który
+wyłącznie pokazuje ryzyko; formularz POST wymaga zaznaczenia potwierdzenia i ponownie weryfikuje
+identyfikator uruchomienia. ADMIN, CSRF i wymuszona zmiana hasła obowiązują jak dla Start.
+Błędy synchroniczne kończą się wyjątkiem procesu i komunikatem flash, a wynik operacji
+asynchronicznej jest widoczny w statusie. Nieaktualne formularze i sprzeczne operacje są odrzucane.
+
+Runtime przed opublikowaniem STARTING weryfikuje `ProcessIdentity`. Nieudana weryfikacja sprząta
+nieprzekazany proces. Po przejęciu błąd zapisu tokenu nie odbiera własności ani możliwości Stop i Kill.
+
+Stop: pełny snapshot PRE_STOP, CTRL+C, 120 s oczekiwania, jedno powtórzenie CTRL+C i 30 s.
+Każdy helper ma najwyżej 10 s. Niepowodzenie daje STOP_FAILED z zachowaniem procesu, bez wymuszenia.
+Kill: po jednym potwierdzeniu użytkownika panel próbuje wykonać backup, a potem od razu
+wywołuje destroyForcibly, także gdy kopia nie powstanie. Kill nie wysyła CTRL+C ani nie czeka
+na próby łagodne. Ekran potwierdzenia ostrzega o utracie danych również bez backupu. Nie ma
+dodatkowego checkboxa ani wymogu wcześniejszego błędu kopii. Po wymuszeniu panel czeka do 10 s
+na wyjście. Każda operacja ma deadline 5 min, obejmujący kopię. Anulowanie, przerwanie workera,
+brak pewnej tożsamości lub czasu nadal zabrania wymuszenia; zgoda nie przechodzi na kolejne żądania.
+Sukces API sygnału nie potwierdza wyjścia ani zapisu; STOPPED wymaga obserwacji wyjścia.
+Shutdown dołącza do aktywnej operacji albo zleca Stop bez zgody na wymuszenie. Faza Springa ma 6 min.
+RCON nie jest brany pod uwagę.
+
+![Zatrzymanie serwera](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg)
+
+Źródło: [przeplyw-zatrzymanie-serwera.mmd](diagramy/server/przeplyw-zatrzymanie-serwera.mmd).
+
+Snapshot używa świata i saveDirectory przechwyconych przy starcie, niezależnie od późniejszej
+edycji profilu. AD-018 wyznacza `<instalacja>/.vDeck/<snapshot.directory>` przez osobny
+`BackupPathService`; katalog jest zapisywany w tokenie `server.pid`, więc adopcja używa tego
+samego katalogu co start, a runtime odmawia snapshotu poza `.vDeck`. Instalacja jest kanonizowana na wejściu, więc spacje, polskie znaki i junction
+powyżej niej są obsługiwane. Writer sprawdza ścieżki od zaufanej instalacji lub katalogu backupów
+w dół, odrzucając dowiązania i junctions poniżej granicy. Kopiuje parę
+`.db`/`.fwl` z obecnymi `.old` lub pełny katalog `worlds_local/<świat>`, sprawdzając zestaw plików,
+mtime, rozmiary oraz tożsamość plików przed i po kopii. `FileIdentityReader` otrzymuje na Windows
+numer woluminu i 128-bitowy FileId przez `GetFileInformationByHandleEx(FileIdInfo)`, bez blokowania
+zapisów i rename. Brak identyfikatora odrzuca próbę; writer wykonuje do trzech prób całości.
+Manifest zawiera PRE_STOP, BEST_EFFORT, operację,
+świat, czas, rozmiary i SHA-256. Pliki są utrwalane i publikowane przez ATOMIC_MOVE.
+Brak wymaganego `.db`/`.fwl` lub katalogu `worlds_local` daje WORLD_SAVE_MISSING:
+komunikat wyjaśnia brak źródłowego zapisu, w tym świata mającego tylko `.fwl`. Nie tworzy się
+pozornej kompletnej kopii. Stop pozostawia proces uruchomiony; potwierdzony Kill loguje błąd
+kopii i kontynuuje wymuszenie. Pozostałe błędy kopii zatrzymują Stop z SNAPSHOT.
+BEST_EFFORT nie gwarantuje semantycznej spójności świata ani trwałości rename po utracie zasilania.
+
+Limit pojedynczego zestawu: 8 GiB, 8192 wpisy, głębokość poniżej 16 i bufor kopiowania 64 KiB.
+Zgodnie z AD-019 writer utrzymuje `snapshot-latest`. Nowa kopia powstaje w `.tmp-<uuid>`;
+dopiero po jej ukończeniu poprzednia trafia przez ATOMIC_MOVE do `.old-<uuid>`, a nowa na jej miejsce.
+Błąd publikacji przywraca poprzednią kopię. Po sukcesie stara jest usuwana; błąd sprzątania daje WARN.
+Następna operacja najpierw odzyskuje `.old-*`, gdy nie ma `snapshot-latest`, potem sprząta pozostałości
+`.tmp-*` i `.old-*`. Nie ma limitu 32 wpisów; potrzebne jest wolne miejsce na nowy zestaw obok starego.
+Starsze katalogi `snapshot-<operationId>` nie są kasowane automatycznie. Ekran backupów pozostaje
+osobną funkcją.
+
+![Publikacja snapshotu](diagramy/backup/img/przeplyw-snapshot.svg)
+
+Źródło: [przeplyw-snapshot.mmd](diagramy/backup/przeplyw-snapshot.mmd).
+
+`.vDeck/vdeck.lock` blokuje drugi panel dla tej instalacji. `.vDeck/server.pid` przechowuje bez
+sekretów launchId, PID, rzeczywisty czas utworzenia, exe, świat, saveDirectory i log. Po restarcie
+panel skanuje procesy także po błędzie odczytu tokenu. Kandydaci z tej instalacji lub żywy zapisany
+PID blokują Start w RECOVERY_REQUIRED. Jeśli token jest uszkodzony, a skan nie znajduje serwera,
+plik trafia do kwarantanny `server.pid.invalid-<czas>-<uuid>` z WARN i Start zostaje odblokowany.
+Odczyt poprawnego tokenu nie wymaga istnienia saveDirectory; jego kontrola następuje przy snapshotcie.
+Pojedynczy proces ze zgodnym tokenem może zostać jawnie adoptowany
+przez POST /server/adopt po ponownej weryfikacji tożsamości. Zniknięcie procesu lub nieaktualny wybór
+kończy `ServerAdoptException(ADOPT_REJECTED)` bez przyczyny, logowany na INFO; awaria infrastruktury
+używa ADOPT_FAILED z przyczyną i ERROR. Pozostałe przypadki wymagają
+interwencji poza panelem; nie ma automatycznej adopcji lub zabijania. Po zniknięciu kandydatów
+odczyty statusu zlecają ponowne sprawdzenie, które może odblokować Start.
+
+![Odzyskiwanie serwera](diagramy/server/img/przeplyw-odzyskiwanie.svg)
+
+Źródło: [przeplyw-odzyskiwanie.mmd](diagramy/server/przeplyw-odzyskiwanie.mmd).
 
 ## 6. Bezpieczeństwo
 
@@ -1033,18 +1233,26 @@ bocznego, strona główna panelu, oba ostylowane ekrany hasła oraz ekrany „Se
 zapisujące profil uruchomieniowy. Działa również Start, przygotowanie polecenia i logów oraz runtime
 Windows ze stanem procesu opisanym w [5.7](#57-uruchamianie-serwera).
 
+Zaimplementowano również izolowany helper CTRL+C i sprawdzanie tożsamości procesu, opisane
+w [5.9](#59-techniczny-helper-ctrlc); Stop, Kill, snapshoty i minimalne recovery opisuje [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie).
+
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
-łagodne zatrzymanie, Stop/Restart/Kill z GUI, światy i kopie bezpieczeństwa, podgląd logów, listy
+Restart z GUI, ekran zarządzania światami i kopiami, restore, podgląd logów, listy
 graczy, RCON, mody, harmonogramy i aktualizacje serwera.
+
+Plan realizacji Stop i Kill oraz kontrolowanego zamknięcia panelu znajduje się w
+[planie implementacji zatrzymania serwera](../.docs/plans/server-stop.md).
+Opisuje zaakceptowane AD-017/AD-018 i zrealizowane akcje. Testy automatyczne używają kontrolowanych
+procesów i danych; próba CTRL+C, zapisu i recovery na rzeczywistym Valheim Windows pozostaje wymagana.
 
 Znane ograniczenia stanu bieżącego:
 
 - panel nie ma własnej strony logowania — używana jest strona generowana przez Spring Security;
 - panel nie ma własnej strony błędu — odpowiedź `500` z `DefaultExceptionHandler` renderuje domyślna
   strona błędu Spring Boota, bez treści wyjątku;
-- strona główna pokazuje wyspę, stan serwera i komunikaty startu; stan wymaga ręcznego odświeżenia;
-- poza Startem przyciski sterowania serwerem i kopii bezpieczeństwa nie wykonują jeszcze akcji;
-- zamknięcie lub awaria panelu wymuszenie kończy serwer, bez gwarancji zapisu świata;
+- strona główna pokazuje wyspę, komunikaty operacji i ewentualną adopcję; status wyspy odświeża polling;
+- Restart i przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji;
+- serwer może przeżyć zamknięcie panelu; nieudany Stop nigdy nie przechodzi automatycznie do Kill;
 - menu boczne ma dwie działające pozycje — „Serwer” i „Ustawienia gry”; pozostałe są przykładowe
   (etykieta „Test”), pokazują trzy poziomy drzewa i nie otwierają żadnego panelu;
 - hasło serwera Valheim leży w pliku ustawień jawnym tekstem, chronione wyłącznie uprawnieniami
@@ -1091,3 +1299,7 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Uruchomienie serwera | sekwencja | [`img/przeplyw-uruchomienie-serwera.svg`](diagramy/server/img/przeplyw-uruchomienie-serwera.svg) | [`diagramy/server/przeplyw-uruchomienie-serwera.mmd`](diagramy/server/przeplyw-uruchomienie-serwera.mmd) | [5.7](#57-uruchamianie-serwera) |
 | Stany serwera | stany | [`img/przeplyw-stany-serwera.svg`](diagramy/server/img/przeplyw-stany-serwera.svg) | [`diagramy/server/przeplyw-stany-serwera.mmd`](diagramy/server/przeplyw-stany-serwera.mmd) | [5.7](#57-uruchamianie-serwera) |
 | Feature server i runtime | klasy | [`img/klasy-komponenty.svg`](diagramy/server/img/klasy-komponenty.svg) | [`diagramy/server/klasy-komponenty.mmd`](diagramy/server/klasy-komponenty.mmd) | [5.7](#57-uruchamianie-serwera) |
+| Techniczny helper CTRL+C | przepływ | [`img/przeplyw-helper-ctrl-c.svg`](diagramy/server/img/przeplyw-helper-ctrl-c.svg) | [`diagramy/server/przeplyw-helper-ctrl-c.mmd`](diagramy/server/przeplyw-helper-ctrl-c.mmd) | [5.9](#59-techniczny-helper-ctrlc) |
+| Zatrzymanie serwera | przepływ | [SVG](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg) | [MMD](diagramy/server/przeplyw-zatrzymanie-serwera.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
+| Snapshot świata | przepływ | [SVG](diagramy/backup/img/przeplyw-snapshot.svg) | [MMD](diagramy/backup/przeplyw-snapshot.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
+| Odzyskiwanie procesu | przepływ | [SVG](diagramy/server/img/przeplyw-odzyskiwanie.svg) | [MMD](diagramy/server/przeplyw-odzyskiwanie.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |

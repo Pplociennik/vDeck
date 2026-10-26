@@ -39,6 +39,12 @@ public enum VdeckProperty implements SystemPropertyIf {
     SERVER_START_SCRIPT( "server.start.script", "start_headless_server.bat", true ),
 
     /**
+     * Name of the directory holding world snapshots, a single directory directly below the panel's own
+     * {@code .vDeck} directory (AD-018). The value is a bare name, never a path.
+     */
+    SNAPSHOT_DIRECTORY( "snapshot.directory", "shutdown-snapshots", true ),
+
+    /**
      * Whether the "Ustawienia gry" screen shows its advanced section; {@code true} or {@code false}.
      * Remembered so the section keeps the visibility the administrator last chose.
      */

@@ -8,6 +8,9 @@ classDiagram
         class ServerService {
             <<interface>>
             start()
+            stop(launchId)
+            kill(launchId, confirmed)
+            adopt(launchId)
             getStatus()
         }
         class ServerServiceImpl
@@ -22,11 +25,23 @@ classDiagram
             <<interface>>
         }
         class LaunchConfiguration
+        class BackupPathService {
+            <<interface>>
+        }
+        class ServerShutdownLifecycle
+        class ConsoleControlConfiguration
+        class ServerRuntimeConfiguration
+    }
+    namespace vdeck_runner {
+        class VdeckRunner
     }
     namespace vdeck_runtime {
         class ServerRuntime {
             <<interface>>
-            start(LaunchSpec)
+            start(LaunchSpec, WorldContext)
+            stop(StopRequest)
+            shutdown()
+            adopt(launchId)
             status()
         }
         class ServerStateMachine
@@ -37,8 +52,20 @@ classDiagram
         }
         class WindowsProcessLauncher
         class Win32
+        class WorldContext
+        class FileWorldSnapshotStore
+        class FileIdentityReader {
+            <<interface>>
+        }
+        class WindowsFileIdentityReader
+        class JvmConsoleControlSender
+        class ConsoleControlSender {
+            <<interface>>
+        }
+        class WindowsConsoleControlSender
+        class ManagedLaunchStore
     }
-    ServerController --> ServerService : start
+    ServerController --> ServerService : akcje launchId
     ServerExceptionHandler ..> ServerController : obsługa błędu
     ServerStatusAdvice --> ServerService : stan widoku
     ServerServiceImpl ..|> ServerService
@@ -56,3 +83,18 @@ classDiagram
     ServerStateMachine --> GameProcessLauncher : uruchamia
     WindowsProcessLauncher ..|> GameProcessLauncher
     WindowsProcessLauncher --> Win32 : wstrzykiwana granica Windows
+    ServerServiceImpl --> BackupPathService : root poza instalacją
+    ServerServiceImpl ..> WorldContext : przechwytuje przy starcie
+    ServerStateMachine --> FileWorldSnapshotStore : worker snapshotu
+    FileWorldSnapshotStore --> FileIdentityReader : tożsamość plików
+    WindowsFileIdentityReader ..|> FileIdentityReader
+    WindowsFileIdentityReader --> Win32 : FileIdInfo
+    ConsoleControlConfiguration ..> JvmConsoleControlSender : tworzy bezczynny bean
+    ServerRuntimeConfiguration ..> ConsoleControlSender : wstrzykuje do runtime
+    ServerStateMachine --> ConsoleControlSender : żądanie sygnału na workerze
+    JvmConsoleControlSender ..|> ConsoleControlSender
+    ServerStateMachine --> ManagedLaunchStore : token i FileLock
+    ServerShutdownLifecycle --> ServerRuntime : shutdown przed close
+    JvmConsoleControlSender ..> VdeckRunner : uruchomienie JAR na żądanie
+    VdeckRunner --> WindowsConsoleControlSender : osobna JVM
+    WindowsConsoleControlSender --> Win32 : izolowane CTRL+C

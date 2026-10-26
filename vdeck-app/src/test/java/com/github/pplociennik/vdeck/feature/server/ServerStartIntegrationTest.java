@@ -86,7 +86,7 @@ class ServerStartIntegrationTest {
 
         // THEN
         result.andExpect( status().is3xxRedirection() ).andExpect( redirectedUrl( "/login" ) );
-        verify( serverRuntime, never() ).start( any() );
+        verify( serverRuntime, never() ).start( any(), any() );
     }
 
     /**
@@ -105,7 +105,7 @@ class ServerStartIntegrationTest {
 
         // THEN
         result.andExpect( status().isForbidden() );
-        verify( serverRuntime, never() ).start( any() );
+        verify( serverRuntime, never() ).start( any(), any() );
     }
 
     /**
@@ -124,7 +124,7 @@ class ServerStartIntegrationTest {
 
         // THEN
         result.andExpect( status().isForbidden() );
-        verify( serverRuntime, never() ).start( any() );
+        verify( serverRuntime, never() ).start( any(), any() );
     }
 
     /**
@@ -142,7 +142,7 @@ class ServerStartIntegrationTest {
                 .with( LaunchProperty.SERVER_PORT, Integer.toString( freePortPair() ) ) );
         launchProfileService.reload();
         given( serverRuntime.status() ).willReturn( ServerStatus.stopped() );
-        given( serverRuntime.start( any() ) ).willReturn(
+        given( serverRuntime.start( any(), any() ) ).willReturn(
                 ServerStatus.starting( 42L, Instant.EPOCH, directory.resolve( "run.log" ) ) );
 
         // WHEN
@@ -152,7 +152,7 @@ class ServerStartIntegrationTest {
         // THEN
         result.andExpect( status().is3xxRedirection() ).andExpect( redirectedUrl( "/" ) )
                 .andExpect( flash().attribute( "serverStarted", true ) );
-        verify( serverRuntime ).start( any() );
+        verify( serverRuntime ).start( any(), any() );
         assertThat( directory.resolve( ".vDeck/vDeck-server-start.bat" ) ).isRegularFile();
     }
 
@@ -180,7 +180,7 @@ class ServerStartIntegrationTest {
         assertThat( page.getStatus() ).isEqualTo( 200 );
         assertThat( page.getContentAsString() ).contains( "role=\"alert\"" )
                 .doesNotContain( ServerMessage.ALREADY_RUNNING.getKey(), "server.state." );
-        verify( serverRuntime, never() ).start( any() );
+        verify( serverRuntime, never() ).start( any(), any() );
     }
 
     /**

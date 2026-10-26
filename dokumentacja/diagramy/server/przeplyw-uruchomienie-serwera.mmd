@@ -25,6 +25,7 @@ sequenceDiagram
             Validator-->>Advice: ServerStartException przez kontroler
             Advice-->>Admin: przekierowanie / z serverErrorKey
         else Walidacja zakończona
+            Note over Service: WorldContext z tej samej konfiguracji<br/>BackupPathService poza instalacją
             Service->>Logs: createLogFileForNewStart()
             Note over Logs: Retencja według Clock (pomijana przy game.log.retention.enabled=false)<br/>i wybór ścieżki logu. Ujemna retencja używa 14 dni, zero zachowuje dziś.<br/>Katalog dnia tworzony tylko, gdy nie istnieje
             alt Nie można przygotować katalogu logów
@@ -37,8 +38,9 @@ sequenceDiagram
                 Service->>Command: renderScript(launchSpec)
                 Command-->>Service: skrypt bez hasła (bez odczytu ustawień)
                 Note over Service: Atomowy zapis skryptu UTF-8 bez hasła.<br/>Cytowanie operatorów, literalne procenty.<br/>Błąd zapisu pliku nie blokuje startu
-                Service->>Runtime: start(launchSpec)
+                Service->>Runtime: start(launchSpec, world)
                 Note over Runtime: Proces zawieszony przed przypisaniem do joba.<br/>Błąd przypisania: TerminateProcess.<br/>Inna awaria: zamknięcie joba i uchwytów
+                Note over Runtime: Sprawdź recovery przed Start.<br/>Po utworzeniu wyłącz KILL_ON_JOB_CLOSE.<br/>Przed publikacją STARTING zweryfikuj ProcessIdentity.<br/>Błąd weryfikacji: sprzątaj nieprzekazany proces.<br/>Po przejęciu zapisz token.<br/>Błąd zapisu zachowuje własność
                 alt Proces utworzony
                     Runtime-->>Service: STARTING
                     Service-->>Web: sukces

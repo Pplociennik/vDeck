@@ -1,0 +1,24 @@
+%% Diagram przepływu: odzyskiwanie zarządzanego procesu
+flowchart TD
+    start[Start panelu: kanonizuj instalację] --> lock{FileLock .vDeck/vdeck.lock}
+    lock -- zajęty --> abort[Przerwij start drugiego panelu]
+    lock -- zdobyty --> token[Odczyt .vDeck/server.pid do 16 KiB<br/>Ścieżki w instalacji; zapis świata może nie istnieć]
+    token -- uszkodzony --> invalid[Zapamiętaj błąd; saved = null]
+    token -- poprawny lub brak --> scan[Skan exe tej instalacji<br/>i sprawdzenie żywego zapisanego PID]
+    invalid --> scan
+    scan --> candidates{Proces lub niepewna żywa tożsamość?}
+    candidates -- nie --> bad{Token uszkodzony?}
+    bad -- tak --> quarantine[ATOMIC_MOVE do server.pid.invalid-czas-uuid<br/>WARN; zachowaj ślad diagnostyczny]
+    quarantine -- sukces --> stopped[STOPPED: Start dostępny]
+    quarantine -- błąd --> failure[Przerwij żądanie Start]
+    bad -- nie --> clear[Usuń nieaktualny token]
+    clear --> stopped
+    candidates -- tak --> verified{Jeden kandydat i zgodny token?<br/>PID, czas utworzenia, rzeczywisty exe}
+    verified -- nie --> blocked[RECOVERY_REQUIRED<br/>Start zablokowany; brak adopcji]
+    verified -- tak --> offer[RECOVERY_REQUIRED<br/>Pokaż jawną adopcję launchId]
+    offer --> admin[ADMIN: POST /server/adopt z CSRF]
+    admin --> recheck{Ponownie zgodna tożsamość?}
+    recheck -- nie --> rejected[ServerAdoptException: ADOPT_REJECTED<br/>INFO bez przyczyny; przekieruj na /]
+    recheck -- błąd infrastruktury --> failed[ServerAdoptException: ADOPT_FAILED<br/>ERROR z przyczyną; przekieruj na /]
+    recheck -- tak --> running[RUNNING i onExit<br/>Bez sygnału i automatycznej adopcji]
+    blocked -. ponowne sprawdzenie przy odczycie statusu .-> token

@@ -80,7 +80,8 @@
      * The block size is the whole tab; --island-status-protrusion is how much of it shows, so the
      * difference is the part tucked behind the island. The taper is how far each lower corner comes in.
      */
-    --island-status-inline-size: 7.5rem;
+    --island-status-inline-size: 9rem;
+    --island-stop-message-width: min(90vw, 40rem);
     --island-status-block-size: 1.9rem;
     --island-status-protrusion: 1.4rem;
     --island-status-taper: 10%;

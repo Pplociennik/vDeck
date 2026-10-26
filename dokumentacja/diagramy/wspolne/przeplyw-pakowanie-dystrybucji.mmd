@@ -1,0 +1,19 @@
+%% Diagram przepływu: budowanie dystrybucji vDeck
+flowchart TD
+    build([mvnw clean package]) --> modules[Build i testy runtime, runnera i aplikacji]
+    modules --> artifacts[Gotowe vdeck.jar i vdeck-runner.jar]
+    artifacts --> dist[Końcowy moduł Maven .dist]
+    dist --> cache{Archiwum JRE<br/>w .dist/target?}
+    cache -- nie --> download[Pobranie przypiętego Temurin JRE 25<br/>Windows x64, oficjalne wydanie]
+    cache -- tak --> checksum[Sprawdzenie SHA-256 z POM]
+    download -- sukces --> checksum
+    download -- błąd --> fail([Build przerwany])
+    checksum -- niezgodna --> fail
+    checksum -- zgodna --> unpack[Odtworzenie .dist/jre<br/>Pełne JRE wraz z legal]
+    unpack --> valid{Obecne java.exe<br/>i javaw.exe?}
+    valid -- nie --> fail
+    valid -- tak --> manual[Asciidoctor: instrukcja-uzytkownika.adoc<br/>→ .dist/target/instrukcja/vDeck-instrukcja.pdf]
+    manual -- ostrzeżenie, np. brak obrazka --> fail
+    manual -- PDF gotowy --> resources[Maven Resources: kopia obu JAR-ów do .dist/lib<br/>Bez filtrowania binariów]
+    resources --> assembly[Maven Assembly: jawna lista plików .dist<br/>BAT, README, PDF instrukcji, properties, JAR-y, JRE]
+    assembly --> zip([target/vDeck-dist-wersja.zip<br/>Wersja z głównego POM])

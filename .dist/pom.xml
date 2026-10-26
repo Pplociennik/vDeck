@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.github.pplociennik</groupId>
+        <artifactId>vdeck</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>vdeck-dist</artifactId>
+    <packaging>pom</packaging>
+
+    <properties>
+        <temurin.version>25.0.4.1</temurin.version>
+        <temurin.build>1</temurin.build>
+        <temurin.archive>OpenJDK25U-jre_x64_windows_hotspot_${temurin.version}_${temurin.build}.zip</temurin.archive>
+        <temurin.sha256>4c95451cea98556def2c54f7782933f52a26d4a36bd85e1d59f0364464828b07</temurin.sha256>
+        <asciidoctor-maven-plugin.version>3.2.0</asciidoctor-maven-plugin.version>
+        <asciidoctorj-pdf.version>2.3.27</asciidoctorj-pdf.version>
+        <user-manual.directory>${project.basedir}/../dokumentacja/instrukcja-uzytkownika</user-manual.directory>
+    </properties>
+
+    <!-- These dependencies order packaging after both executable artifacts, including parallel builds. -->
+    <dependencies>
+        <dependency>
+            <groupId>com.github.pplociennik</groupId>
+            <artifactId>vdeck-app</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.pplociennik</groupId>
+            <artifactId>vdeck-runner</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <configuration>
+                    <!-- Only generated staging files are removed; the distribution templates are source files. -->
+                    <filesets>
+                        <fileset>
+                            <directory>${project.basedir}</directory>
+                            <includes>
+                                <include>lib/**</include>
+                                <include>jre/**</include>
+                            </includes>
+                            <followSymlinks>false</followSymlinks>
+                        </fileset>
+                    </filesets>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>prepare-bundled-jre</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.directory}"/>
+                                <get src="https://github.com/adoptium/temurin25-binaries/releases/download/jdk-${temurin.version}%2B${temurin.build}/${temurin.archive}"
+                                     dest="${project.build.directory}/${temurin.archive}"
+                                     skipexisting="true" maxtime="300"/>
+                                <checksum file="${project.build.directory}/${temurin.archive}" algorithm="SHA-256"
+                                          property="${temurin.sha256}" verifyproperty="temurin.verified"/>
+                                <fail message="Bundled JRE checksum mismatch. Remove the cached archive and rebuild.">
+                                    <condition>
+                                        <not>
+                                            <equals arg1="${temurin.verified}" arg2="true"/>
+                                        </not>
+                                    </condition>
+                                </fail>
+                                <!-- Recreate the runtime so a changed JRE cannot retain files from an older release. -->
+                                <delete dir="${project.basedir}/jre"/>
+                                <unzip src="${project.build.directory}/${temurin.archive}" dest="${project.basedir}/jre">
+                                    <patternset>
+                                        <include name="jdk-${temurin.version}+${temurin.build}-jre/**"/>
+                                    </patternset>
+                                    <mapper type="glob" from="jdk-${temurin.version}+${temurin.build}-jre/*" to="*"/>
+                                </unzip>
+                                <fail message="The bundled JRE archive does not contain java.exe and javaw.exe.">
+                                    <condition>
+                                        <not>
+                                            <and>
+                                                <available file="${project.basedir}/jre/bin/java.exe" type="file"/>
+                                                <available file="${project.basedir}/jre/bin/javaw.exe" type="file"/>
+                                            </and>
+                                        </not>
+                                    </condition>
+                                </fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.asciidoctor</groupId>
+                <artifactId>asciidoctor-maven-plugin</artifactId>
+                <version>${asciidoctor-maven-plugin.version}</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.asciidoctor</groupId>
+                        <artifactId>asciidoctorj-pdf</artifactId>
+                        <version>${asciidoctorj-pdf.version}</version>
+                    </dependency>
+                </dependencies>
+                <executions>
+                    <execution>
+                        <id>user-manual-pdf</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>process-asciidoc</goal>
+                        </goals>
+                        <configuration>
+                            <backend>pdf</backend>
+                            <sourceDirectory>${user-manual.directory}</sourceDirectory>
+                            <sourceDocumentName>instrukcja-uzytkownika.adoc</sourceDocumentName>
+                            <outputDirectory>${project.build.directory}/instrukcja</outputDirectory>
+                            <outputFile>vDeck-instrukcja.pdf</outputFile>
+                            <!-- The PDF embeds images read from the source directory; nothing else is copied. -->
+                            <resources>
+                                <resource>
+                                    <directory>${user-manual.directory}</directory>
+                                    <excludes>
+                                        <exclude>**/*</exclude>
+                                    </excludes>
+                                </resource>
+                            </resources>
+                            <attributes>
+                                <revnumber>${project.version}</revnumber>
+                                <imagesdir>img</imagesdir>
+                                <pdf-themesdir>${user-manual.directory}/motyw</pdf-themesdir>
+                                <pdf-theme>vdeck</pdf-theme>
+                            </attributes>
+                            <!-- A missing image or broken reference must fail the release instead of shipping a gap. -->
+                            <logHandler>
+                                <failIf>
+                                    <severity>WARN</severity>
+                                </failIf>
+                            </logHandler>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>stage-executable-jars</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.basedir}/lib</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/../vdeck-app/target</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>vdeck.jar</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/../vdeck-runner/target</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>vdeck-runner.jar</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>distribution-zip</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                        <configuration>
+                            <descriptors>
+                                <descriptor>assembly.xml</descriptor>
+                            </descriptors>
+                            <finalName>vDeck-dist-${project.version}</finalName>
+                            <appendAssemblyId>false</appendAssemblyId>
+                            <outputDirectory>${project.basedir}/../target</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

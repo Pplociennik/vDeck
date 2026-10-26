@@ -1,5 +1,7 @@
 package com.github.pplociennik.vdeck.runtime.api;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -7,8 +9,6 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.Arrays;
 import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Verifies which lifecycle states allow a new server to be started. Getting this wrong in either
@@ -115,6 +115,7 @@ class ServerStateTest {
         // THEN
         assertThat( startable ).containsExactly( ServerState.STOPPED, ServerState.START_FAILED,
                 ServerState.CRASHED );
-        assertThat( blocked ).containsExactly( ServerState.STARTING, ServerState.RUNNING );
+        assertThat( blocked ).containsExactly( ServerState.STARTING, ServerState.RUNNING,
+                ServerState.STOPPING, ServerState.STOP_FAILED, ServerState.RECOVERY_REQUIRED );
     }
 }

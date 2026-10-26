@@ -12,17 +12,23 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.github.pplociennik.vdeck.feature.backup.service.BackupPathService;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchConfiguration;
 import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
 import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import com.github.pplociennik.vdeck.feature.server.ServerMessage;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import com.github.pplociennik.vdeck.feature.server.service.LaunchCommandService;
 import com.github.pplociennik.vdeck.feature.server.service.ServerLogService;
 import com.github.pplociennik.vdeck.feature.server.service.ServerService;
 import com.github.pplociennik.vdeck.runtime.api.LaunchSpec;
 import com.github.pplociennik.vdeck.runtime.api.ServerRuntime;
 import com.github.pplociennik.vdeck.runtime.api.ServerStatus;
+import com.github.pplociennik.vdeck.runtime.api.StopRequest;
+import com.github.pplociennik.vdeck.runtime.api.WorldContext;
 import com.github.pplociennik.vdeck.shared.service.PathService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -69,6 +76,9 @@ class ServerServiceImplTest {
     @Mock
     private PathService pathService;
 
+    @Mock
+    private BackupPathService backupPaths;
+
     @TempDir
     private Path directory;
 
@@ -82,7 +92,7 @@ class ServerServiceImplTest {
     @BeforeEach
     void setUp() {
         underTest = new ServerServiceImpl( serverRuntime, launchProfileService, launchCommandService,
-                serverLogService, validator, pathService );
+                serverLogService, validator, pathService, backupPaths );
     }
 
     // =================================================================================================
@@ -100,8 +110,9 @@ class ServerServiceImplTest {
 
         // THEN
         assertRejected( thrown, ServerMessage.ALREADY_RUNNING );
-        verifyNoInteractions( launchProfileService, launchCommandService, serverLogService, validator, pathService );
-        verify( serverRuntime, never() ).start( any() );
+        verifyNoInteractions( launchProfileService, launchCommandService, serverLogService, validator,
+                pathService, backupPaths );
+        verify( serverRuntime, never() ).start( any(), any() );
     }
 
     /** Verifies that a concurrent accepted start remains a rejection rather than a technical failure. */
@@ -109,7 +120,7 @@ class ServerServiceImplTest {
     void shouldRejectStart_whenRuntimeWinsRace() {
         // GIVEN
         var command = givenPreparedCommand();
-        given( serverRuntime.start( command ) ).willThrow( new IllegalStateException( "Busy" ) );
+        given( serverRuntime.start( eq( command ), any() ) ).willThrow( new IllegalStateException( "Busy" ) );
 
         // WHEN
         var thrown = catchThrowable( underTest::start );
@@ -124,7 +135,7 @@ class ServerServiceImplTest {
         // GIVEN
         var command = givenPreparedCommand();
         var cause = new UncheckedIOException( new IOException( "Cannot create process" ) );
-        given( serverRuntime.start( command ) ).willThrow( cause );
+        given( serverRuntime.start( eq( command ), any() ) ).willThrow( cause );
 
         // WHEN
         var thrown = catchThrowable( underTest::start );
@@ -142,6 +153,7 @@ class ServerServiceImplTest {
     void shouldRejectStart_whenLogDirectoryIsUnusable() {
         // GIVEN
         givenValidatedProfile();
+        givenWorldContext();
         given( serverLogService.createLogFileForNewStart() )
                 .willThrow( new UncheckedIOException( new IOException( "Unwritable" ) ) );
 
@@ -151,7 +163,7 @@ class ServerServiceImplTest {
         // THEN
         assertRejected( thrown, ServerMessage.LOG_DIRECTORY_NOT_WRITABLE );
         verifyNoInteractions( launchCommandService );
-        verify( serverRuntime, never() ).start( any() );
+        verify( serverRuntime, never() ).start( any(), any() );
     }
 
     /** Verifies that validation rejects a request before log reservation, script writing or launch. */
@@ -169,7 +181,7 @@ class ServerServiceImplTest {
         assertThat( thrown ).isSameAs( rejection );
         verifyNoInteractions( serverLogService, launchCommandService );
         verify( pathService, never() ).getAbsolutePath( any() );
-        verify( serverRuntime, never() ).start( any() );
+        verify( serverRuntime, never() ).start( any(), any() );
     }
 
     /** Verifies exact mirror content and absence of temporary artifacts after a successful launch. */
@@ -177,7 +189,7 @@ class ServerServiceImplTest {
     void shouldWriteMirrorScript_whenStartSucceeds() {
         // GIVEN
         var command = givenPreparedCommand();
-        given( serverRuntime.start( command ) ).willReturn( runningStatus() );
+        given( serverRuntime.start( eq( command ), any() ) ).willReturn( runningStatus() );
 
         // WHEN
         underTest.start();
@@ -200,13 +212,13 @@ class ServerServiceImplTest {
         // GIVEN
         var command = givenPreparedCommand();
         Files.createFile( directory.resolve( ".vDeck" ) );
-        given( serverRuntime.start( command ) ).willReturn( runningStatus() );
+        given( serverRuntime.start( eq( command ), any() ) ).willReturn( runningStatus() );
 
         // WHEN
         underTest.start();
 
         // THEN
-        verify( serverRuntime ).start( command );
+        verify( serverRuntime ).start( eq( command ), any() );
     }
 
     /** Verifies that the runtime receives exactly the specification built by the command service. */
@@ -214,7 +226,7 @@ class ServerServiceImplTest {
     void shouldHandBuiltSpecToRuntime_whenStartIsValidated() {
         // GIVEN
         var command = givenPreparedCommand();
-        given( serverRuntime.start( command ) ).willReturn( runningStatus() );
+        given( serverRuntime.start( eq( command ), any() ) ).willReturn( runningStatus() );
 
         // WHEN
         underTest.start();
@@ -222,7 +234,7 @@ class ServerServiceImplTest {
         // THEN
         verify( validator ).validate( new LaunchConfiguration( profile(), "" ),
                 directory.resolve( "valheim_server.exe" ) );
-        verify( serverRuntime ).start( command );
+        verify( serverRuntime ).start( eq( command ), any() );
     }
 
     /** Verifies that consecutive reads expose current runtime state without a service cache. */
@@ -250,7 +262,7 @@ class ServerServiceImplTest {
      */
     @ParameterizedTest( name = "[{index}] missing {0}" )
     @ValueSource( strings = { "serverRuntime", "launchProfileService", "launchCommandService",
-            "serverLogService", "validator", "pathService" } )
+            "serverLogService", "validator", "pathService", "backupPaths" } )
     void shouldThrowException_whenDependencyIsNull( String dependency ) {
         // GIVEN
         // Exactly one dependency is omitted.
@@ -262,7 +274,8 @@ class ServerServiceImplTest {
                 dependency.equals( "launchCommandService" ) ? null : launchCommandService,
                 dependency.equals( "serverLogService" ) ? null : serverLogService,
                 dependency.equals( "validator" ) ? null : validator,
-                dependency.equals( "pathService" ) ? null : pathService ) );
+                dependency.equals( "pathService" ) ? null : pathService,
+                dependency.equals( "backupPaths" ) ? null : backupPaths ) );
 
         // THEN
         assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( dependency );
@@ -278,6 +291,7 @@ class ServerServiceImplTest {
         Path executable = directory.resolve( "valheim_server.exe" );
         Path log = directory.resolve( "run.log" );
         var spec = new LaunchSpec( executable, List.of( "-password", captured.password() ), Map.of(), directory, log );
+        givenWorldContext();
         given( serverRuntime.status() ).willReturn( ServerStatus.stopped() );
         given( launchProfileService.getConfiguration() ).willAnswer( invocation -> available.get() );
         given( pathService.getBaseDirectory() ).willReturn( directory );
@@ -292,7 +306,7 @@ class ServerServiceImplTest {
         given( launchCommandService.renderScript( spec ) ).willReturn( "@echo off\r\n" );
         given( pathService.getAbsolutePath( ServerService.START_SCRIPT_NAME ) )
                 .willReturn( directory.resolve( ServerService.START_SCRIPT_NAME ) );
-        given( serverRuntime.start( spec ) ).willReturn( runningStatus() );
+        given( serverRuntime.start( eq( spec ), any() ) ).willReturn( runningStatus() );
 
         // WHEN
         underTest.start();
@@ -301,7 +315,7 @@ class ServerServiceImplTest {
         verify( launchProfileService ).getConfiguration();
         verify( launchCommandService ).build( same( captured ),
                 eq( log ) );
-        verify( serverRuntime ).start( same( spec ) );
+        verify( serverRuntime ).start( same( spec ), any() );
         assertThat( available.get() ).isSameAs( replacement );
         assertThat( spec.arguments() ).contains( "FirstSyntheticSecret" ).doesNotContain( "SecondSyntheticSecret" );
     }
@@ -313,19 +327,128 @@ class ServerServiceImplTest {
         var spec = givenPreparedCommand();
         String content = "@echo off\r\nREM Za\u017c\u00f3\u0142\u0107\r\n";
         given( launchCommandService.renderScript( spec ) ).willReturn( content );
-        given( serverRuntime.start( spec ) ).willReturn( runningStatus() );
+        given( serverRuntime.start( eq( spec ), any() ) ).willReturn( runningStatus() );
 
         // WHEN
         underTest.start();
 
         // THEN
         assertThat( directory.resolve( ServerService.START_SCRIPT_NAME ) ).hasContent( content );
-        verify( serverRuntime ).start( spec );
+        verify( serverRuntime ).start( eq( spec ), any() );
     }
 
     // =================================================================================================
     // HELPER METHODS
     // =================================================================================================
+
+
+    /** Stop admission grants no force permission and never reads mutable launch settings. */
+    @Test
+    void shouldAdmitGracefulStop_whenLaunchIdentifierIsValid() {
+        // GIVEN
+        var request = ArgumentCaptor.forClass( StopRequest.class );
+        // WHEN
+        underTest.stop( "selected-launch" );
+        // THEN
+        verify( serverRuntime ).stop( request.capture() );
+        assertThat( request.getValue().isForceConfirmed() ).isFalse();
+        assertThat( request.getValue().getLaunchId() ).isEqualTo( "selected-launch" );
+        verifyNoInteractions( launchProfileService, backupPaths );
+    }
+
+    /** Kill without manual risk acceptance is rejected before contacting the runtime. */
+    @Test
+    void shouldRejectKill_whenConfirmationIsAbsent() {
+        // GIVEN
+        // No risk authorization.
+        // WHEN
+        var failure = catchThrowable( () -> underTest.kill( "selected-launch", false ) );
+        // THEN
+        assertThat( failure ).isInstanceOfSatisfying(
+                ServerKillException.class,
+                rejection -> assertThat( rejection.getMessageKey() ).isEqualTo( ServerMessage.CONFIRMATION_REQUIRED ) );
+        verifyNoInteractions( serverRuntime );
+    }
+
+    /** Confirmed Kill is scoped to one selected launch rather than a persistent setting. */
+    @Test
+    void shouldAdmitConfirmedKill_whenRiskIsAccepted() {
+        // GIVEN
+        var request = ArgumentCaptor.forClass( StopRequest.class );
+        // WHEN
+        underTest.kill( "selected-launch", true );
+        // THEN
+        verify( serverRuntime ).stop( request.capture() );
+        assertThat( request.getValue().isForceConfirmed() ).isTrue();
+        assertThat( request.getValue().getLaunchId() ).isEqualTo( "selected-launch" );
+    }
+
+    /** Busy runtime admission is a process rejection carrying no technical cause to the browser. */
+    @Test
+    void shouldTranslateStopRejection_whenRuntimeIsBusy() {
+        // GIVEN
+        given( serverRuntime.stop( any() ) ).willThrow( new IllegalStateException( "Busy" ) );
+        // WHEN
+        var failure = catchThrowable( () -> underTest.stop( "selected-launch" ) );
+        // THEN
+        assertThat( failure ).isInstanceOfSatisfying(
+                ServerStopException.class,
+                rejection -> assertThat( rejection.getMessageKey() ).isEqualTo( ServerMessage.STOP_REJECTED ) );
+        assertThat( failure ).hasNoCause();
+    }
+
+    /** Stale recovery selections are ordinary rejections with no technical cause. */
+    @Test
+    void shouldRejectAdoption_whenSavedLaunchIsStale() {
+        // GIVEN
+        doThrow( new IllegalStateException( "Stale launch" ) ).when( serverRuntime ).adopt( "selected" );
+        // WHEN
+        var failure = catchThrowable( () -> underTest.adopt( "selected" ) );
+        // THEN
+        assertThat( failure ).isInstanceOf( ServerAdoptException.class ).hasNoCause();
+        assertThat( ( ( ServerAdoptException ) failure ).getMessageKey() ).isEqualTo( ServerMessage.ADOPT_REJECTED );
+    }
+
+    /** Infrastructure failures preserve their cause and use the adoption-specific message. */
+    @Test
+    void shouldReportAdoptionFailure_whenRuntimeCannotReadRecoveryData() {
+        // GIVEN
+        var cause = new UncheckedIOException( new IOException( "Unavailable" ) );
+        doThrow( cause ).when( serverRuntime ).adopt( "selected" );
+        // WHEN
+        var failure = catchThrowable( () -> underTest.adopt( "selected" ) );
+        // THEN
+        assertThat( failure ).isInstanceOf( ServerAdoptException.class ).hasCause( cause );
+        assertThat( ( ( ServerAdoptException ) failure ).getMessageKey() ).isEqualTo( ServerMessage.ADOPT_FAILED );
+    }
+
+    /** Adoption delegates only the selected token, with no implicit process signal. */
+    @Test
+    void shouldDelegateAdoption_whenAdminSelectsSavedLaunch() {
+        // GIVEN
+        // Selected launch token.
+        // WHEN
+        underTest.adopt( "selected-launch" );
+        // THEN
+        verify( serverRuntime ).adopt( "selected-launch" );
+        verify( serverRuntime, never() ).stop( any() );
+    }
+
+    /** Missing identifiers are rejected at the service boundary for every control command. */
+    @Test
+    void shouldRejectNullIdentifiers_whenControlIsRequested() {
+        // GIVEN
+        // No selected token.
+        // WHEN
+        var stop = catchThrowable( () -> underTest.stop( null ) );
+        var kill = catchThrowable( () -> underTest.kill( null, true ) );
+        var adopt = catchThrowable( () -> underTest.adopt( null ) );
+        // THEN
+        assertThat( stop ).isInstanceOf( NullPointerException.class );
+        assertThat( kill ).isInstanceOf( NullPointerException.class );
+        assertThat( adopt ).isInstanceOf( NullPointerException.class );
+        verifyNoInteractions( serverRuntime );
+    }
 
     private LaunchConfiguration givenValidatedProfile() {
         var profile = new LaunchConfiguration( profile(), "" );
@@ -345,7 +468,14 @@ class ServerServiceImplTest {
         given( launchCommandService.renderScript( spec ) ).willReturn( "@echo off\r\nREM Test mirror\r\n" );
         given( pathService.getAbsolutePath( ServerService.START_SCRIPT_NAME ) )
                 .willReturn( directory.resolve( ServerService.START_SCRIPT_NAME ) );
+        givenWorldContext();
         return spec;
+    }
+
+    private void givenWorldContext() {
+        given( pathService.getAbsolutePath( "valheim-data" ) ).willReturn( directory.resolve( "valheim-data" ) );
+        given( backupPaths.resolveRoot( directory.resolve( "valheim-data" ) ) )
+                .willReturn( directory.resolve( "backups" ) );
     }
 
     private ServerStatus runningStatus() {

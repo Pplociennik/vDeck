@@ -1,0 +1,16 @@
+%% Rysunek instrukcji: co się dzieje po naciśnięciu przycisku Stop
+flowchart TD
+    stop([Naciskasz „Zatrzymaj serwer”]) --> backup[Panel kopiuje pliki świata]
+    backup --> backupOk{{Czy kopia jest kompletna?}}
+    backupOk -- tak --> signal[Panel prosi serwer o zamknięcie]
+    signal --> exited{{Czy serwer zapisał świat<br/>i zakończył pracę na czas?}}
+    exited -- tak --> stopped([Stan: Zatrzymany])
+    backupOk -- nie --> keep([Serwer dalej działa.<br/>Usuń przyczynę i ponów Stop<br/>albo świadomie użyj Kill])
+    exited -- nie --> keep
+
+    classDef step fill:#f6f1e7,stroke:#b8862e,color:#2b2621
+    classDef good fill:#e3efdc,stroke:#6f9a5c,color:#2b2621
+    classDef bad fill:#f6dcd5,stroke:#c0563f,color:#2b2621
+    class stop,backup,backupOk,signal,exited step
+    class stopped good
+    class keep bad

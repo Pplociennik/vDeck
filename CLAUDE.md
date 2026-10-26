@@ -45,6 +45,11 @@ vDeck is an early-stage Maven reactor with three code modules and one distributi
   Generated `.dist/jre` and JARs are ignored by Git and removed by `clean`, while templates remain.
   The launcher uses the bundled JRE, sets the installation as its working directory and binds to
   loopback by default. Test extracted copies instead of running the versioned staging directory.
+- `.github/workflows/build.yml` — GitHub Actions on `windows-latest` (FFM tests need Windows). Every
+  push and pull request to `main` runs `mvnw test` only. A push to `main` whose version has no
+  `-SNAPSHOT` suffix and no `v<version>` tag yet runs `clean package` and publishes a GitHub Release
+  with `vDeck-dist-<version>.zip`, tagging the built commit (AD-023). Releasing means setting the
+  version in all POMs (`versions:set`) and merging to `main`; a failed tag lookup fails the job.
 
 `VdeckApplication.main()` starts only Spring. `config.ConsoleControlConfiguration` creates the idle
 `ConsoleControlSender` bean and injects it into runtime. Each signal request starts a short-lived

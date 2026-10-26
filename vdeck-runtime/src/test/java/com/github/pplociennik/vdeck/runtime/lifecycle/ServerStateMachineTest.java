@@ -697,6 +697,8 @@ class ServerStateMachineTest {
         /** Starts a verified fixture without real processes, clocks, delays, or native signals. */
         @BeforeEach
         void prepareStop() throws Exception {
+            // Production receives canonical paths; a short 8.3 temp path (e.g. RUNNER~1) would look redirected.
+            directory = directory.toRealPath();
             underTest.close();
             queue = new ManualScheduler();
             worker = new ManualWorkers();

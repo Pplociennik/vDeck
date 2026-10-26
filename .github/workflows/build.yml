@@ -1,0 +1,92 @@
+# Builds and tests every push and pull request. A push to main whose project version is a full
+# release (no -SNAPSHOT) and has no v<version> tag yet also packages the distribution ZIP and
+# publishes it as a GitHub Release (AD-023).
+name: Build
+
+on:
+  push:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Preserve pending main builds as well as the active build, since any of them may release.
+  queue: ${{ github.ref == 'refs/heads/main' && 'max' || 'single' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build:
+    # Runtime tests call kernel32 through FFM and rely on NTFS file identity.
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+
+      - name: Determine build mode
+        id: mode
+        run: |
+          $version = .\mvnw.cmd -B -q help:evaluate "-Dexpression=project.version" -DforceStdout
+          if ( $LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace( $version ) ) {
+              throw "Unable to read the project version."
+          }
+          $version = $version.Trim()
+          $release = $false
+          if ( $env:GITHUB_EVENT_NAME -ne 'push' -or $env:GITHUB_REF -ne 'refs/heads/main' ) {
+              Write-Output "Version ${version}: not a push to main, release skipped."
+          } elseif ( $version.EndsWith( '-SNAPSHOT' ) ) {
+              Write-Output "Version $version is a SNAPSHOT, release skipped."
+          } else {
+              $tag = git ls-remote --tags origin "refs/tags/v$version"
+              # A failed lookup must not be mistaken for a missing tag.
+              if ( $LASTEXITCODE -ne 0 ) { throw "Unable to check whether tag v$version exists." }
+              if ( $tag ) {
+                  Write-Output "Tag v$version already exists, release skipped."
+              } else {
+                  Write-Output "Version $version will be released as v$version."
+                  $release = $true
+              }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "release=$( $release.ToString().ToLower() )" >> $env:GITHUB_OUTPUT
+
+      - name: Test
+        if: steps.mode.outputs.release != 'true'
+        run: .\mvnw.cmd -B -ntp test
+
+      - name: Package distribution
+        if: steps.mode.outputs.release == 'true'
+        run: |
+          .\mvnw.cmd -B -ntp clean package
+          if ( $LASTEXITCODE -ne 0 ) { exit $LASTEXITCODE }
+          $zip = "target/vDeck-dist-${{ steps.mode.outputs.version }}.zip"
+          if ( -not ( Test-Path $zip -PathType Leaf ) ) { throw "Distribution $zip was not created." }
+
+      - name: Publish release
+        if: steps.mode.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.mode.outputs.version }}
+        run: >-
+          gh release create "v$env:VERSION" "target/vDeck-dist-$env:VERSION.zip"
+          --target $env:GITHUB_SHA --title "vDeck $env:VERSION" --generate-notes
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: surefire-reports
+          path: '**/target/surefire-reports/**'
+          retention-days: 7

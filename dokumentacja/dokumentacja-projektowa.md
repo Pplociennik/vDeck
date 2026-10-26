@@ -20,6 +20,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [1.3 Uruchomienie panelu](#13-uruchomienie-panelu)
   - [1.4 Budowanie dystrybucji](#14-budowanie-dystrybucji)
   - [1.5 Instrukcja obsługi](#15-instrukcja-obsługi)
+  - [1.6 Ciągła integracja i wydania](#16-ciągła-integracja-i-wydania)
 - [2. Architektura aplikacji](#2-architektura-aplikacji)
   - [2.1 Podział na pakiety](#21-podział-na-pakiety)
   - [2.2 Start aplikacji](#22-start-aplikacji)
@@ -177,6 +178,47 @@ wypakowanej paczki: skrypt zmienia hasło administratora, zapisuje przykładowy 
 pojedynczych sekcji i oznacza ważne miejsca ramkami oraz numerami. Rysunki instrukcji mają źródła
 `.mmd` w `instrukcja-uzytkownika/rysunki/` i są renderowane do PNG. Zasady aktualizacji opisuje
 `.docs/rules/documentation.md` §3.6.
+
+### 1.6 Ciągła integracja i wydania
+
+Workflow GitHub Actions [`.github/workflows/build.yml`](../.github/workflows/build.yml) działa na
+`windows-latest`, ponieważ testy runtime wywołują `kernel32` przez FFM. Uruchamia się przy każdym
+pushu oraz przy pull requeście do `main`, instaluje Temurin JDK 25 z cache repozytorium Maven
+i najpierw odczytuje wersję projektu (`help:evaluate`) z głównego `pom.xml`. Skrypt PowerShell
+odczytuje rodzaj zdarzenia i ref ze zmiennych środowiskowych `GITHUB_EVENT_NAME` i `GITHUB_REF`,
+więc nazwa gałęzi nie jest wstawiana do kodu skryptu.
+
+Release powstaje wyłącznie wtedy, gdy jednocześnie (AD-023):
+
+- zdarzeniem jest push na gałąź `main`;
+- wersja nie kończy się na `-SNAPSHOT`;
+- w repozytorium nie istnieje jeszcze tag `v<wersja>`.
+
+W każdym innym przypadku job uruchamia tylko `mvnw test` i loguje powód pominięcia releasu. Dla
+wydania wykonuje `mvnw clean package` (testy, JRE, PDF instrukcji, ZIP — sekcja
+[1.4](#14-budowanie-dystrybucji)), sprawdza obecność `target/vDeck-dist-<wersja>.zip` i przez
+`gh release create` publikuje GitHub Release `vDeck <wersja>` z tym ZIP-em. Polecenie tworzy tag
+`v<wersja>` na budowanym commicie, a opis wydania generuje z historii zmian. Błąd odczytu tagów
+przerywa job zamiast traktować tag jako nieistniejący. Przy nieudanym buildzie raporty Surefire
+trafiają do artefaktu `surefire-reports` (retencja 7 dni). Każdy ref ma osobną grupę współbieżności
+w obrębie workflow. Na `main` działa jeden build naraz, a do 100 kolejnych czeka w kolejce
+(`queue: max`, `cancel-in-progress: false`); nowy push nie wypiera oczekującego wydania.
+Po wyczerpaniu limitu kolejki GitHub anuluje dodatkowe przebiegi. Dla pozostałych refów nowy build
+anuluje poprzedni i zastępuje oczekujący (`queue: single`, `cancel-in-progress: true`).
+
+Wydanie nowej wersji polega na ustawieniu jej we wszystkich POM-ach reactora i scaleniu zmiany
+do `main`:
+
+```powershell
+.\mvnw.cmd versions:set -DnewVersion=0.1.0 -DgenerateBackupPoms=false
+```
+
+Kolejny push bez zmiany wersji nie tworzy ponownie wydania, bo tag już istnieje. Po wydaniu wersję
+podnosi się do następnego `-SNAPSHOT`.
+
+![Diagram przepływu: ciągła integracja i wydania vDeck](diagramy/wspolne/img/przeplyw-ci-wydanie.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-ci-wydanie.mmd`](diagramy/wspolne/przeplyw-ci-wydanie.mmd)
 
 ---
 
@@ -1287,6 +1329,7 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 
 | Diagram | Rodzaj | Obrazek | Źródło | Opisany w |
 |---|---|---|---|---|
+| Ciągła integracja i wydania | przepływ | [`img/przeplyw-ci-wydanie.svg`](diagramy/wspolne/img/przeplyw-ci-wydanie.svg) | [`diagramy/wspolne/przeplyw-ci-wydanie.mmd`](diagramy/wspolne/przeplyw-ci-wydanie.mmd) | [1.6](#16-ciągła-integracja-i-wydania) |
 | Start aplikacji vDeck | przepływ | [`img/przeplyw-start-aplikacji.svg`](diagramy/wspolne/img/przeplyw-start-aplikacji.svg) | [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd) | [2.2](#22-start-aplikacji) |
 | Obsługa wyjątków | przepływ | [`img/przeplyw-obsluga-wyjatkow.svg`](diagramy/wspolne/img/przeplyw-obsluga-wyjatkow.svg) | [`diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd`](diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd) | [2.3](#23-obsługa-wyjątków) |
 | Infrastruktura konfiguracji | klasy | [`img/klasy-konfiguracja.svg`](diagramy/wspolne/img/klasy-konfiguracja.svg) | [`diagramy/wspolne/klasy-konfiguracja.mmd`](diagramy/wspolne/klasy-konfiguracja.mmd) | [3.4](#34-komponenty-konfiguracji) |

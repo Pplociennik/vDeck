@@ -46,6 +46,8 @@ class FileWorldSnapshotStoreTest {
     /** Creates a fresh isolated fixture. */
     @BeforeEach
     void setUp() throws Exception {
+        // Production receives canonical paths; a short 8.3 temp path (e.g. RUNNER~1) would look redirected.
+        directory = directory.toRealPath();
         underTest = new FileWorldSnapshotStore( directory, file -> file.toString() );
         source = Files.createDirectories( directory.resolve( "save/worlds_local" ) );
         backups = Files.createDirectory( directory.resolve( ".vDeck" ) ).resolve( "shutdown-snapshots" );

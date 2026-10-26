@@ -35,6 +35,8 @@ class ManagedLaunchStoreTest {
     /** Creates a fresh isolated fixture. */
     @BeforeEach
     void setUp() throws Exception {
+        // Production receives canonical paths; a short 8.3 temp path (e.g. RUNNER~1) would look redirected.
+        directory = directory.toRealPath();
         installation = Files.createDirectory( directory.resolve( "installation" ) );
         Files.createDirectory( installation.resolve( "save" ) );
         backups = installation.resolve( ".vDeck/shutdown-snapshots" );

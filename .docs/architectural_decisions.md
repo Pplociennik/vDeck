@@ -337,3 +337,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
   Playwright `zrzuty/zrzuty-ekranu.mjs` na świeżo wypakowanej paczce; rysunki pochodzą z plików
   `.mmd` w `rysunki/`, renderowanych przez mermaid-cli do PNG. Zmiana UI bez odświeżenia zrzutów
   albo zmiana zachowania bez poprawienia instrukcji jest niekompletna (`.docs/rules/documentation.md`).
+
+## AD-023 — Wydania przez GitHub Actions
+
+- **Status:** obowiązująca (2026-10-26)
+- **Decyzja:** `.github/workflows/build.yml` na `windows-latest` testuje każdy push i PR, a push na `main` z wersją bez `-SNAPSHOT` i bez tagu `v<wersja>` publikuje Release z `vDeck-dist-<wersja>.zip`.
+- **Powód:** Paczka ma powstawać powtarzalnie z przetestowanego `main`, nie lokalnie.
+- **Konsekwencja:** Wydanie wymaga ręcznej zmiany wersji we wszystkich POM-ach; `-SNAPSHOT` nie trafia do Releases.

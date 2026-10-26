@@ -31,7 +31,10 @@
       "Bash(xargs grep -n \"\")",
       "Bash(npx -y @mermaid-js/mermaid-cli@11.4.2 -i przeplyw-snapshot.mmd -o img/przeplyw-snapshot.svg)",
       "Bash(sed -i 's/\\\\.vDeck\\\\\\\\backups/.vDeck\\\\\\\\shutdown-snapshots/g' dokumentacja/instrukcja-uzytkownika/instrukcja-uzytkownika.adoc)",
-      "Bash(sed -i 's/\"Backup directory must be/\"Snapshot directory must be/; s/\"Backup directory overlaps/\"Snapshot directory overlaps/; s/\"Backup directory chain/\"Snapshot directory chain/' vdeck-app/src/main/java/com/github/pplociennik/vdeck/feature/backup/service/impl/BackupPathServiceImpl.java)"
+      "Bash(sed -i 's/\"Backup directory must be/\"Snapshot directory must be/; s/\"Backup directory overlaps/\"Snapshot directory overlaps/; s/\"Backup directory chain/\"Snapshot directory chain/' vdeck-app/src/main/java/com/github/pplociennik/vdeck/feature/backup/service/impl/BackupPathServiceImpl.java)",
+      "PowerShell($v = .\\\\mvnw.cmd -B -q help:evaluate \"-Dexpression=project.version\" -DforceStdout; \"[$v]\"; $LASTEXITCODE)",
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\wspolne\\\\przeplyw-ci-wydanie.mmd -o dokumentacja\\\\diagramy\\\\wspolne\\\\img\\\\przeplyw-ci-wydanie.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json)",
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\wspolne\\\\przeplyw-ci-wydanie.mmd -o \"C:\\\\Users\\\\Pszemko\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\6b36de3f-a843-463c-a9b0-1db7690d3a13\\\\scratchpad\\\\ci.png\" -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json)"
     ]
   }
 }

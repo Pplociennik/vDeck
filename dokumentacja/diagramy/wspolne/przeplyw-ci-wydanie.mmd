@@ -1,0 +1,25 @@
+%% Diagram przepływu: ciągła integracja i wydania vDeck (GitHub Actions)
+flowchart TD
+    trigger([Push dowolnej gałęzi<br/>albo pull request do main]) --> queueMain{Ref to main?}
+    queueMain -- tak --> mainQueue[Jeden build naraz, do 100 oczekujących<br/>nowy push zachowuje oczekujące wydania]
+    mainQueue --> queueLimit{Kolejka pełna?}
+    queueLimit -- tak --> cancelled([Nowy przebieg anulowany])
+    queueLimit -- nie --> setup[windows-latest<br/>Temurin JDK 25 i cache Maven]
+    queueMain -- nie --> latest[Nowy build anuluje poprzedni<br/>i zastępuje oczekujący dla tego refa]
+    latest --> setup
+    setup --> version[Odczyt wersji z głównego pom.xml<br/>mvnw help:evaluate]
+    version --> main{Push na main?<br/>GITHUB_EVENT_NAME i GITHUB_REF<br/>odczytane ze środowiska}
+    main -- nie --> test[mvnw test]
+    main -- tak --> snapshot{Wersja kończy się<br/>na -SNAPSHOT?}
+    snapshot -- tak --> test
+    snapshot -- nie --> tag{Tag v-wersja<br/>już istnieje?}
+    tag -- błąd odczytu --> reports
+    tag -- tak --> test
+    tag -- nie --> package[mvnw clean package<br/>testy, JRE, PDF instrukcji, ZIP]
+    test -- sukces --> ok([Build zielony, bez wydania])
+    test -- błąd --> reports[Dowolny błąd: artefakt surefire-reports<br/>retencja 7 dni]
+    package -- błąd --> reports
+    reports --> fail([Build przerwany])
+    package -- sukces --> zip{target/vDeck-dist-wersja.zip<br/>istnieje?}
+    zip -- nie --> reports
+    zip -- tak --> release([gh release create v-wersja<br/>GitHub Release z ZIP-em i tagiem])

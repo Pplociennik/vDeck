@@ -1,0 +1,14 @@
+%% Diagram stanów: transakcja aktualizacji zapisana w apply.journal
+stateDiagram-v2
+    [*] --> PREPARED: plan i scalone ustawienia,<br/>trwały zapis dziennika
+    PREPARED --> APPLYING: start podmiany
+    APPLYING --> APPLYING: operacja: zamiar, akcja, potwierdzenie
+    APPLYING --> COMMITTED: komplet plików i skrótów zgodny
+    PREPARED --> ROLLING_BACK: błąd albo recovery
+    APPLYING --> ROLLING_BACK: błąd albo recovery
+    ROLLING_BACK --> ROLLING_BACK: operacje od końca, stan z plików
+    ROLLING_BACK --> ROLLED_BACK: oryginały przywrócone
+    ROLLING_BACK --> NAPRAWA: niejednoznaczne pliki
+    COMMITTED --> [*]: launcher archiwizuje dziennik
+    ROLLED_BACK --> [*]: launcher archiwizuje dziennik
+    NAPRAWA --> [*]: start zatrzymany, kopie zachowane

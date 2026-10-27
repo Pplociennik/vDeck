@@ -1,59 +1,49 @@
 @echo off
-rem Starts the vDeck panel with the Java runtime bundled in this package.
+rem Starts vDeck with the Java runtime bundled in this package.
 rem The script must stay in the Valheim installation directory, next to valheim_server.exe.
 rem Keep this file pure ASCII: cmd.exe misparses multi-byte characters in batch files, so the
 rem Polish messages below are written without diacritics.
+rem
+rem The panel address, port and automatic updates are set in .vDeck\config\vDeck-start.properties.
+rem An update may replace this file while it runs, so the Java start is one parenthesized block
+rem followed by "call exit /b" on the same line: cmd.exe has parsed it completely before Java starts,
+rem never reads this file again and still returns the Java exit code (expanded only by the call).
 setlocal EnableExtensions DisableDelayedExpansion
 
-rem IP address the panel listens on. 127.0.0.1 keeps it reachable from this computer only.
-rem Use this computer's LAN address or 0.0.0.0 only on a trusted network: the panel serves plain
-rem HTTP, so passwords would cross the network unencrypted.
-set "ADDRESS=127.0.0.1"
-
-rem HTTP port of the panel. Change this value if port 8085 is already in use.
-set "PORT=8085"
-
 rem The script directory is the installation directory and the working directory.
-pushd "%~dp0"
+cd /d "%~dp0"
 if errorlevel 1 goto directory_error
 
+rem Recovery contract (AD-024, recovery protocol 1): an existing journal means an interrupted update.
+rem It is recovered by the independent updater copy in .vDeck\update\executor, even when the
+rem installed jre or lib is missing. The journal is never parsed here.
+set "VDECK_JAVA=jre\bin\java.exe"
+set "VDECK_JAR=lib\vdeck-launcher.jar"
+set "VDECK_MODE="
+if exist ".vDeck\update\apply.journal" (
+    set "VDECK_JAVA=.vDeck\update\executor\jre\bin\java.exe"
+    set "VDECK_JAR=.vDeck\update\executor\vdeck-updater.jar"
+    set "VDECK_MODE=--recover"
+)
+if not exist "%VDECK_JAVA%" goto missing_runtime
+if not exist "%VDECK_JAR%" goto missing_runtime
+
 rem Only the bundled JRE is used; system Java, PATH and JAVA_HOME are ignored.
-rem javaw.exe is required by the CTRL+C helper that stops the server.
-if not exist "jre\bin\java.exe" goto missing_jre
-if not exist "jre\bin\javaw.exe" goto missing_jre
-if not exist "lib\vdeck.jar" goto missing_panel
-if not exist "lib\vdeck-runner.jar" goto missing_runner
+rem -Xmx32m, SerialGC, TieredStopAtLevel  small footprint: the launcher mostly waits for the panel
+rem -Dvdeck.server-directory               installation directory; required because the JARs live in lib
+rem --                                     any extra script arguments are passed on to the panel
+(
+    "%VDECK_JAVA%" -Xmx32m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 "-Dvdeck.server-directory=%~dp0." -jar "%VDECK_JAR%" %VDECK_MODE% -- %*
+) & call exit /b %%^ERRORLEVEL%%
 
-echo Uruchamianie vDeck. Panel: http://%ADDRESS%:%PORT%
-echo Pozostaw to okno otwarte podczas pracy panelu.
-rem --enable-native-access     allows the Windows API calls that start and stop the server
-rem -Dvdeck.server-directory   installation directory; required because the JARs live in lib
-rem --server.address           listen address taken from the ADDRESS variable above
-rem --server.port              port taken from the PORT variable above
-rem trailing arguments         any extra script arguments are passed on to the panel
-"jre\bin\java.exe" --enable-native-access=ALL-UNNAMED "-Dvdeck.server-directory=%~dp0." -jar "lib\vdeck.jar" --server.address=%ADDRESS% --server.port=%PORT% %*
-set "VDECK_EXIT_CODE=%ERRORLEVEL%"
-popd
-if "%VDECK_EXIT_CODE%"=="0" exit /b 0
-echo vDeck zakonczyl prace z kodem %VDECK_EXIT_CODE%. Sprawdz komunikaty powyzej.
-pause
-exit /b %VDECK_EXIT_CODE%
-
-rem Incomplete package: print the reason, pause so the window stays open, exit with code 1.
-:missing_jre
-echo Brakuje dolaczonego srodowiska Java w katalogu jre. Wypakuj cala paczke ZIP.
-goto startup_error
-
-:missing_panel
-echo Brakuje pliku lib\vdeck.jar. Wypakuj cala paczke ZIP.
-goto startup_error
-
-:missing_runner
-echo Brakuje pliku lib\vdeck-runner.jar. Jest potrzebny do zatrzymywania serwera.
-goto startup_error
-
-:startup_error
-popd
+rem Incomplete package, or an interrupted update without its recovery copy: explain, pause, exit 1.
+:missing_runtime
+if defined VDECK_MODE (
+    echo Wykryto przerwana aktualizacje vDeck, ale brakuje kopii potrzebnej do jej cofniecia.
+    echo Nie uruchamiaj panelu. Sposob naprawy opisuje instrukcja w rozdziale o aktualizacjach.
+) else (
+    echo Brakuje plikow vDeck w katalogach jre lub lib. Wypakuj cala paczke ZIP.
+)
 pause
 exit /b 1
 

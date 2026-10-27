@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.runtime.lifecycle;
 
 import com.github.pplociennik.vdeck.runtime.api.ProcessIdentity;
 import com.github.pplociennik.vdeck.runtime.api.WorldContext;
+import com.github.pplociennik.vdeck.runtime.installation.InstallationLock;
 import com.github.pplociennik.vdeck.runtime.snapshot.FileWorldSnapshotStore;
 import jakarta.annotation.Nonnull;
 import lombok.extern.log4j.Log4j2;
@@ -10,7 +11,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -21,7 +21,6 @@ import java.util.UUID;
 import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.Objects.requireNonNull;
 
@@ -33,12 +32,11 @@ public final class ManagedLaunchStore implements AutoCloseable {
 
     private final Path token;
 
-    private final FileChannel lockChannel;
-
-    private final FileLock lock;
+    private final InstallationLock lock;
 
     /**
-     * Creates a token store scoped to this installation.
+     * Creates a token store scoped to this installation, acquiring its installation lock.
+     * Used when the panel is started without a launcher handoff, for example from an IDE.
      *
      * @param installation
      *         absolute installation root
@@ -46,46 +44,51 @@ public final class ManagedLaunchStore implements AutoCloseable {
      *         if the installation is null
      * @throws IllegalArgumentException
      *         if the installation is relative
+     * @throws IllegalStateException
+     *         if another process owns the installation
      * @throws UncheckedIOException
      *         if canonicalization, directory validation, or lock acquisition fails
      */
     public ManagedLaunchStore( @Nonnull Path installation ) {
-        requireNonNull( installation, "installation must not be null" );
-        if ( !installation.isAbsolute() ) {
-            throw new IllegalArgumentException( "Recovery root must be absolute" );
+        this( InstallationLock.acquire( requireNonNull( installation, "installation must not be null" ),
+                InstallationLock.Kind.INSTALLATION ) );
+    }
+
+    /**
+     * Creates a token store owning an installation lock that is already held, for example one taken over
+     * from the launcher before Spring started (AD-024). The store releases the lock on {@link #close()},
+     * including when this constructor fails.
+     *
+     * @param lock
+     *         held installation lock
+     * @throws NullPointerException
+     *         if the lock is null
+     * @throws IllegalArgumentException
+     *         if the lock is not a held installation lock
+     * @throws UncheckedIOException
+     *         if directory validation fails
+     */
+    public ManagedLaunchStore( @Nonnull InstallationLock lock ) {
+        requireNonNull( lock, "lock must not be null" );
+        if ( lock.getKind() != InstallationLock.Kind.INSTALLATION || !lock.isHeld() ) {
+            lock.close();
+            throw new IllegalArgumentException( "lock must be a held installation lock" );
         }
+        this.lock = lock;
+        this.installation = lock.getInstallation();
+        token = installation.resolve( ".vDeck/server.pid" );
         try {
-            this.installation = installation.toRealPath();
-            token = this.installation.resolve( ".vDeck/server.pid" );
-            FileWorldSnapshotStore.checkDirectory( this.installation, this.installation );
-            Files.createDirectories( token.getParent() );
-            FileWorldSnapshotStore.checkDirectory( this.installation, token.getParent() );
-            lockChannel = FileChannel.open( token.getParent().resolve( "vdeck.lock" ), CREATE, WRITE, NOFOLLOW_LINKS );
-            try {
-                lock = lockChannel.tryLock();
-                if ( lock == null ) {
-                    throw new IllegalStateException( "Another panel owns this installation" );
-                }
-            } catch ( IOException | RuntimeException exception ) {
-                lockChannel.close();
-                throw exception;
-            }
+            FileWorldSnapshotStore.checkDirectory( installation, token.getParent() );
         } catch ( IOException exception ) {
-            throw new UncheckedIOException( "Could not acquire installation lock", exception );
+            lock.close();
+            throw new UncheckedIOException( "Unsafe installation directory", exception );
         }
     }
 
     /** Releases the installation lock without terminating any server process. */
     @Override
     public void close() {
-        try {
-            if ( lock.isValid() ) {
-                lock.release();
-            }
-            lockChannel.close();
-        } catch ( IOException exception ) {
-            log.warn( "Could not release installation lock", exception );
-        }
+        lock.close();
     }
 
     /**

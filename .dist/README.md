@@ -7,6 +7,8 @@ Skrócony opis, wymagania i opis plików znajdują się w [README.txt](README.tx
 Wypakuj całą paczkę obok `valheim_server.exe` i uruchom `start-vDeck.bat`.
 Panel korzysta z dołączonego Eclipse Temurin JRE 25 i jest dostępny pod
 `http://127.0.0.1:8085`. Pierwsze logowanie: `admin` / `admin`, z obowiązkową zmianą hasła.
+Kolejne wersje vDeck instalują się same przy uruchomieniu, z zachowaniem ustawień, bazy i światów
+(`update.enabled` w `.vDeck/config/vDeck-start.properties`).
 
 ## Budowanie paczki z repozytorium
 
@@ -17,7 +19,8 @@ Build wymaga JDK 25. W głównym katalogu projektu uruchom:
 ```
 
 Wynik: `target/vDeck-dist-<wersja projektu>.zip`. Wersja pochodzi z głównego `pom.xml`.
-Moduł Maven `.dist` wykonuje pakowanie po zbudowaniu aplikacji i runnera, również przy buildzie równoległym.
+Moduł Maven `.dist` wykonuje pakowanie po zbudowaniu aplikacji, runnera, launchera i updatera,
+również przy buildzie równoległym.
 
 - Maven AntRun pobiera ustaloną wersję Temurin JRE 25 dla Windows x64 z oficjalnego wydania,
   sprawdza przypisaną sumę SHA-256 i rozpakowuje pełne środowisko do `.dist/jre`.
@@ -35,10 +38,13 @@ vDeck-instrukcja.pdf
 lib/
     vdeck.jar
     vdeck-runner.jar
+    vdeck-launcher.jar
+    vdeck-updater.jar
 jre/                       # pełne JRE, w tym bin/java.exe, bin/javaw.exe i legal/
 .vDeck/config/
     vDeck.properties
     valheim-server.properties
+    vDeck-start.properties
 ```
 
 JRE jest pobierane podczas `package`, a nie `test`. Pierwszy build po `clean` wymaga internetu;
@@ -55,9 +61,11 @@ które muszą pozostać z wartościami domyślnymi i pustym hasłem serwera.
 
 Skrypt używa dołączonej Javy niezależnie od `PATH` i `JAVA_HOME`, ustawia katalog roboczy
 na katalog instalacji i jawnie przekazuje go jako `vdeck.server-directory` — JAR-y leżą w `lib`,
-więc bez tego panel uznałby `lib` za instalację. Adres nasłuchu ustawia zmienna `ADDRESS`
-(domyślnie `127.0.0.1`), a port zmienna `PORT` (domyślnie `8085`), obie na początku skryptu.
-Adres inny niż `127.0.0.1` wystawia panel HTTP do sieci — tylko w zaufanej sieci. Dodatkowe
-argumenty skryptu trafiają do Spring Boota, ale adresu ani portu nie podaje się jako argumentu:
-zdublowana właściwość daje np. wartość `8085,8086` i panel nie wystartuje.
+więc bez tego panel uznałby `lib` za instalację. Uruchamia launcher, który sprawdza aktualizacje
+i startuje panel; przy istniejącym `.vDeck/update/apply.journal` uruchamia zamiast niego recovery
+z `.vDeck/update/executor`. Adres (`panel.address`, domyślnie `127.0.0.1`), port (`panel.port`,
+domyślnie `8085`) i automatyczne aktualizacje (`update.enabled`) ustawia
+`.vDeck/config/vDeck-start.properties`. Adres inny niż `127.0.0.1` wystawia panel HTTP do sieci —
+tylko w zaufanej sieci. Dodatkowe argumenty skryptu trafiają do Spring Boota, ale adresu ani portu
+nie podaje się jako argumentu: zdublowana właściwość daje np. wartość `8085,8086` i panel nie wystartuje.
 Helper CTRL+C używa tego samego JRE przez `java.home`.

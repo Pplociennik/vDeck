@@ -22,7 +22,7 @@
         <user-manual.directory>${project.basedir}/../dokumentacja/instrukcja-uzytkownika</user-manual.directory>
     </properties>
 
-    <!-- These dependencies order packaging after both executable artifacts, including parallel builds. -->
+    <!-- These dependencies order packaging after every executable artifact, including parallel builds. -->
     <dependencies>
         <dependency>
             <groupId>com.github.pplociennik</groupId>
@@ -32,6 +32,16 @@
         <dependency>
             <groupId>com.github.pplociennik</groupId>
             <artifactId>vdeck-runner</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.pplociennik</groupId>
+            <artifactId>vdeck-launcher</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.pplociennik</groupId>
+            <artifactId>vdeck-updater</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>
@@ -177,6 +187,20 @@
                                     <filtering>false</filtering>
                                     <includes>
                                         <include>vdeck-runner.jar</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/../vdeck-launcher/target</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>vdeck-launcher.jar</include>
+                                    </includes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/../vdeck-updater/target</directory>
+                                    <filtering>false</filtering>
+                                    <includes>
+                                        <include>vdeck-updater.jar</include>
                                     </includes>
                                 </resource>
                             </resources>

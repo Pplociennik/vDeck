@@ -1,10 +1,13 @@
 %% Diagram przepływu: start aplikacji vDeck i przygotowanie środowiska
 flowchart TD
-    bat([start-vDeck.bat]) --> files{Dołączone JRE<br/>i oba JAR-y obecne?}
-    files -- nie --> missing([Komunikat i kod 1])
-    files -- tak --> bundled[jre/bin/java.exe<br/>Katalog roboczy = instalacja<br/>Dostęp natywny, adres 127.0.0.1]
+    bat([start-vDeck.bat]) --> launcher[Launcher: blokady, aktualizacja,<br/>vDeck-start.properties]
+    launcher --> bundled[jre/bin/java.exe -jar lib/vdeck.jar<br/>Katalog roboczy = instalacja<br/>Dostęp natywny, adres i port z ustawień startu]
     bundled --> start([Uruchomienie VdeckApplication])
-    start --> spring[SpringApplication.run]
+    start --> handoff{Ustawiono<br/>vdeck.handoff?}
+    handoff -- tak --> accept[Przejęcie vdeck.lock od launchera<br/>przed Springiem, bean installationLock]
+    handoff -- nie --> spring
+    accept -- odrzucone --> handoffFail([Start przerwany])
+    accept --> spring[SpringApplication.run]
     spring --> home{Ustawiono<br/>vdeck.server-directory?}
     home -- tak --> configured[Katalog bazowy = wartość override]
     home -- nie --> appHome[Katalog bazowy = ApplicationHome.getDir]
@@ -12,7 +15,7 @@ flowchart TD
     appHome --> real
     real -- nie jest katalogiem --> fail([PathResolutionException:<br/>start przerwany])
     real -- ok --> sender[ConsoleControlConfiguration:<br/>bean ConsoleControlSender z poleceniem runnera<br/>Bez procesu i wątku oczekującego]
-    sender --> lock{FileLock .vDeck/vdeck.lock<br/>zdobyty?}
+    sender --> lock{Przejęty lock albo FileLock<br/>.vDeck/vdeck.lock zdobyty?}
     lock -- nie --> lockFail([Drugi panel: start przerwany])
     lock -- tak --> recovery[Walidacja tokenu i skan procesu<br/>STOPPED albo RECOVERY_REQUIRED]
     recovery --> schema[Hibernate ddl-auto=update:<br/>utworzenie lub aktualizacja tabeli panel_users]

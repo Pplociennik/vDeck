@@ -107,13 +107,13 @@ i korzysta wyłącznie z niego.
 ----
 Valheim dedicated server\
 ├── valheim_server.exe          ← plik serwera gry (instalowany osobno)
-├── start-vDeck.bat             ← uruchamia panel
+├── start-vDeck.bat             ← uruchamia vDeck
 ├── vDeck-instrukcja.pdf        ← ta instrukcja
 ├── README.txt
 ├── lib\                        ← pliki programu vDeck
 ├── jre\                        ← dołączone środowisko Java
 └── .vDeck\
-    └── config\                 ← pliki ustawień panelu i serwera
+    └── config\                 ← pliki ustawień startu, panelu i serwera
 ----
 
 IMPORTANT: Zachowaj wszystkie podkatalogi: `lib`, `jre` i `.vDeck`. Bez nich panel się
@@ -124,8 +124,9 @@ nie uruchomi albo nie będzie umiał zatrzymać serwera.
 
 === Uruchomienie panelu
 
-. Kliknij dwukrotnie `start-vDeck.bat`. Otworzy się czarne okno konsoli z napisem
-  `Uruchamianie vDeck. Panel: http://127.0.0.1:8085`.
+. Kliknij dwukrotnie `start-vDeck.bat`. Otworzy się czarne okno konsoli. vDeck może najpierw
+  sprawdzić, czy jest nowsza wersja (<<aktualizacja>>), a potem wyświetli napis
+  `Panel vDeck: http://127.0.0.1:8085`.
 . Poczekaj kilka sekund, aż panel wystartuje.
 . Otwórz w przeglądarce adres `http://127.0.0.1:8085`.
 
@@ -506,35 +507,43 @@ Nowe hasło musi spełniać te same wymagania co przy pierwszym logowaniu.
 [#adres-i-port]
 == Zmiana portu i dostęp z innych urządzeń
 
-Port i adres panelu ustawiasz w pliku `start-vDeck.bat`. Zamknij panel, otwórz plik w Notatniku
-(prawy przycisk myszy → *Edytuj*) i zmień jedną z linii na początku pliku:
+Port i adres panelu ustawiasz w pliku `.vDeck\config\vDeck-start.properties`. Zamknij panel,
+otwórz plik w Notatniku i zmień wartość po znaku `=`:
 
-[source,bat]
+[source,properties]
 ----
-set "ADDRESS=127.0.0.1"
-set "PORT=8085"
+panel.address=127.0.0.1
+panel.port=8085
+update.enabled=true
 ----
 
 [cols="1,3",options="header"]
 |===
-| Zmienna | Znaczenie
+| Ustawienie | Znaczenie
 
-| `PORT`
-| Port panelu. Zmień go, jeśli port 8085 jest zajęty przez inny program. Adres panelu zmieni
-się odpowiednio, np. `http://127.0.0.1:8090`.
+| `panel.port`
+| Port panelu (1–65535). Zmień go, jeśli port 8085 jest zajęty przez inny program. Adres panelu
+zmieni się odpowiednio, np. `http://127.0.0.1:8090`.
 
-| `ADDRESS`
+| `panel.address`
 | Adres, na którym panel czeka na połączenia. `127.0.0.1` oznacza „tylko ten komputer”. Aby
 otworzyć panel z telefonu lub innego komputera, wpisz adres IP tego komputera w sieci lokalnej
 albo `0.0.0.0`.
+
+| `update.enabled`
+| `true` — vDeck przy każdym uruchomieniu sprawdza i instaluje nowe wersje (<<aktualizacja>>).
+`false` — vDeck nigdy nie łączy się z GitHubem i nie aktualizuje się sam.
 |===
+
+Twoje wartości zostają zachowane przy aktualizacji vDeck. Błędna wartość (np. port `0`) zatrzymuje
+uruchomienie z komunikatem wskazującym ustawienie do poprawienia.
 
 WARNING: Panel używa połączenia HTTP bez szyfrowania, więc hasła są przesyłane otwartym
 tekstem. Otwieraj go na inne urządzenia tylko w zaufanej sieci domowej i nigdy nie udostępniaj
 go w internecie.
 
 NOTE: Nie dopisuj portu ani adresu jako argumentu przy uruchamianiu skryptu. Zmieniaj wyłącznie
-linie `set` — podwójnie podane ustawienie uniemożliwi start panelu.
+plik `vDeck-start.properties` — podwójnie podane ustawienie uniemożliwi start panelu.
 
 [#gra-przez-internet]
 == Gra ze znajomymi przez internet
@@ -657,7 +666,7 @@ Na komputerze każdego gracza:
   Hamachi.
 * Port w adresie musi być taki sam jak pole *Port* na ekranie *Serwer* (domyślnie `2456`).
 
-WARNING: Jeśli ustawisz `ADDRESS=0.0.0.0` (<<adres-i-port>>), panel vDeck stanie się dostępny
+WARNING: Jeśli ustawisz `panel.address=0.0.0.0` (<<adres-i-port>>), panel vDeck stanie się dostępny
 także dla wszystkich osób w Twojej prywatnej sieci. Zapraszaj do niej tylko zaufane osoby albo
 zostaw domyślny adres `127.0.0.1`.
 
@@ -669,6 +678,9 @@ zostaw domyślny adres `127.0.0.1`.
 [cols="2,3",options="header"]
 |===
 | Miejsce | Zawartość
+
+| `.vDeck\config\vDeck-start.properties`
+| Adres i port panelu oraz włączenie automatycznych aktualizacji (<<adres-i-port>>).
 
 | `.vDeck\config\vDeck.properties`
 | Ustawienia samego panelu.
@@ -687,6 +699,12 @@ zostaw domyślny adres `127.0.0.1`.
 
 | `.vDeck\shutdown-snapshots`
 | Kopie świata robione przez panel przy zatrzymaniu.
+
+| `.vDeck\logs\launcher`, `.vDeck\logs\updater`
+| Przebieg każdego uruchomienia vDeck i każdej aktualizacji, przechowywany 30 dni.
+
+| `.vDeck\update\backup`
+| Poprzednia wersja vDeck i Twoje pliki ustawień sprzed ostatniej aktualizacji.
 |===
 
 Ścieżki w ustawieniach panelu muszą być względne i prowadzić do katalogów wewnątrz
@@ -707,27 +725,87 @@ NOTE: Kopia robiona w czasie działania serwera nie gwarantuje spójnego zapisu 
 aktualny i spójny jest zapis, który serwer robi sam przy poprawnym zatrzymaniu.
 
 [#aktualizacja]
-== Instalacja nowej wersji
+== Aktualizacje vDeck
 
-Automatyczna aktualizacja nie jest jeszcze dostępna. Aby zainstalować nową wersję:
+vDeck aktualizuje się sam przy uruchomieniu skryptu `start-vDeck.bat` — nie musisz niczego
+pobierać ani wypakowywać. Przebieg pokazuje <<fig-aktualizacja>>.
 
-. Zatrzymaj serwer i zamknij panel.
-. Zrób kopię katalogu `.vDeck\config`, pliku `vdeck.db`, światów i kopii.
-. Wypakuj z nowej paczki katalogi `lib` i `jre` oraz plik `start-vDeck.bat`, zastępując stare.
-. *Nie* nadpisuj swoich plików w `.vDeck\config` szablonami z ZIP-a.
-. Jeśli `PORT` lub `ADDRESS` miały zmienione wartości, ustaw je ponownie w nowym `start-vDeck.bat`.
+[#fig-aktualizacja]
+.Co się dzieje przy uruchomieniu vDeck, gdy jest nowa wersja
+image::aktualizacja.png[Schemat automatycznej aktualizacji vDeck,pdfwidth=60%]
+
+. Uruchom `start-vDeck.bat` jak zwykle, przy zatrzymanym serwerze Valheim.
+. W oknie konsoli pojawi się `Sprawdzanie aktualizacji vDeck...`. Jeśli jest nowsza wersja,
+  zobaczysz kolejno `Pobrano vDeck ...`, `Instalowanie aktualizacji vDeck ...`
+  i `Zaktualizowano vDeck do wersji ...`.
+. Panel uruchomi się już w nowej wersji. Nie zamykaj okna w czasie aktualizacji.
+
+[cols="1,2",options="header"]
+|===
+| Zostaje bez zmian | Jest wymieniane
+
+| Twoje wartości w `.vDeck\config` (port, adres, ustawienia panelu i serwera, hasło serwera),
+baza `vdeck.db`, światy, kopie świata i logi.
+| Program (`lib`), dołączona Java (`jre`), `start-vDeck.bat`, pliki README i ta instrukcja.
+Nowe ustawienia dochodzą z wartościami domyślnymi, a nieużywane znikają.
+|===
+
+NOTE: Aktualizacja nie wykona się, gdy serwer Valheim działa albo panel jest już uruchomiony.
+Gdy nie ma internetu, pobieranie trwa ponad 5 minut albo paczka nie przejdzie kontroli,
+vDeck po prostu uruchamia dotychczasową wersję i spróbuje ponownie przy następnym starcie.
+
+TIP: Aby wyłączyć automatyczne aktualizacje, ustaw `update.enabled=false` (<<adres-i-port>>).
+
+Poprzednia wersja programu i Twoje pliki ustawień sprzed aktualizacji zostają w katalogu
+`.vDeck\update\backup` do następnej aktualizacji. Kopia nie obejmuje zmian bazy `vdeck.db`
+wykonanych już przez nową wersję.
+
+[#przerwana-aktualizacja]
+=== Przerwana aktualizacja
+
+Jeżeli komputer wyłączy się albo okno zostanie zamknięte w trakcie aktualizacji, przy następnym
+uruchomieniu `start-vDeck.bat` zobaczysz `Wykryto przerwaną aktualizację vDeck. Przywracanie
+poprzedniej wersji...`. vDeck sam przywróci poprzednią wersję i uruchomi panel — nie musisz nic
+robić. Ponowna próba aktualizacji nastąpi przy kolejnym uruchomieniu.
+
+Jeżeli vDeck nie zdoła bezpiecznie przywrócić plików, zatrzyma się z komunikatem o naprawie
+i *nie* uruchomi panelu. Wtedy:
+
+. Zamknij okno konsoli i zrób kopię całego katalogu `.vDeck\update\backup` w innym miejscu.
+. Przenieś z `.vDeck\update\backup` do katalogu serwera wszystko, czego tam brakuje, zastępując
+  katalogi `lib` i `jre` oraz pliki `start-vDeck.bat`, README i instrukcję.
+. Pliki z `.vDeck\update\backup\.vDeck\config` to Twoje ustawienia sprzed aktualizacji — skopiuj
+  je do `.vDeck\config`. *Nie* zastępuj ich szablonami z paczki ZIP.
+. Usuń plik `.vDeck\update\apply.journal` i uruchom `start-vDeck.bat`.
+
+Szczegóły przebiegu znajdziesz w najnowszym pliku w `.vDeck\logs\updater`.
 
 [#problemy]
 == Rozwiązywanie problemów
 
 [qanda]
-Okno konsoli zgłasza brak katalogu `jre` albo pliku `lib\vdeck.jar`::
-  Paczka nie została wypakowana w całości. Wypakuj ponownie całą zawartość ZIP-a.
+„Brakuje plikow vDeck w katalogach jre lub lib. Wypakuj cala paczke ZIP.”::
+  Paczka nie została wypakowana w całości. Wypakuj ponownie całą zawartość ZIP-a, nie nadpisując
+  plików w `.vDeck\config`.
+
+„vDeck jest już uruchomiony w tej instalacji albo trwa jego uruchamianie.”::
+  Panel działa już w innym oknie albo właśnie się uruchamia. Użyj otwartego okna albo zamknij je
+  i uruchom vDeck ponownie.
+
+„Nieprawidłowa wartość ustawienia ... w pliku .vDeck\config\vDeck-start.properties.”::
+  Popraw wskazane ustawienie (<<adres-i-port>>) i uruchom vDeck ponownie.
+
+„Nie udało się pobrać aktualizacji. Zostanie uruchomiona bieżąca wersja vDeck.”::
+  To nie jest błąd panelu: zwykle brakuje internetu. vDeck spróbuje ponownie przy następnym
+  uruchomieniu.
+
+„Wykryto przerwaną aktualizację vDeck, ale brakuje ...” albo „Nie udało się bezpiecznie dokończyć ani cofnąć aktualizacji vDeck.”::
+  Postępuj zgodnie z <<przerwana-aktualizacja>>.
 
 Przeglądarka nie może połączyć się z panelem::
   Sprawdź, czy okno konsoli panelu jest otwarte i czy nie ma w nim błędów. Upewnij się, że
-  wpisujesz adres z napisu `Uruchamianie vDeck. Panel: ...`. Jeśli port 8085 jest zajęty,
-  zmień `PORT` (<<adres-i-port>>).
+  wpisujesz adres z napisu `Panel vDeck: ...`. Jeśli port 8085 jest zajęty, zmień `panel.port`
+  (<<adres-i-port>>).
 
 „W katalogu instalacji nie ma pliku valheim_server.exe.”::
   Paczka vDeck została wypakowana w innym miejscu niż serwer gry. Przenieś jej zawartość obok
@@ -757,7 +835,8 @@ Nie pamiętam hasła do panelu::
   i kopie pozostaną nietknięte.
 
 Szczegóły błędów::
-  Panel zapisuje szczegóły problemów w oknie konsoli. Zachowaj jego treść, zgłaszając problem.
+  Panel zapisuje szczegóły problemów w oknie konsoli, a uruchamianie i aktualizacje — w plikach
+  `.vDeck\logs\launcher` i `.vDeck\logs\updater`. Dołącz je, zgłaszając problem.
 
 [appendix]
 == Dołączone oprogramowanie

@@ -1,0 +1,63 @@
+%% Diagram klas: moduły launchera, updatera i wspólny kontrakt instalacji
+classDiagram
+    direction TB
+
+    namespace runtime_installation {
+        class InstallationLock
+        class InstallationOwnership
+        class HandoffProtocol
+        class SuccessorStarter
+        class UpdateLayout
+        class UpdateJournalHeader
+        class DistributionItem
+        class DurableFiles
+        class RunLogFile
+        class ServerActivityCheck
+        class UserConsole
+    }
+
+    namespace launcher {
+        class LauncherMain
+        class VdeckLauncher
+        class StartSettings
+        class UpdatePreparation
+        class GitHubReleaseClient
+        class ReleaseDownloader
+        class SafeZipExtractor
+        class UpdateExecutorPreparation
+        class UpdateCleanup
+    }
+
+    namespace updater {
+        class UpdaterMain
+        class VdeckUpdater
+        class UpdatePlan
+        class UpdateJournal
+        class FileReplacer
+        class UpdateRollback
+        class PropertiesMerger
+    }
+
+    LauncherMain --> VdeckLauncher
+    VdeckLauncher --> StartSettings
+    VdeckLauncher --> UpdatePreparation
+    VdeckLauncher --> UpdateCleanup
+    VdeckLauncher --> SuccessorStarter
+    VdeckLauncher --> InstallationOwnership
+    UpdatePreparation --> GitHubReleaseClient
+    UpdatePreparation --> ReleaseDownloader
+    UpdatePreparation --> SafeZipExtractor
+    UpdatePreparation --> UpdateExecutorPreparation
+    UpdaterMain --> VdeckUpdater
+    VdeckUpdater --> UpdatePlan
+    VdeckUpdater --> FileReplacer
+    VdeckUpdater --> UpdateRollback
+    VdeckUpdater --> SuccessorStarter
+    VdeckUpdater --> InstallationOwnership
+    UpdatePlan --> PropertiesMerger
+    FileReplacer --> UpdateJournal
+    UpdateRollback --> UpdateJournal
+    UpdateJournal --> UpdateJournalHeader
+    SuccessorStarter --> HandoffProtocol
+    InstallationOwnership --> InstallationLock
+    HandoffProtocol --> InstallationLock

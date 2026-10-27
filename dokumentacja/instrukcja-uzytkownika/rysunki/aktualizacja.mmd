@@ -1,0 +1,18 @@
+%% Rysunek instrukcji: co się dzieje przy uruchomieniu vDeck, gdy jest nowa wersja
+flowchart TD
+    start([Uruchamiasz start-vDeck.bat]) --> enabled{{Czy automatyczne aktualizacje<br/>są włączone i serwer jest zatrzymany?}}
+    enabled -- nie --> panel([Uruchamia się zainstalowana wersja panelu])
+    enabled -- tak --> check[vDeck sprawdza najnowszą wersję na GitHubie]
+    check --> newer{{Czy jest nowsza wersja?}}
+    newer -- nie --> panel
+    newer -- tak --> download[vDeck pobiera paczkę i sprawdza jej sumę kontrolną]
+    download -- błąd albo ponad 5 minut --> panel
+    download --> install[vDeck podmienia swoje pliki,<br/>zachowując Twoje ustawienia, bazę i światy]
+    install -- powodzenie --> newPanel([Uruchamia się nowa wersja panelu])
+    install -- błąd --> rollback[vDeck przywraca poprzednią wersję]
+    rollback --> panel
+
+    classDef step fill:#f6f1e7,stroke:#b8862e,color:#2b2621
+    classDef good fill:#e3efdc,stroke:#6f9a5c,color:#2b2621
+    class start,enabled,check,newer,download,install,rollback step
+    class panel,newPanel good

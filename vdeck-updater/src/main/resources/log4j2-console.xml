@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fallback used when the run log file cannot be created: the run continues with console output only. -->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%m%n" charset="${sys:stdout.encoding:-UTF-8}"/>
+        </Console>
+        <Console name="Diagnostics" target="SYSTEM_ERR">
+            <PatternLayout pattern="%-5level %c{1} - %m%n" charset="${sys:stdout.encoding:-UTF-8}"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="vdeck.console" level="info" additivity="false">
+            <AppenderRef ref="Console"/>
+        </Logger>
+        <Root level="warn">
+            <AppenderRef ref="Diagnostics"/>
+        </Root>
+    </Loggers>
+</Configuration>

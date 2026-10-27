@@ -17,8 +17,11 @@
                 <include>README.txt</include>
                 <include>lib/vdeck.jar</include>
                 <include>lib/vdeck-runner.jar</include>
+                <include>lib/vdeck-launcher.jar</include>
+                <include>lib/vdeck-updater.jar</include>
                 <include>.vDeck/config/vDeck.properties</include>
                 <include>.vDeck/config/valheim-server.properties</include>
+                <include>.vDeck/config/vDeck-start.properties</include>
                 <include>jre/**</include>
             </includes>
         </fileSet>

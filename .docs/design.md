@@ -47,20 +47,23 @@ model feature'a może używać adnotacji JPA, a repozytoria Spring Data są jego
 persystencji. Interfejsy serwisów wyznaczają kontrakty dla konsumentów bez wprowadzania osobnych
 portów i adapterów dla każdej operacji.
 
-Projekt składa się z trzech modułów kodu i modułu pakującego pod wspólnym parentem:
+Projekt składa się z pięciu modułów kodu i modułu pakującego pod wspólnym parentem:
 
 | Moduł | Odpowiedzialność |
 |---|---|
 | `vdeck-runtime` | Czysta Java: cykl życia serwera, procesy, sygnały, logi, snapshoty i granice zależne od platformy. Bez Springa. |
 | `vdeck-runner` | Czysta Java: osobny wykonywalny punkt wejścia helpera CTRL+C (AD-020). |
+| `vdeck-launcher` | Czysta Java: jedyny program uruchamiany przez skrypt startowy; blokady, sprawdzenie i przygotowanie aktualizacji, start panelu (AD-024, AD-026). |
+| `vdeck-updater` | Czysta Java: dziennikowana podmiana plików, scalanie ustawień i recovery, uruchamiane z niezależnego executora (AD-024, AD-025). |
 | `vdeck-app` | Aplikacja Spring Boot: web, bezpieczeństwo, konfiguracja, persystencja oraz integracja z runtime. |
 | `.dist` (`vdeck-dist`) | Końcowy moduł `pom`: szablony instalacji, dołączone JRE i budowanie dystrybucji ZIP. |
 
-`vdeck-app` i `vdeck-runner` zależą od `vdeck-runtime`; nie zależą od siebie. Runtime nigdy nie
-zależy od aplikacji, runnera ani od Springa. Aplikacja korzysta z fasady `runtime.api`, a szczegóły cyklu życia
+`vdeck-app`, `vdeck-runner`, `vdeck-launcher` i `vdeck-updater` zależą od `vdeck-runtime`; nie zależą
+od siebie. Launcher uruchamia updater i panel wyłącznie jako osobne procesy. Runtime nigdy nie
+zależy od aplikacji, runnera, launchera, updatera ani od Springa. Aplikacja korzysta z fasady `runtime.api`, a szczegóły cyklu życia
 i implementacje Windows pozostają wewnętrzne dla runtime.
 
-Moduł dystrybucji zależy od obu wykonywalnych artefaktów, aby Maven pakował je dopiero po
+Moduł dystrybucji zależy od czterech wykonywalnych artefaktów, aby Maven pakował je dopiero po
 zakończeniu ich buildów, także przy pracy równoległej. Zależności te służą wyłącznie pakowaniu.
 
 W `vdeck-app` obowiązuje package-by-feature. Wszystkie pionowe funkcjonalności znajdują się pod
@@ -100,8 +103,8 @@ vdeck/                                           ← parent i agregator Maven
 │   ├── start-vDeck.bat
 │   ├── README.md
 │   ├── README.txt
-│   ├── .vDeck/config/                          ← domyślne pliki properties
-│   ├── lib/                                    ← generowane vdeck.jar i vdeck-runner.jar
+│   ├── .vDeck/config/                          ← domyślne pliki properties, także vDeck-start.properties
+│   ├── lib/                                    ← generowane JAR-y panelu, runnera, launchera i updatera
 │   └── jre/                                   ← pobrane i zweryfikowane JRE 25
 ├── .docs/
 │   ├── architectural_decisions.md
@@ -147,6 +150,18 @@ vdeck/                                           ← parent i agregator Maven
 │       │   │   └── GameProcessLauncher
 │       │   ├── lifecycle/                       ← serializowane zmiany stanu
 │       │   │   └── ServerStateMachine
+│       │   ├── installation/                    ← kontrakt startu i aktualizacji (AD-024)
+│       │   │   ├── InstallationLock             ← vdeck.lock i bramka startup.lock
+│       │   │   ├── InstallationOwnership
+│       │   │   ├── HandoffProtocol              ← potwierdzane przekazanie blokady
+│       │   │   ├── SuccessorStarter
+│       │   │   ├── UpdateLayout                 ← stałe ścieżki protokołu recovery
+│       │   │   ├── UpdateJournalHeader
+│       │   │   ├── DistributionItem             ← zamknięta lista plików paczki
+│       │   │   ├── DurableFiles
+│       │   │   ├── RunLogFile / RunLogRetention
+│       │   │   ├── ServerActivityCheck
+│       │   │   └── UserConsole
 │       │   └── windows/                         ← adapter Windows; moduł dopiero przy 2. OS
 │       │       ├── Win32
 │       │       ├── WindowsCommandLine
@@ -158,6 +173,32 @@ vdeck/                                           ← parent i agregator Maven
 │   ├── pom.xml
 │   └── src/main/java/com/github/pplociennik/vdeck/runner/
 │       └── VdeckRunner
+│
+├── vdeck-launcher/                              ← lib/vdeck-launcher.jar, bez Springa
+│   ├── pom.xml
+│   └── src/main/java/com/github/pplociennik/vdeck/launcher/
+│       ├── LauncherMain                         ← bootstrap bez loggera, log uruchomienia
+│       ├── VdeckLauncher                        ← orkiestracja startu
+│       ├── StartSettings                        ← vDeck-start.properties
+│       ├── ReleaseVersion
+│       ├── GitHubReleaseClient
+│       ├── ReleaseDownloader
+│       ├── SafeZipExtractor
+│       ├── UpdateExecutorPreparation
+│       ├── UpdatePreparation                    ← jeden deadline 5 minut
+│       └── UpdateCleanup
+│
+├── vdeck-updater/                               ← lib/vdeck-updater.jar, uruchamiany z executora
+│   ├── pom.xml
+│   └── src/main/java/com/github/pplociennik/vdeck/updater/
+│       ├── UpdaterMain                          ← bootstrap bez loggera, log uruchomienia
+│       ├── VdeckUpdater                         ← apply, --recover, przekazanie do launchera
+│       ├── UpdatePlan
+│       ├── UpdateJournal
+│       ├── FileReplacer
+│       ├── UpdateRollback
+│       ├── TransactionFiles
+│       └── PropertiesMerger
 │
 └── vdeck-app/                                   ← aplikacja Spring Boot
     ├── pom.xml
@@ -401,10 +442,10 @@ występować w encjach należących do `..domain..` oraz w technicznych podpakie
 ## 5. Katalog instalacji i danych
 
 W dystrybucji produkcyjnej `start-vDeck.bat` znajduje się w tym samym katalogu co `valheim_server.exe`,
-a oba JAR-y w jego podkatalogu `lib`.
+a JAR-y panelu, runnera, launchera i updatera w jego podkatalogu `lib`.
 `mvnw clean package` buduje `target/vDeck-dist-${project.version}.zip`, zgodnie z AD-021.
 ZIP nie ma katalogu nadrzędnego: jego całą zawartość wypakowuje się do instalacji Valheim.
-Zawiera oba JAR-y w `lib`, `start-vDeck.bat`, README.md i README.txt, instrukcję obsługi
+Zawiera cztery JAR-y w `lib`, `start-vDeck.bat`, README.md i README.txt, instrukcję obsługi
 `vDeck-instrukcja.pdf`, domyślne pliki w `.vDeck/config` oraz pełne Eclipse Temurin JRE 25 dla
 Windows x64 w `jre`.
 
@@ -417,17 +458,23 @@ uruchamiany ręcznie na świeżo wypakowanej paczce, a nie przez Maven.
 
 Maven AntRun pobiera przypięte w `.dist/pom.xml` wydanie JRE, weryfikuje SHA-256 i odtwarza
 katalog `jre`. Archiwum pobrania jest buforowane w `.dist/target` do następnego `clean`.
-Maven Resources kopiuje `vdeck-app/target/vdeck.jar` i `vdeck-runner/target/vdeck-runner.jar`
-do `.dist/lib` bez filtrowania; następujący po nim Maven Assembly tworzy ZIP z jawnej listy plików.
+Maven Resources kopiuje `vdeck.jar`, `vdeck-runner.jar`, `vdeck-launcher.jar` i `vdeck-updater.jar`
+z katalogów `target` modułów do `.dist/lib` bez filtrowania; następujący po nim Maven Assembly tworzy ZIP z jawnej listy plików.
 Szablony są wersjonowane, a JAR-y, JRE i `node_modules` skryptu zrzutów ignorowane przez Git. `clean` usuwa wygenerowane pliki,
 zachowując szablony. Zwykłe `test` nie pobiera JRE i nie buduje paczki.
 
-BAT korzysta z `jre/bin/java.exe` niezależnie od `PATH` i `JAVA_HOME`. Ustawia katalog roboczy
-na swój katalog, przekazuje `--enable-native-access=ALL-UNNAMED` oraz jawne
-`-Dvdeck.server-directory` równe katalogowi skryptu, bo `ApplicationHome` wskazałby `lib`.
-Adres nasłuchu bierze ze zmiennej `ADDRESS` (domyślnie `127.0.0.1`), a port ze zmiennej `PORT`, obie na początku skryptu
-(domyślnie `8085`), przekazywanej jako `--server.port`. Pozostałe argumenty przekazuje Springowi.
-Brak JRE lub któregoś JAR-a daje czytelny błąd i nie uruchamia systemowej Javy.
+BAT korzysta z `jre/bin/java.exe` niezależnie od `PATH` i `JAVA_HOME` i uruchamia wyłącznie launcher
+(AD-026). Ustawia katalog roboczy na swój katalog i przekazuje jawne `-Dvdeck.server-directory` równe
+katalogowi skryptu, bo `ApplicationHome` wskazałby `lib`. Jeżeli istnieje `.vDeck/update/apply.journal`,
+zamiast launchera uruchamia `.vDeck/update/executor/jre/bin/java.exe -jar
+.vDeck/update/executor/vdeck-updater.jar --recover` (stały kontrakt protokołu recovery 1). Wywołanie
+Javy jest jednym blokiem nawiasowym zakończonym w tej samej linii `call exit /b %%^ERRORLEVEL%%`,
+więc `cmd.exe` nie czyta pliku ponownie po jego podmianie, a kod wyjścia Javy wraca do wywołującego.
+Argumenty skryptu trafiają po `--` do panelu. Brak Javy lub JAR-a daje czytelny błąd i nie uruchamia
+systemowej Javy. Adres, port i automatyczne aktualizacje ustawia `.vDeck/config/vDeck-start.properties`
+(`panel.address`, `panel.port`, `update.enabled`), czytany przez launcher. Launcher uruchamia panel
+z `--enable-native-access=ALL-UNNAMED`, `-Dvdeck.server-directory`, `-Dvdeck.handoff=<id>`,
+`--server.address` i `--server.port` jako oddzielnymi argumentami procesu.
 Plik BAT ma końce linii CRLF i zawiera wyłącznie ASCII: `cmd.exe` błędnie parsuje wielobajtowe
 znaki UTF-8, dlatego komentarze są angielskie, a polskie komunikaty nie mają znaków diakrytycznych.
 Helper uruchamia `javaw.exe` z tego samego JRE przez `java.home`.
@@ -535,16 +582,23 @@ Podstawowy układ danych:
 ├── valheim_server.exe
 ├── lib/
 │   ├── vdeck.jar
-│   └── vdeck-runner.jar              ← wykonywalny helper z modułu vdeck-runner
-├── start-vDeck.bat                   ← start przez dołączoną Javę
+│   ├── vdeck-runner.jar              ← wykonywalny helper z modułu vdeck-runner
+│   ├── vdeck-launcher.jar            ← program startowy (AD-024)
+│   └── vdeck-updater.jar             ← podmiana i recovery (AD-024)
+├── start-vDeck.bat                   ← launcher albo recovery przez dołączoną Javę
 ├── README.md
 ├── README.txt
 ├── jre/                             ← Eclipse Temurin JRE 25, Windows x64
 ├── .vDeck/
 │   ├── config/                        ← wszystkie pliki ustawień (AD-010)
 │   │   ├── vDeck.properties
-│   │   └── valheim-server.properties
-│   ├── vdeck.lock                    ← blokada panelu FileLock
+│   │   ├── valheim-server.properties
+│   │   └── vDeck-start.properties     ← adres, port, update.enabled (AD-026)
+│   ├── vdeck.lock                    ← blokada instalacji FileLock
+│   ├── startup.lock                  ← bramka startu launchera i updatera
+│   ├── handoff/                      ← jednorazowe deskryptory przekazania blokady
+│   ├── update/                       ← download, staged, merged, executor, backup, apply.journal
+│   ├── logs/launcher|updater/<dzień>/ ← log każdego uruchomienia, retencja 30 dni
 │   ├── server.pid                    ← bezsekretny token uruchomienia
 │   ├── vDeck-server-start.bat          ← regenerowany skrypt lustrzany bez hasła
 │   └── log/                           ← domyślny `game.log.directory`
@@ -615,8 +669,7 @@ Punkt wejścia panelu uruchamia wyłącznie Springa.
 Bean nie tworzy procesu ani wątku przy starcie panelu. `ServerRuntimeConfiguration` wstrzykuje go
 do runtime; worker zatrzymania wywołuje go po wymaganym snapshotcie. Każdy sygnał uruchamia nowy
 krótkotrwały proces. Brak lub uszkodzenie JAR-a ujawnia się przy żądaniu sygnału jako błąd helpera:
-Stop zachowuje serwer zgodnie z AD-017. Uruchamianie panelu przez runner i autoaktualizacje
-nie są jeszcze zaimplementowane.
+Stop zachowuje serwer zgodnie z AD-017. Panel uruchamia launcher (AD-024), opisany w sekcji 7.
 
 Tryb techniczny jest już zaimplementowany jako pierwszy element funkcji Stop. Jego pełny kontrakt
 to `--ctrl-sender <pid> <creation-instant> <absolute-executable>`: czas jest rzeczywistym czasem
@@ -654,8 +707,52 @@ ponowny panel wymaga jawnej adopcji, nie tworzy automatycznie drugiej instancji.
 
 ## 7. Jedyność instancji i odzyskiwanie
 
-`.vDeck/vdeck.lock` używa `FileLock` i zapewnia, że w danym katalogu działa najwyżej jeden panel. System
-operacyjny zwalnia blokadę po śmierci procesu, również gdy nie wykona się kontrolowane zamknięcie.
+`.vDeck/vdeck.lock` używa `FileLock` i zapewnia, że w danym katalogu najwyżej jeden proces — panel,
+launcher albo updater — może zmieniać instalację. System operacyjny zwalnia blokadę po śmierci procesu,
+również gdy nie wykona się kontrolowane zamknięcie. Panel uruchomiony przez launcher przejmuje ją
+przed startem Springa i przekazuje do `ManagedLaunchStore`; panel uruchomiony bez launchera (IDE)
+zdobywa ją sam w runtime.
+
+### Start, przekazanie blokady i aktualizacja (AD-024)
+
+Każdy start zdobywa najpierw `.vDeck/startup.lock`, potem `vdeck.lock`, bez czekania; zajęta blokada
+oznacza komunikat i wyjście bez sprzątania. Właściciel obu blokad usuwa stare deskryptory
+`.vDeck/handoff`, stosuje 30-dniową retencję logów uruchomień i rozpoznaje dziennik aktualizacji:
+stan nieterminalny lub nieczytelny przekazuje do recovery w executorze, stan terminalny archiwizuje
+dziennik w `update/backup` i dopiero potem usuwa `executor`, `staged`, `merged` i `download`.
+
+Przekazanie blokady (`HandoffProtocol`, `SuccessorStarter`): poprzednik uruchamia następcę
+z `--handoff <id>`, publikuje trwały deskryptor z rolą oraz tożsamościami obu procesów (PID, czas
+utworzenia, rzeczywisty plik wykonywalny), zwalnia tylko `vdeck.lock` i czeka 10 s na potwierdzenie.
+Następca weryfikuje rolę, własną tożsamość i tożsamość rzeczywistego rodzica, przejmuje blokadę, nigdy
+nie dotyka bramki i zapisuje potwierdzenie. Brak potwierdzenia kończy własny proces następcy
+i obserwuje jego wyjście przed odzyskaniem blokady. Launcher, updater i recovery po przejęciu czekają
+na rzeczywiste wyjście poprzednika i zdobywają bramkę przed zmianami; panel jej nie zdobywa, bo
+launcher utrzymuje ją do końca pracy panelu.
+
+Przygotowanie (`UpdatePreparation`) działa w jednym wątku pod monotonicznym deadlinem 5 minut:
+API `releases/latest` (pełna odpowiedź w 15 s, limit 1 MiB, dokładna nazwa zasobu, rozmiar ≤ 512 MiB,
+`digest` `sha256:`, URL HTTPS na `github.com` w tym repozytorium), pobranie do `.part` z SHA-256
+w locie, rozpakowanie do `.tmp-staged-<uuid>` z białą listą `DistributionItem`, limitami i kontrolą
+wersji oraz protokołu w manifestach, a na końcu kopia JRE i updatera do `executor`. Każda publikacja
+to atomowy rename poprzedzony kontrolą deadline'u. Po przekroczeniu budżetu wątek główny zamyka klienta
+HTTP (`shutdownNow`), przerywa wątek i czeka na jego zakończenie, dopiero potem sprząta i uruchamia
+bieżącą wersję. Nowsza wersja jest instalowana tylko przy `update.enabled=true`, wersji wydania
+(nie `-SNAPSHOT`) i braku `server.pid` oraz procesu `valheim_server.exe` tej instalacji.
+
+Updater (nowa wersja, z executora) po przejęciu blokad sprawdza ponownie serwer i kompletność paczki,
+usuwa poprzedni backup, scala ustawienia do `update/merged` (AD-025) i utrwala dziennik `PREPARED`.
+Stany transakcji: `PREPARED → APPLYING → COMMITTED` albo `→ ROLLING_BACK → ROLLED_BACK`. Każda
+operacja zapisuje zamiar przed akcją: katalog (`lib`, `jre`) to rename instalacja → backup i staged →
+instalacja; plik (BAT, README, PDF, ustawienia) to trwała kopia oryginału do backupu i jeden atomowy
+rename nowej treści na miejsce starej, więc plik nigdy nie znika. Dziennik zapisuje się przez plik
+tymczasowy, `force(true)` i `ATOMIC_MOVE`. `COMMITTED` następuje po sprawdzeniu kompletności i skrótów
+nowego zestawu. Rollback idzie od końca, rozpoznaje stan z rzeczywistych plików (położenie katalogów,
+skróty plików), nie usuwa pliku o nieoczekiwanej tożsamości i jest idempotentny także po przerwaniu.
+Niejednoznaczny stan albo uszkodzony dziennik zatrzymuje start z instrukcją naprawy. Po stanie
+terminalnym updater przekazuje instalację launcherowi z `--after-update`, który nie sprawdza już
+aktualizacji. Gwarancja dotyczy przerwania procesu; odporności na zanik zasilania nie deklarujemy
+bezwarunkowo, choć zapisy dziennika i kopie są wymuszane na dysk przed użyciem.
 
 `.vDeck/server.pid` identyfikuje zarządzany serwer za pomocą PID, czasu startu i ścieżki do pliku
 wykonywalnego. Sam PID nie jest wystarczający, ponieważ Windows może wykorzystać go ponownie.
@@ -836,6 +933,9 @@ nie planem implementacji:
 | `ProcessHandle.info()` obcego procesu | Dostępne: `command()`, `startInstant()`, `user()`; niedostępne: `arguments()`, `commandLine()`. |
 | `destroyForcibly()` procesu spoza `ProcessBuilder` | Proces został zakończony. |
 | `ATOMIC_MOVE` z nadpisaniem na NTFS | Operacja zadziałała atomowo w środowisku spike’a. |
+| `ATOMIC_MOVE` bez `REPLACE_EXISTING` na Windows | Zastępuje istniejący plik; brak nadpisania wymaga jawnej kontroli istnienia. |
+| Podmiana `lib` i `jre` przez updater z executora | Zadziałała w teście paczek 1.0.0 → 1.0.1; recovery przez BAT odtworzyło brakujące `lib` i `jre`. |
+| `HttpClient.shutdownNow()` przy zatrzymanym body | Przerywa zablokowany odczyt; potwierdza test integracyjny na serwerze loopback. |
 
 ---
 

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project state
 
-vDeck is an early-stage Maven reactor with three code modules and one distribution module, matching `design.md` §2:
+vDeck is an early-stage Maven reactor with five code modules and one distribution module, matching `design.md` §2:
 
 - `vdeck-runtime` — pure Java, no Spring. Owns the serialized lifecycle, Windows FFM launcher,
   launch identity, complete BEST_EFFORT world snapshots, isolated CTRL+C helper, asynchronous Stop
@@ -14,9 +14,29 @@ vDeck is an early-stage Maven reactor with three code modules and one distributi
 - `vdeck-runner` — pure Java, no Spring. Provides `runner.VdeckRunner`, the executable CTRL+C
   helper entry point. Builds a self-contained `target/vdeck-runner.jar`; install it as
   `lib/vdeck-runner.jar` in the PathService installation directory, including for IDE and
-  `spring-boot:run` usage. The distribution keeps both JARs in `lib`, so its start script must pass
+  `spring-boot:run` usage. The distribution keeps every JAR in `lib`, so every vDeck JVM receives
   `vdeck.server-directory` (AD-021).
-  Panel launching and auto-updates are future work.
+- `vdeck-launcher` — pure Java, no Spring, `lib/vdeck-launcher.jar`. The only program the start script
+  runs (AD-024, AD-026). `LauncherMain` (no logger) creates the run log
+  `.vDeck/logs/launcher/<day>/<timestamp>.log` before Log4j2 starts. `VdeckLauncher` takes
+  `.vDeck/startup.lock` and `.vDeck/vdeck.lock`, hands an active journal to recovery, cleans finished or
+  unpublished update leftovers, reads `.vDeck/config/vDeck-start.properties` (`panel.address`,
+  `panel.port`, `update.enabled`) and, for a release build with a stopped server, prepares a newer
+  GitHub release (`UpdatePreparation`: API, SHA-256 `digest`, `SafeZipExtractor`, executor copy, one
+  5-minute deadline that shuts the HTTP client down). A prepared update is handed to the updater;
+  any preparation failure starts the installed panel instead. The panel is handed the installation
+  lock and the launcher keeps the gate until the panel exits, returning its exit code.
+- `vdeck-updater` — pure Java, no Spring, no network, `lib/vdeck-updater.jar`, always run from the
+  independent copy in `.vDeck/update/executor`. Applies the journaled transaction
+  (`UpdateJournal`, `FileReplacer`, idempotent `UpdateRollback`), merges settings with
+  `PropertiesMerger` (AD-025), recovers with `--recover` and hands over to the installed launcher with
+  `--after-update`. Run logs go to `.vDeck/logs/updater`.
+- `vdeck-runtime` also holds the shared start/update contract in `runtime.installation`:
+  `InstallationLock`, `InstallationOwnership`, `HandoffProtocol` (one-time, acknowledged lock handoff
+  through `.vDeck/handoff`), `SuccessorStarter`, `UpdateLayout`, `UpdateJournalHeader`,
+  `DistributionItem`, `DurableFiles`, `RunLogFile`, `ServerActivityCheck` and `UserConsole`.
+  `ManagedLaunchStore` owns an `InstallationLock`; `VdeckApplication.main()` takes it over from the
+  launcher (`-Dvdeck.handoff=<id>`) before Spring starts and registers it as the `installationLock` bean.
 - `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, shared path/configuration
   infrastructure and the first implemented features: panel authentication (persisted admin account,
   Spring Security's generated login page, and two separate password screens — the forced
@@ -35,7 +55,9 @@ vDeck is an early-stage Maven reactor with three code modules and one distributi
   home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` controls the advanced settings section.
 - `.dist` (`vdeck-dist`) — packaging-only module depending on app and runner. Builds
   `target/vDeck-dist-${project.version}.zip` from the root reactor's `package` phase. Contains the
-  BAT launcher, user READMEs and `.vDeck/config` defaults. AntRun downloads the pinned Windows x64
+  start script, user READMEs and `.vDeck/config` defaults (including `vDeck-start.properties`, whose
+  keys tests keep equal to `StartSettings`; `vDeck.properties` and `valheim-server.properties` are kept
+  equal to their enums by `DistributionTemplatesTest`). AntRun downloads the pinned Windows x64
   Temurin JRE 25 and checks SHA-256; Asciidoctor converts the Polish user manual
   (`dokumentacja/instrukcja-uzytkownika/instrukcja-uzytkownika.adoc`) to `vDeck-instrukcja.pdf`,
   failing on any warning such as a missing image; Resources stages both executable JARs; Assembly
@@ -43,15 +65,18 @@ vDeck is an early-stage Maven reactor with three code modules and one distributi
   text, screenshots (`zrzuty/zrzuty-ekranu.mjs`, Playwright, run by hand against a freshly extracted
   package) and drawings (`rysunki/*.mmd` rendered to PNG) in the same change (`documentation.md` §3.6).
   Generated `.dist/jre` and JARs are ignored by Git and removed by `clean`, while templates remain.
-  The launcher uses the bundled JRE, sets the installation as its working directory and binds to
-  loopback by default. Test extracted copies instead of running the versioned staging directory.
+  `start-vDeck.bat` uses the bundled JRE, sets the installation as its working directory and runs the
+  launcher, or the executor's updater with `--recover` while `.vDeck/update/apply.journal` exists; the
+  Java call is one parsed block ending in `call exit /b %%^ERRORLEVEL%%` so an update can replace the
+  script safely. The panel binds to loopback by default. Test extracted copies instead of running the versioned staging directory.
 - `.github/workflows/build.yml` — GitHub Actions on `windows-latest` (FFM tests need Windows). Every
   push and pull request to `main` runs `mvnw test` only. A push to `main` whose version has no
   `-SNAPSHOT` suffix and no `v<version>` tag yet runs `clean package` and publishes a GitHub Release
-  with `vDeck-dist-<version>.zip`, tagging the built commit (AD-023). Releasing means setting the
+  with `vDeck-dist-<version>.zip` marked `--latest`, tagging the built commit (AD-023). Installed
+  launchers update from that release (AD-024); the repository must have immutable releases enabled. Releasing means setting the
   version in all POMs (`versions:set`) and merging to `main`; a failed tag lookup fails the job.
 
-`VdeckApplication.main()` starts only Spring. `config.ConsoleControlConfiguration` creates the idle
+`VdeckApplication.main()` accepts the launcher handoff, if any, and then starts only Spring. `config.ConsoleControlConfiguration` creates the idle
 `ConsoleControlSender` bean and injects it into runtime. Each signal request starts a short-lived
 runner process with `--ctrl-sender <pid> <creation-instant> <absolute-executable>`; no helper process
 or waiting thread is started during bean creation (AD-020). Helper exit codes are 0 (event sent), 1 (signal/identity failure) and 2 (invalid
@@ -243,6 +268,9 @@ New-Item -ItemType Directory -Force D:\path\to\sandbox\lib
 Copy-Item vdeck-runner\target\vdeck-runner.jar D:\path\to\sandbox\lib\vdeck-runner.jar
 .\mvnw.cmd -pl vdeck-app spring-boot:run `
   "-Dspring-boot.run.jvmArguments=--enable-native-access=ALL-UNNAMED -Dvdeck.server-directory=D:\path\to\sandbox"
+
+# Run the packaged launcher (as the start script does) against an extracted installation.
+D:\path\to\installation\start-vDeck.bat
 
 # Run a packaged panel against an explicit installation directory.
 java --enable-native-access=ALL-UNNAMED "-Dvdeck.server-directory=D:\path\to\sandbox" `

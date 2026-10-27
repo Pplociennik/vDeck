@@ -17,12 +17,16 @@
 
 	<properties>
 		<java.version>25</java.version>
+		<!-- Recovery protocol written into the updater manifest; must equal UpdateLayout.RECOVERY_PROTOCOL. -->
+		<vdeck.recovery-protocol>1</vdeck.recovery-protocol>
 	</properties>
 
 	<modules>
 		<module>vdeck-runtime</module>
 		<module>vdeck-runner</module>
 		<module>vdeck-app</module>
+		<module>vdeck-launcher</module>
+		<module>vdeck-updater</module>
 		<module>.dist</module>
 	</modules>
 

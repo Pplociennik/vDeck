@@ -1,0 +1,24 @@
+%% Diagram sekwencji: potwierdzane przekazanie blokady instalacji następcy
+sequenceDiagram
+    autonumber
+    participant P as Poprzednik (launcher lub updater)
+    participant H as .vDeck/handoff
+    participant S as Następca (updater, launcher lub panel)
+    Note over P: trzyma startup.lock i vdeck.lock
+    P->>S: uruchomienie z --handoff id
+    P->>H: deskryptor id.handoff: rola, tożsamość poprzednika i następcy
+    P->>P: zwolnienie tylko vdeck.lock
+    S->>H: odczyt deskryptora, kontrola roli, własnej tożsamości i rodzica
+    S->>S: zdobycie vdeck.lock (bez bramki)
+    S->>H: potwierdzenie id.ack z własną tożsamością
+    P->>H: odczyt i weryfikacja potwierdzenia (limit 10 s), usunięcie plików
+    alt następca to panel
+        P->>P: trzyma bramkę do końca pracy panelu
+    else następca to updater lub launcher
+        P->>P: kończy proces, system zwalnia bramkę
+        S->>S: czeka na wyjście poprzednika i zdobywa bramkę
+    end
+    opt brak potwierdzenia w 10 s
+        P->>S: zakończenie własnego procesu następcy i obserwacja wyjścia
+        P->>P: ponowne zdobycie vdeck.lock albo zatrzymanie bez zmian
+    end

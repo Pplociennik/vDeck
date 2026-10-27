@@ -1,0 +1,29 @@
+%% Diagram przepływu: start vDeck przez launcher i automatyczna aktualizacja
+flowchart TD
+    bat([start-vDeck.bat]) --> journal{Istnieje<br/>.vDeck/update/apply.journal?}
+    journal -- tak --> exec{Kompletny executor?}
+    exec -- nie --> repair([Komunikat o naprawie, kod 1])
+    exec -- tak --> recover[[Updater z executora --recover]]
+    journal -- nie --> launcher[Launcher z jre/bin/java.exe]
+    launcher --> owner{Bramka startup.lock<br/>i vdeck.lock wolne?}
+    owner -- nie --> busy([vDeck już działa: komunikat, kod 1])
+    owner -- tak --> status{Stan dziennika}
+    status -- aktywny lub nieczytelny --> recover
+    status -- terminalny --> archive[Archiwizacja dziennika w backup,<br/>usunięcie executor, staged, merged, download]
+    status -- brak --> discard[Usunięcie nieopublikowanych plików roboczych]
+    archive --> settings
+    discard --> settings[vDeck-start.properties:<br/>panel.address, panel.port, update.enabled]
+    settings -- błędna wartość --> invalid([Komunikat z kluczem, kod 1])
+    settings --> check{update.enabled, wersja wydania,<br/>brak --after-update, serwer zatrzymany?}
+    check -- nie --> panel
+    check -- tak --> prepare[Przygotowanie z sufitem 60 minut:<br/>API latest, pobranie z SHA-256 i postępem,<br/>bezpieczne rozpakowanie, kopia executora]
+    prepare -- brak nowszej wersji --> panel
+    prepare -- błąd, 30 s bez danych<br/>lub sufit czasu --> fallback[Przerwanie HTTP, zakończenie wątku,<br/>sprzątanie plików roboczych]
+    fallback --> panel
+    prepare -- gotowe --> updater[[Przekazanie blokady updaterowi z executora,<br/>launcher kończy pracę]]
+    updater --> apply[Updater: dziennikowana podmiana<br/>i scalanie ustawień]
+    recover --> rollback[Recovery: cofnięcie nieukończonej transakcji]
+    apply --> after[[Nowy launcher --after-update]]
+    rollback --> after
+    after --> owner
+    panel[[Przekazanie blokady panelowi]] --> wait([Launcher trzyma bramkę,<br/>czeka na panel i zwraca jego kod])

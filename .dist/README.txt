@@ -28,6 +28,7 @@ PIERWSZE URUCHOMIENIE
 6. Uruchom serwer przyciskiem Start. Pozostaw okno panelu otwarte.
 
 USTAWIENIA I DANE
+- .vDeck\config\vDeck-start.properties — adres i port panelu oraz automatyczne aktualizacje.
 - .vDeck\config\vDeck.properties — ustawienia panelu i logów gry.
 - .vDeck\config\valheim-server.properties — profil uruchomieniowy serwera Valheim.
 - vdeck.db — konto administratora panelu; baza powstaje przy pierwszym uruchomieniu.
@@ -35,6 +36,8 @@ USTAWIENIA I DANE
 - .vDeck\log — domyślne logi serwera gry.
 - .vDeck\shutdown-snapshots — kopie świata z zatrzymania; nazwę podkatalogu ustawia
   snapshot.directory w vDeck.properties.
+- .vDeck\logs\launcher, .vDeck\logs\updater — przebieg uruchomień i aktualizacji (30 dni).
+- .vDeck\update\backup — poprzednia wersja i ustawienia sprzed ostatniej aktualizacji.
 
 Ścieżki w ustawieniach muszą być względne i prowadzić do katalogów wewnątrz instalacji.
 Ręczne zmiany plików properties wykonuj przy wyłączonym panelu.
@@ -45,18 +48,23 @@ w jego oknie; zamykanie może potrwać kilka minut. Nieudany Stop pozostawia ser
 uruchomiony. Wymuszone Kill wymaga potwierdzenia i może spowodować utratę postępu.
 Kopia działającego świata nie gwarantuje spójnego zapisu gry.
 
-PONOWNE WDROŻENIE
-Paczka jest przeznaczona do pierwszej instalacji. Przy wymianie wersji zachowaj
-własne .vDeck\config, bazę vdeck.db, światy i kopie. Nie nadpisuj ustawień szablonami
-z ZIP-a. Automatyczna aktualizacja aplikacji nie jest jeszcze dostępna.
+AKTUALIZACJE
+Paczka służy do pierwszej instalacji. Kolejne wersje vDeck instalują się same przy
+uruchomieniu start-vDeck.bat, gdy serwer Valheim i panel są zatrzymane. Ustawienia,
+baza vdeck.db, światy i kopie zostają zachowane. Bez internetu albo przy błędzie
+pobierania uruchamia się dotychczasowa wersja. Wyłączenie: update.enabled=false
+w .vDeck\config\vDeck-start.properties. Przerwaną aktualizację vDeck cofa sam przy
+następnym uruchomieniu; naprawę w razie problemu opisuje rozdział „Aktualizacje vDeck”
+w vDeck-instrukcja.pdf.
 
 GDY PANEL NIE STARTUJE
 Wypakuj całą paczkę i sprawdź komunikaty w oknie. Port 8085 musi być wolny.
-Aby użyć innego portu, otwórz start-vDeck.bat w Notatniku i zmień wartość
-w linii set "PORT=8085". Adres panelu zmieni się odpowiednio.
+Aby użyć innego portu, otwórz .vDeck\config\vDeck-start.properties w Notatniku
+i zmień wartość panel.port=8085. Adres panelu zmieni się odpowiednio.
 
 DOSTĘP Z INNYCH KOMPUTERÓW
-Domyślnie panel działa tylko na tym komputerze (set "ADDRESS=127.0.0.1" w start-vDeck.bat).
+Domyślnie panel działa tylko na tym komputerze (panel.address=127.0.0.1
+w .vDeck\config\vDeck-start.properties).
 Aby otworzyć go z innego urządzenia, wpisz tam adres IP tego komputera w sieci lokalnej
 lub 0.0.0.0. Rób to wyłącznie w zaufanej sieci: panel używa HTTP bez szyfrowania,
 więc hasła są przesyłane otwartym tekstem. Nie udostępniaj panelu w internecie.

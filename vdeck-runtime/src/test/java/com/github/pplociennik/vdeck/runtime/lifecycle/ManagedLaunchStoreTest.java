@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.github.pplociennik.vdeck.runtime.api.ProcessIdentity;
 import com.github.pplociennik.vdeck.runtime.api.WorldContext;
+import com.github.pplociennik.vdeck.runtime.installation.InstallationLock;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -92,7 +93,7 @@ class ManagedLaunchStoreTest {
         // WHEN
         var failure = catchThrowable( () -> new ManagedLaunchStore( installation ) );
         // THEN
-        assertThat( failure ).isInstanceOf( java.nio.channels.OverlappingFileLockException.class );
+        assertThat( failure ).isInstanceOf( IllegalStateException.class ).hasMessageContaining( "installation lock" );
     }
 
     /** Releases only the panel lock when resources close. */
@@ -201,9 +202,50 @@ class ManagedLaunchStoreTest {
         // GIVEN
         // The fixture already owns its own lock.
         // WHEN
-        var failure = catchThrowable( () -> new ManagedLaunchStore( null ) );
+        var failure = catchThrowable( () -> new ManagedLaunchStore( ( Path ) null ) );
         // THEN
         assertThat( failure ).isInstanceOf( NullPointerException.class );
+    }
+
+    /** A missing handed-over lock is rejected before any directory is touched. */
+    @Test
+    void shouldRejectMissingLock_whenConstructedWithNullLock() {
+        // GIVEN
+        // The fixture already owns its own lock.
+        // WHEN
+        var failure = catchThrowable( () -> new ManagedLaunchStore( ( InstallationLock ) null ) );
+        // THEN
+        assertThat( failure ).isInstanceOf( NullPointerException.class );
+    }
+
+    /** A lock taken over from the launcher is owned by the store and released when it closes. */
+    @Test
+    void shouldOwnAndReleaseLock_whenConstructedWithHeldLock() throws Exception {
+        // GIVEN
+        underTest.close();
+        InstallationLock lock = InstallationLock.acquire( installation, InstallationLock.Kind.INSTALLATION );
+        // WHEN
+        try ( ManagedLaunchStore store = new ManagedLaunchStore( lock ) ) {
+            // THEN
+            assertThat( store.executable() ).isEqualTo( installation.resolve( "valheim_server.exe" ) );
+            assertThat( InstallationLock.tryAcquire( installation, InstallationLock.Kind.INSTALLATION ) ).isEmpty();
+        }
+        assertThat( lock.isHeld() ).isFalse();
+        underTest = new ManagedLaunchStore( installation );
+    }
+
+    /** A released lock cannot authorize a store, and the store does not reacquire it silently. */
+    @Test
+    void shouldRejectLock_whenItIsNoLongerHeld() throws Exception {
+        // GIVEN
+        underTest.close();
+        InstallationLock lock = InstallationLock.acquire( installation, InstallationLock.Kind.INSTALLATION );
+        lock.close();
+        // WHEN
+        var failure = catchThrowable( () -> new ManagedLaunchStore( lock ) );
+        // THEN
+        assertThat( failure ).isInstanceOf( IllegalArgumentException.class );
+        underTest = new ManagedLaunchStore( installation );
     }
 
     /** A token cannot redirect snapshots of an adopted server outside the panel's .vDeck directory. */

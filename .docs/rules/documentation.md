@@ -260,10 +260,16 @@ Javadoc jest wymagany nad:
 
 - każdą klasą, interfejsem, rekordem, typem wyliczeniowym i adnotacją;
 - każdym konstruktorem innym niż `private`;
-- każdym polem innym niż `private`, w tym nad publicznymi stałymi;
+- każdym polem innym niż `private`;
+- każdą stałą (`static final`) kodu produkcyjnego, **niezależnie od widoczności**, także `private`;
 - każdą metodą inną niż `private`.
 
-Metody i pola `private` dokumentujemy wtedy, gdy ich odpowiedzialność, założenia, algorytm lub skutki
+Stała zawsze ma Javadoc, bo jej wartość jest decyzją (limit, timeout, nazwa, format), której powodu
+ani jednostki nie widać z samego kodu. Opis mówi, co stała oznacza i do czego służy, a przy limitach
+i czasach także jednostkę oraz skutek przekroczenia. Wyjątkiem są tylko loggery generowane przez
+Lombok (`@Log4j2`).
+
+Pozostałe metody i pola `private` dokumentujemy wtedy, gdy ich odpowiedzialność, założenia, algorytm lub skutki
 uboczne nie są oczywiste z nazwy i kodu. Javadoc nie zastępuje właściwego nazewnictwa.
 
 Wygenerowane elementy oraz proste akcesory utworzone przez Lombok nie wymagają osobnego Javadoc,
@@ -297,7 +303,7 @@ final class ServerRuntime {
 Opis pola wyjaśnia jego znaczenie, jednostkę, dozwolone wartości albo rolę w cyklu życia obiektu.
 W szczególności należy dokumentować:
 
-- stałe i wartości konfiguracyjne;
+- stałe (zawsze, także prywatne — §4) i wartości konfiguracyjne;
 - współdzielony stan oraz zasady dostępu współbieżnego;
 - uchwyty i zasoby wymagające zamknięcia;
 - wartości opcjonalne, sentinel values oraz jednostki czasu lub rozmiaru.
@@ -421,6 +427,7 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
 
 - czy wszystkie nowe i zmodyfikowane typy mają aktualny Javadoc;
 - czy wszystkie nieprywatne pola, konstruktory i metody są udokumentowane;
+- czy każda stała kodu produkcyjnego, także `private`, ma Javadoc;
 - czy `@param`, `@return` i `@throws` odpowiadają rzeczywistej sygnaturze i zachowaniu;
 - czy złożone wejścia do procesów opisują warianty, stany i błędy;
 - czy zmiana nie unieważniła diagramu lub opisu w `.docs`;

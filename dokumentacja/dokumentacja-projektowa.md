@@ -21,6 +21,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [1.4 Budowanie dystrybucji](#14-budowanie-dystrybucji)
   - [1.5 Instrukcja obsługi](#15-instrukcja-obsługi)
   - [1.6 Ciągła integracja i wydania](#16-ciągła-integracja-i-wydania)
+  - [1.7 Launcher i automatyczna aktualizacja](#17-launcher-i-automatyczna-aktualizacja)
 - [2. Architektura aplikacji](#2-architektura-aplikacji)
   - [2.1 Podział na pakiety](#21-podział-na-pakiety)
   - [2.2 Start aplikacji](#22-start-aplikacji)
@@ -76,13 +77,18 @@ Wspierany jest wyłącznie Windows.
 | Moduł Maven | Odpowiedzialność | Stan |
 |---|---|---|
 | `vdeck-runtime` | Czysta Java: proces serwera i jego stan. Bez Springa. | Fasada runtime, kolejka zdarzeń i launcher Windows przez FFM |
-| `vdeck-runner` | Czysta Java: wykonywalny helper CTRL+C. Bez Springa. | `VdeckRunner`, samodzielny `vdeck-runner.jar`; uruchamianie panelu i aktualizacje pozostają przyszłym zakresem |
+| `vdeck-runner` | Czysta Java: wykonywalny helper CTRL+C. Bez Springa. | `VdeckRunner`, samodzielny `vdeck-runner.jar` |
+| `vdeck-launcher` | Czysta Java: program startowy, sprawdzenie i przygotowanie aktualizacji. Bez Springa. | `VdeckLauncher`, samodzielny `vdeck-launcher.jar` (sekcja [1.7](#17-launcher-i-automatyczna-aktualizacja)) |
+| `vdeck-updater` | Czysta Java: dziennikowana podmiana plików, scalanie ustawień, recovery. Bez Springa i sieci. | `VdeckUpdater`, samodzielny `vdeck-updater.jar` uruchamiany z executora |
 | `vdeck-app` | Aplikacja Spring Boot: web, bezpieczeństwo, konfiguracja, persystencja. | Feature'y panelu, w tym walidacja i przygotowanie startu |
-| `.dist` (`vdeck-dist`) | Końcowy moduł pakujący. | ZIP z oboma JAR-ami, JRE 25, BAT-em, README, instrukcją obsługi PDF i domyślną konfiguracją |
+| `.dist` (`vdeck-dist`) | Końcowy moduł pakujący. | ZIP z czterema JAR-ami, JRE 25, BAT-em, README, instrukcją obsługi PDF i domyślną konfiguracją |
 
-`vdeck-app` i `vdeck-runner` zależą od `vdeck-runtime`, bez zależności między sobą.
-Runtime otrzymuje gotowy bean `ConsoleControlSender` i nie zna modułu runnera.
-Moduł `.dist` zależy od obu wykonywalnych modułów, aby pakować ich gotowe artefakty.
+`vdeck-app`, `vdeck-runner`, `vdeck-launcher` i `vdeck-updater` zależą od `vdeck-runtime`, bez zależności
+między sobą; launcher uruchamia updater i panel wyłącznie jako osobne procesy. Wspólny kontrakt startu
+i aktualizacji leży w pakiecie `runtime.installation`. Runtime otrzymuje gotowy bean `ConsoleControlSender`
+i nie zna modułu runnera. Moduł `.dist` zależy od czterech wykonywalnych modułów, aby pakować ich
+gotowe artefakty. Launcher dodatkowo korzysta z `tools.jackson.core:jackson-core` (strumieniowy
+parser JSON odpowiedzi GitHuba).
 
 Stos: Java 25, Maven (wrapper 3.9.16), Spring Boot 4.1.0, Spring MVC + Thymeleaf, Spring Security,
 Spring Data JPA + SQLite (`org.xerial:sqlite-jdbc`), Log4j2 jako jedyne API i backend logowania,
@@ -101,23 +107,26 @@ tak aby `start-vDeck.bat` leżał obok `valheim_server.exe`:
 D:\sciezka\do\instalacji\start-vDeck.bat
 ```
 
-Oba JAR-y leżą w podkatalogu `lib`. Skrypt ustawia katalog roboczy na swój katalog i uruchamia
-`jre\bin\java.exe -jar lib\vdeck.jar` z `--enable-native-access=ALL-UNNAMED`
-i jawnym `-Dvdeck.server-directory` równym katalogowi skryptu — bez niego `ApplicationHome`
-wskazałby `lib`. Na początku skryptu zmienna `ADDRESS` (domyślnie `127.0.0.1`) ustawia adres
-nasłuchu przekazywany jako `--server.address`, a zmienna `PORT` (domyślnie `8085`) port przekazywany
-jako `--server.port`. Adres inny niż `127.0.0.1` wystawia panel HTTP do sieci, więc należy go używać
-tylko w zaufanej sieci. Inne dodatkowe argumenty skryptu trafiają do Springa; portu nie
-należy podawać jako argumentu, bo zdublowana właściwość daje wartość `8085,8086`.
-Brak JRE lub JAR-a przerywa uruchomienie z komunikatem. Skrypt nie korzysta z Javy z `PATH`.
+Wszystkie JAR-y leżą w podkatalogu `lib`. Skrypt ustawia katalog roboczy na swój katalog i uruchamia
+launcher `jre\bin\java.exe -Xmx32m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -jar lib\vdeck-launcher.jar`
+z jawnym `-Dvdeck.server-directory` równym katalogowi skryptu — bez niego `ApplicationHome`
+wskazałby `lib`. Launcher (sekcja [1.7](#17-launcher-i-automatyczna-aktualizacja)) czyta
+`.vDeck/config/vDeck-start.properties`: `panel.address` (domyślnie `127.0.0.1`) przekazuje panelowi
+jako `--server.address`, `panel.port` (domyślnie `8085`) jako `--server.port`, a `update.enabled`
+(domyślnie `true`) włącza automatyczne aktualizacje. Panel startuje z `--enable-native-access=ALL-UNNAMED`.
+Adres inny niż `127.0.0.1` wystawia panel HTTP do sieci, więc należy go używać tylko w zaufanej sieci.
+Inne dodatkowe argumenty skryptu trafiają do Springa; portu nie należy podawać jako argumentu,
+bo zdublowana właściwość daje wartość `8085,8086`. Brak JRE lub JAR-a przerywa uruchomienie
+z komunikatem. Skrypt nie korzysta z Javy z `PATH`.
 Helper CTRL+C używa `javaw.exe` z tego samego JRE. Domyślny adres panelu:
 `http://127.0.0.1:8085`; pierwsze logowanie to `admin` / `admin` z wymuszoną zmianą hasła.
 
-Artefakt aplikacji ma stałą nazwę `vdeck.jar`, a helper `vdeck-runner.jar`.
+Artefakty mają stałe nazwy `vdeck.jar`, `vdeck-runner.jar`, `vdeck-launcher.jar` i `vdeck-updater.jar`.
 Katalog instalacyjny opisuje sekcja [3.3](#33-rozwiązywanie-ścieżek). Paczka zawiera szablony
-`.vDeck/config/vDeck.properties` i `.vDeck/config/valheim-server.properties`; baza `vdeck.db`
-powstaje przy pierwszym uruchomieniu. Paczka służy pierwszej instalacji: przy wymianie wersji
-należy zachować istniejące ustawienia, bazę i światy zamiast nadpisywać je szablonami.
+`.vDeck/config/vDeck.properties`, `.vDeck/config/valheim-server.properties` i
+`.vDeck/config/vDeck-start.properties`; baza `vdeck.db` powstaje przy pierwszym uruchomieniu.
+Paczka służy pierwszej instalacji; kolejne wersje instaluje automatyczna aktualizacja, która
+zachowuje ustawienia, bazę i światy.
 
 Uruchomienie z IDE lub przez `spring-boot:run` **wymaga** wskazania katalogu instalacyjnego, ponieważ
 bez niego `ApplicationHome` wskazuje na `vdeck-app/target/classes`:
@@ -140,11 +149,11 @@ Pełny build z głównego katalogu repozytorium wymaga JDK 25:
 
 Wynik to `target/vDeck-dist-<wersja projektu>.zip`; wersja pochodzi z głównego `pom.xml`.
 ZIP nie zawiera dodatkowego katalogu nadrzędnego. Skład paczki określa `.dist/assembly.xml`:
-oba JAR-y w `lib`, `start-vDeck.bat`, README.md, README.txt, instrukcję obsługi `vDeck-instrukcja.pdf`,
-dwa pliki `.vDeck/config/*.properties` i pełny katalog `jre` z informacjami licencyjnymi. Baza, logi, pliki builda i cache pobrań
+cztery JAR-y w `lib`, `start-vDeck.bat`, README.md, README.txt, instrukcję obsługi `vDeck-instrukcja.pdf`,
+trzy pliki `.vDeck/config/*.properties` i pełny katalog `jre` z informacjami licencyjnymi. Baza, logi, pliki builda i cache pobrań
 nie są pakowane. Pliki Valheim instaluje się osobno.
 
-Końcowy moduł `.dist` wymusza kolejność przez zależności od aplikacji i runnera.
+Końcowy moduł `.dist` wymusza kolejność przez zależności od aplikacji, runnera, launchera i updatera.
 W `prepare-package` Maven AntRun pobiera przypięte wydanie Temurin JRE 25 dla Windows x64
 i sprawdza SHA-256 z `.dist/pom.xml` przed rozpakowaniem. Błąd pobrania, sumy lub struktury JRE
 przerywa build. Każdy build odtwarza `.dist/jre`, aby usunąć pozostałości poprzedniego wydania.
@@ -197,8 +206,10 @@ Release powstaje wyłącznie wtedy, gdy jednocześnie (AD-023):
 W każdym innym przypadku job uruchamia tylko `mvnw test` i loguje powód pominięcia releasu. Dla
 wydania wykonuje `mvnw clean package` (testy, JRE, PDF instrukcji, ZIP — sekcja
 [1.4](#14-budowanie-dystrybucji)), sprawdza obecność `target/vDeck-dist-<wersja>.zip` i przez
-`gh release create` publikuje GitHub Release `vDeck <wersja>` z tym ZIP-em. Polecenie tworzy tag
-`v<wersja>` na budowanym commicie, a opis wydania generuje z historii zmian. Błąd odczytu tagów
+`gh release create --latest` publikuje GitHub Release `vDeck <wersja>` z tym ZIP-em, oznaczony jako
+najnowszy, bo z niego aktualizują się zainstalowane kopie (sekcja [1.7](#17-launcher-i-automatyczna-aktualizacja)).
+Polecenie tworzy tag `v<wersja>` na budowanym commicie, a opis wydania generuje z historii zmian.
+Repozytorium ma włączone immutable releases, więc opublikowany zasób nie może zostać podmieniony. Błąd odczytu tagów
 przerywa job zamiast traktować tag jako nieistniejący. Przy nieudanym buildzie raporty Surefire
 trafiają do artefaktu `surefire-reports` (retencja 7 dni). Każdy ref ma osobną grupę współbieżności
 w obrębie workflow. Na `main` działa jeden build naraz, a do 100 kolejnych czeka w kolejce
@@ -219,6 +230,121 @@ podnosi się do następnego `-SNAPSHOT`.
 ![Diagram przepływu: ciągła integracja i wydania vDeck](diagramy/wspolne/img/przeplyw-ci-wydanie.svg)
 
 Źródło diagramu: [`diagramy/wspolne/przeplyw-ci-wydanie.mmd`](diagramy/wspolne/przeplyw-ci-wydanie.mmd)
+
+### 1.7 Launcher i automatyczna aktualizacja
+
+Automatyczna aktualizacja działa wyłącznie przy starcie (AD-024): skrypt → launcher → sprawdzenie →
+ewentualna aktualizacja → panel. Wspólny kontrakt — blokady, przekazanie kontroli, stałe ścieżki,
+nagłówek dziennika, lista plików paczki — leży w `com.github.pplociennik.vdeck.runtime.installation`.
+
+**Blokady.** Każdy start zdobywa bez czekania bramkę `.vDeck/startup.lock` (`InstallationLock.Kind.STARTUP_GATE`)
+i blokadę instalacji `.vDeck/vdeck.lock` (`InstallationOwnership.tryTake`). Zajęta blokada kończy start
+komunikatem, bez sprzątania. Dopiero właściciel obu blokad usuwa stare deskryptory przekazania,
+stosuje retencję logów i rozpoznaje dziennik `UpdateCleanup.inspect()`:
+
+| Stan `.vDeck/update/apply.journal` | Działanie launchera |
+|---|---|
+| brak | usunięcie nieopublikowanych `executor`, `staged`, `merged`, `download`, `.tmp-*` |
+| `COMMITTED` albo `ROLLED_BACK` | przeniesienie dziennika do `update/backup/apply-<id>.journal`, potem usunięcie plików roboczych |
+| inny albo nieczytelny | przekazanie instalacji updaterowi z executora w trybie `--recover`; brak executora zatrzymuje start |
+
+**Ustawienia startu.** `StartSettings` czyta `vDeck-start.properties` (tworzy go z wartościami domyślnymi,
+gdy brakuje). Brak klucza oznacza wartość domyślną, błędna wartość (`panel.port` poza 1–65535, adres
+spoza IPv4/IPv6/nazwy hosta, `update.enabled` inne niż `true`/`false`) zatrzymuje start komunikatem
+z nazwą klucza (`InvalidStartSettingException`).
+
+**Sprawdzenie i przygotowanie.** Launcher sprawdza aktualizacje tylko przy `update.enabled=true`, wersji
+wydania (manifest `Implementation-Version` bez `-SNAPSHOT`), bez `--after-update` i gdy
+`ServerActivityCheck` nie wykrywa `server.pid` ani procesu `valheim_server.exe` tej instalacji.
+`UpdatePreparation` wykonuje w jednym wątku, pod jednym monotonicznym sufitem bezpieczeństwa
+60 minut (AD-027):
+
+1. `GitHubReleaseClient`: `GET https://api.github.com/repos/Pplociennik/vDeck/releases/latest`, połączenie
+   do 5 s, pełna odpowiedź do 15 s i 1 MiB. Wymaga tagu `v<MAJOR.MINOR.PATCH>`, dokładnie jednego zasobu
+   `vDeck-dist-<wersja>.zip`, rozmiaru 1 B–512 MiB, pola `digest` `sha256:<64 hex>` i adresu HTTPS
+   `github.com/Pplociennik/vDeck/releases/download/…`. `404` oznacza brak wydania. Instalowana jest tylko
+   wersja ściśle nowsza (`ReleaseVersion`); nie ma obniżania wersji.
+2. `ReleaseDownloader`: strumieniowe pobranie do `.part` z SHA-256 w locie, dokładnie zadeklarowany
+   rozmiar, porównanie skrótu w stałym czasie, publikacja przez atomowy rename. Nagłówki muszą przyjść
+   w 30 s. Strażnik bezczynności zamyka strumień, gdy przez 30 s (`STALL_TIMEOUT`) nie przyszedł żaden
+   bajt, co przerywa także zablokowany odczyt; wolne, ale postępujące pobieranie trwa aż do sufitu.
+   Co 10 s (`PROGRESS_INTERVAL`) konsola pokazuje postęp, np.
+   `Pobieranie: 42,0 z 98,3 MB (42%), 0,8 MB/s`.
+3. `PackageExtractor`: rozpakowanie biblioteką zip4j do `.tmp-staged-<uuid>`; zip4j odrzuca wpisy
+   wychodzące poza ten katalog. Paczka ma już potwierdzony skrót SHA-256 z API, a updater instaluje
+   wyłącznie pozycje `DistributionItem`, więc własna walidacja nazw wpisów nie jest potrzebna. Po
+   rozpakowaniu `DurableFiles.forceTree` zrzuca pliki na dysk. Wymaga kompletu plików, wersji wydania w manifestach launchera i updatera oraz obsługiwanego
+   protokołu recovery (`Vdeck-Recovery-Protocol: 1`). Publikacja jako `staged` przez atomowy rename.
+4. `UpdateExecutorPreparation`: kopia `staged/jre` i `vdeck-updater.jar` do `.tmp-executor-<uuid>`,
+   każda zweryfikowana skrótem, i publikacja jako `executor`.
+
+Po przekroczeniu sufitu wątek główny wywołuje `HttpClient.shutdownNow()`, przerywa wątek roboczy
+i czeka na jego zakończenie (`UpdatePreparationException.isWorkerStopped()`); dopiero wtedy usuwa
+pliki robocze i uruchamia bieżącą wersję. Każdy błąd przygotowania kończy się startem bieżącej wersji.
+
+**Przekazanie kontroli.** `SuccessorStarter` uruchamia następcę w tej samej konsoli z `--handoff <id>`,
+a `HandoffProtocol` publikuje w `.vDeck/handoff` jednorazowy deskryptor z rolą (`HandoffRole`)
+i tożsamościami obu procesów, zwalnia tylko `vdeck.lock` i czeka do 10 s na potwierdzenie. Następca
+sprawdza rolę, własną tożsamość i tożsamość rzeczywistego rodzica, przejmuje blokadę i zapisuje
+potwierdzenie. Bez potwierdzenia poprzednik kończy własnego następcę i odzyskuje blokadę albo
+zatrzymuje się bez zmian. Panel przejmuje blokadę przed Springiem w `InstallationLockService`;
+launcher trzyma bramkę aż do zakończenia panelu i zwraca jego kod wyjścia.
+
+![Diagram przepływu: start vDeck przez launcher i automatyczna aktualizacja](diagramy/wspolne/img/przeplyw-start-i-aktualizacja.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-start-i-aktualizacja.mmd`](diagramy/wspolne/przeplyw-start-i-aktualizacja.mmd)
+
+![Diagram sekwencji: potwierdzane przekazanie blokady instalacji następcy](diagramy/wspolne/img/przeplyw-przekazanie-blokady.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-przekazanie-blokady.mmd`](diagramy/wspolne/przeplyw-przekazanie-blokady.mmd)
+
+**Transakcja updatera.** `VdeckUpdater` działa wyłącznie z `executor`, więc może podmienić zainstalowane
+`jre` i `lib`. Po przejęciu blokad i bramki ponownie sprawdza serwer i kompletność `staged`, usuwa
+backup poprzedniej aktualizacji, a `UpdatePlan` scala ustawienia do `update/merged` i liczy skróty.
+`UpdateJournal` utrwala stan `PREPARED` przed pierwszą zmianą. `FileReplacer` dla katalogu wykonuje
+rename instalacja → backup i staged → instalacja, a dla pliku trwałą kopię oryginału do backupu
+i jeden atomowy rename nowej treści, więc BAT ani ustawienia nigdy nie znikają. Każdy krok zapisuje
+zamiar przed akcją i potwierdzenie po niej. `COMMITTED` następuje po sprawdzeniu kompletu plików,
+skrótów i wersji zainstalowanego launchera. Przy błędzie `UpdateRollback` cofa operacje od końca,
+rozpoznając stan z rzeczywistych plików; jest idempotentny także po przerwaniu i nie usuwa pliku
+o nieoczekiwanej tożsamości. Po stanie terminalnym updater przekazuje instalację zainstalowanemu
+launcherowi z `--after-update`. Nieudany rollback albo nieczytelny dziennik zatrzymuje start
+z instrukcją naprawy; dziennik i kopie zostają.
+
+Plik z dziennikiem jest jedynym sygnałem dla `start-vDeck.bat`: jego istnienie uruchamia
+`.vDeck\update\executor\jre\bin\java.exe -jar .vDeck\update\executor\vdeck-updater.jar --recover`,
+więc recovery działa także bez zainstalowanego `jre` i `lib`. Wywołanie Javy w skrypcie jest jednym
+blokiem zakończonym w tej samej linii `call exit /b %%^ERRORLEVEL%%`, dzięki czemu podmiana BAT-a
+w trakcie działania jest bezpieczna.
+
+![Diagram stanów: transakcja aktualizacji zapisana w apply.journal](diagramy/wspolne/img/przeplyw-transakcja-aktualizacji.svg)
+
+Źródło diagramu: [`diagramy/wspolne/przeplyw-transakcja-aktualizacji.mmd`](diagramy/wspolne/przeplyw-transakcja-aktualizacji.mmd)
+
+**Scalanie ustawień (AD-025).** `PropertiesMerger` traktuje szablon nowej wersji jako wzorzec: klucz obecny
+w obu plikach zachowuje wartość użytkownika (także pustą), nowy klucz dostaje wartość domyślną,
+klucz usunięty z szablonu znika. Komentarze i kolejność pochodzą z szablonu, wynik jest ASCII
+(`\uXXXX`), a log zawiera tylko nazwy dodanych i usuniętych kluczy. `DistributionTemplatesTest`
+i `StartSettingsTest` pilnują, by szablony `.dist` miały dokładnie klucze i wartości domyślne enumów.
+
+**Logi uruchomień.** `LauncherMain` i `UpdaterMain` nie mają loggera: przed inicjalizacją Log4j2
+tworzą plik `.vDeck/logs/launcher|updater/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>[-n].log` (`RunLogFile`)
+i przekazują go przez `vdeck.log.file`. Plik zawiera angielski przebieg od `DEBUG`, konsola —
+polskie komunikaty loggera `vdeck.console` (`UserConsole`). Kod przekazuje konsoli tylko klucz
+(`ConsoleMessage`, `LauncherMessage`, `UpdaterMessage`), a `I18n` czyta tekst z
+`vdeck-runtime/src/main/resources/console-messages.properties` i formatuje go przez `MessageFormat`
+z polskim formatem liczb. Plik obraca się raz po 10 MiB, a
+`RunLogRetention` usuwa dni starsze niż 30, dopiero po zdobyciu blokad. Gdy pliku nie da się
+utworzyć, uruchomienie loguje tylko na konsolę.
+
+![Diagram klas: moduły launchera, updatera i wspólny kontrakt instalacji](diagramy/wspolne/img/klasy-aktualizacja.svg)
+
+Źródło diagramu: [`diagramy/wspolne/klasy-aktualizacja.mmd`](diagramy/wspolne/klasy-aktualizacja.mmd)
+
+Ograniczenia: aktualizacja wymaga zatrzymanego panelu i serwera; paczka nie jest podpisana — zaufanie
+opiera się na HTTPS, zapisanym w kodzie repozytorium i skrócie z API; kopia `update/backup` zajmuje
+miejsce jednej wersji do następnej aktualizacji; ręczne cofnięcie nie cofa zmian bazy wykonanych
+przez nową wersję; gwarancja dotyczy przerwania procesu, nie bezwarunkowej odporności na zanik zasilania.
 
 ---
 
@@ -251,7 +377,10 @@ Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, 
 bazy, przygotowanie plików ustawień i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
 bazowego przerywa start, zamiast pozwolić aplikacji działać z niepoprawną konfiguracją.
 
-`VdeckApplication.main()` uruchamia wyłącznie Springa. `config.ConsoleControlConfiguration`
+`VdeckApplication.main()` oddaje start `shared.lock.InstallationLockService`, jedynemu miejscu obsługi
+blokady panelu. Przy uruchomieniu przez launcher (`-Dvdeck.handoff=<id>`) serwis najpierw przejmuje
+blokadę instalacji i rejestruje ją jako bean `installationLock`, którego właścicielem zostaje
+`ManagedLaunchStore`; potem uruchamia wyłącznie Springa i zwalnia blokadę, gdy start się nie powiedzie. `config.ConsoleControlConfiguration`
 tworzy bean `ConsoleControlSender`, który przy starcie nie tworzy procesu ani wątku oczekującego.
 `ServerRuntimeConfiguration` wstrzykuje go do runtime. Osobny punkt wejścia helpera należy do
 modułu runnera; jego kontrakt opisuje [5.9](#59-techniczny-helper-ctrlc).
@@ -1221,7 +1350,11 @@ Zaimplementowane mechanizmy przekrojowe:
   początkowym poza tym adresem osiąga tylko katalogi zasobów statycznych `/css/`, `/icons/`
   i `/img/`; wyjątek jest dopasowywany po początku ścieżki i nie zdejmuje wymagania roli.
 - **Ekspozycja sieciowa.** Adres nasłuchu nie jest ograniczony w pliku aplikacji; lokalne uruchomienie
-  wymaga jawnego `--server.address=127.0.0.1`.
+  wymaga jawnego `--server.address=127.0.0.1`, które launcher przekazuje z `panel.address`.
+- **Aktualizacje.** Kod z paczki uruchamia się dopiero po HTTPS, zgodności rozmiaru i SHA-256 z API
+  GitHuba oraz walidacji rozpakowania; adres repozytorium jest zapisany w kodzie, a wydania są
+  niezmienne. Bez podwyższania uprawnień. Ścieżki podmiany pochodzą z zamkniętej listy, dziennik
+  jest traktowany jako niezaufane wejście, a katalogi są sprawdzane pod kątem przekierowań.
 - **Granice systemu plików.** Każda skonfigurowana ścieżka przechodzi przez `PathService` i nie może
   opuścić katalogu instalacyjnego — także przez dowiązania i junction (patrz [3.3](#33-rozwiązywanie-ścieżek)).
 - **Trwałość ustawień.** Zapis pliku ustawień jest atomowy i wymuszony na urządzenie, więc utrata
@@ -1261,6 +1394,10 @@ Zdarzenia rejestrowane obecnie:
 Żaden komunikat nie zawiera hasła, hasha ani wartości ustawień. Wpis o odrzuconej zmianie hasła
 zawiera wyłącznie nazwę komunikatu, a nie wprowadzone wartości ani nazwę konta.
 
+Launcher i updater zapisują osobny plik logu każdego uruchomienia (sekcja
+[1.7](#17-launcher-i-automatyczna-aktualizacja)): wersje, zasób, rozmiar, wynik weryfikacji,
+identyfikator transakcji i każdy krok podmiany, bez treści odpowiedzi API i wartości ustawień.
+
 Feature `server` loguje żądanie i przyjęcie startu, ścieżkę logu, retencję oraz zmiany stanu na `INFO`.
 Przyczyny walidacji trafiają na `DEBUG`, a odrzucenie obsługiwane przez `ServerExceptionHandler`
 na `INFO`. Błąd tworzenia procesu zachowuje stack trace na `ERROR`; błąd zapisu skryptu lustrzanego
@@ -1277,6 +1414,10 @@ Windows ze stanem procesu opisanym w [5.7](#57-uruchamianie-serwera).
 
 Zaimplementowano również izolowany helper CTRL+C i sprawdzanie tożsamości procesu, opisane
 w [5.9](#59-techniczny-helper-ctrlc); Stop, Kill, snapshoty i minimalne recovery opisuje [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie).
+Launcher, automatyczna aktualizacja vDecka i recovery przerwanej aktualizacji opisuje
+[1.7](#17-launcher-i-automatyczna-aktualizacja); podmianę i recovery potwierdziła próba na paczkach
+testowych, a pierwszej aktualizacji z prawdziwego wydania GitHuba nie można sprawdzić przed publikacją
+dwóch wydań.
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
 Restart z GUI, ekran zarządzania światami i kopiami, restore, podgląd logów, listy
@@ -1309,7 +1450,9 @@ Znane ograniczenia stanu bieżącego:
   procesu i **nie** przechodzi przez `PathService`;
 - pliki ustawień są czytane wyłącznie przy starcie, więc ręczna edycja wymaga restartu panelu;
 - zapis pliku ustawień gubi komentarze i kolejność kluczy;
-- brak testów ArchUnit egzekwujących opisane granice pakietów.
+- brak testów ArchUnit egzekwujących opisane granice pakietów;
+- automatyczna aktualizacja jest pomijana, gdy działa panel albo serwer; przerwana aktualizacja bez
+  kompletnego executora wymaga ręcznej naprawy z kopii `.vDeck/update/backup`.
 
 ## 10. Indeks diagramów
 
@@ -1330,6 +1473,10 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Diagram | Rodzaj | Obrazek | Źródło | Opisany w |
 |---|---|---|---|---|
 | Ciągła integracja i wydania | przepływ | [`img/przeplyw-ci-wydanie.svg`](diagramy/wspolne/img/przeplyw-ci-wydanie.svg) | [`diagramy/wspolne/przeplyw-ci-wydanie.mmd`](diagramy/wspolne/przeplyw-ci-wydanie.mmd) | [1.6](#16-ciągła-integracja-i-wydania) |
+| Start przez launcher i aktualizacja | przepływ | [`img/przeplyw-start-i-aktualizacja.svg`](diagramy/wspolne/img/przeplyw-start-i-aktualizacja.svg) | [`diagramy/wspolne/przeplyw-start-i-aktualizacja.mmd`](diagramy/wspolne/przeplyw-start-i-aktualizacja.mmd) | [1.7](#17-launcher-i-automatyczna-aktualizacja) |
+| Przekazanie blokady instalacji | sekwencja | [`img/przeplyw-przekazanie-blokady.svg`](diagramy/wspolne/img/przeplyw-przekazanie-blokady.svg) | [`diagramy/wspolne/przeplyw-przekazanie-blokady.mmd`](diagramy/wspolne/przeplyw-przekazanie-blokady.mmd) | [1.7](#17-launcher-i-automatyczna-aktualizacja) |
+| Transakcja aktualizacji | stany | [`img/przeplyw-transakcja-aktualizacji.svg`](diagramy/wspolne/img/przeplyw-transakcja-aktualizacji.svg) | [`diagramy/wspolne/przeplyw-transakcja-aktualizacji.mmd`](diagramy/wspolne/przeplyw-transakcja-aktualizacji.mmd) | [1.7](#17-launcher-i-automatyczna-aktualizacja) |
+| Launcher, updater i kontrakt instalacji | klasy | [`img/klasy-aktualizacja.svg`](diagramy/wspolne/img/klasy-aktualizacja.svg) | [`diagramy/wspolne/klasy-aktualizacja.mmd`](diagramy/wspolne/klasy-aktualizacja.mmd) | [1.7](#17-launcher-i-automatyczna-aktualizacja) |
 | Start aplikacji vDeck | przepływ | [`img/przeplyw-start-aplikacji.svg`](diagramy/wspolne/img/przeplyw-start-aplikacji.svg) | [`diagramy/wspolne/przeplyw-start-aplikacji.mmd`](diagramy/wspolne/przeplyw-start-aplikacji.mmd) | [2.2](#22-start-aplikacji) |
 | Obsługa wyjątków | przepływ | [`img/przeplyw-obsluga-wyjatkow.svg`](diagramy/wspolne/img/przeplyw-obsluga-wyjatkow.svg) | [`diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd`](diagramy/wspolne/przeplyw-obsluga-wyjatkow.mmd) | [2.3](#23-obsługa-wyjątków) |
 | Infrastruktura konfiguracji | klasy | [`img/klasy-konfiguracja.svg`](diagramy/wspolne/img/klasy-konfiguracja.svg) | [`diagramy/wspolne/klasy-konfiguracja.mmd`](diagramy/wspolne/klasy-konfiguracja.mmd) | [3.4](#34-komponenty-konfiguracji) |

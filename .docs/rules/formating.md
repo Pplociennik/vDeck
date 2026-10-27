@@ -120,11 +120,41 @@ Ta sekcja go nie zmienia i nie stosuje się do klas testowych.
 
 ## 6. Puste linie
 
-- Pojedyncza pusta linia rozdziela kolejne pola, kolejne metody oraz logiczne kroki wewnątrz dłuższej
-  metody.
+- Pojedyncza pusta linia rozdziela kolejne pola i kolejne metody.
+- Wewnątrz metody pojedyncza pusta linia rozdziela logiczne bloki, żeby człowiek widział kroki bez
+  czytania każdej linii. Osobnym blokiem jest zwykle:
+  - walidacja argumentów (`requireNonNull`) i warunki wczesnego wyjścia;
+  - przygotowanie danych lub zasobów do jednego kroku;
+  - wywołanie zmieniające stan albo wykonujące I/O;
+  - obsługa wyniku, logowanie i `return`;
+  - instrukcja złożona (`if`, `for`, `try`, `switch`) z liniami, które bezpośrednio jej dotyczą.
+- Linie należące do jednego kroku zostają razem; nie wstawiamy pustej linii po każdej instrukcji.
+  Metoda z jednym krokiem nie potrzebuje pustych linii.
+- Komentarz `//` opisujący blok stoi bezpośrednio nad nim, a pusta linia nad komentarzem.
 - Pusta linia występuje po deklaracji pakietu i po bloku importów.
 - Nie zostawiamy pustej linii bezpośrednio po klamrze otwierającej klasę lub metodę ani bezpośrednio
   przed klamrą zamykającą.
+
+```java
+Path download( @Nonnull ReleaseAsset asset, @Nonnull Path directory, @Nonnull Deadline deadline )
+        throws IOException {
+    requireNonNull( asset, "asset must not be null" );
+    requireNonNull( directory, "directory must not be null" );
+    requireNonNull( deadline, "deadline must not be null" );
+
+    Path part = directory.resolve( asset.name() + ".part" );
+    Path target = directory.resolve( asset.name() );
+    Files.deleteIfExists( part );
+    Files.deleteIfExists( target );
+
+    log.info( "Downloading {} ({} bytes)", asset.name(), asset.size() );
+    HttpResponse< InputStream > response = send( request( asset, deadline ) );
+
+    String digest = copy( response.body(), part, asset.size(), deadline );
+    verify( asset, digest );
+    return publish( part, target );
+}
+```
 
 ## 7. Adnotacje
 
@@ -169,6 +199,7 @@ PathService pathService( @Value( "${vdeck.server-directory:}" ) @Nullable String
 - czy żadna linia nie przekracza 125 znaków;
 - czy nawiasy z treścią mają spacje wewnętrzne, a puste listy argumentów ich nie mają;
 - czy metody publiczne znajdują się nad wszystkimi metodami o węższej widoczności;
+- czy logiczne bloki wewnątrz metod są rozdzielone pojedynczą pustą linią;
 - czy importy są pogrupowane, posortowane i nie zawierają nieużywanych ani gwiazdkowych;
 - czy pliki `.properties` nie zawierają znaków spoza ASCII;
 - czy nie przeformatowano fragmentów niezwiązanych z zakresem zmiany.

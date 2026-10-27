@@ -301,7 +301,8 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 
 ## AD-021 — Dystrybucja ZIP z dołączonym JRE 25
 
-- **Status:** obowiązująca (2026-10-12), zaakceptowana przez użytkownika.
+- **Status:** obowiązująca (2026-10-12), zaakceptowana przez użytkownika; adres i port panelu oraz
+  rola skryptu BAT zastąpione przez AD-024 i AD-026 (2026-10-27).
 - **Decyzja:** Katalog `.dist` zawiera skrypt BAT, README w formatach Markdown i tekstowym oraz
   szablony `.vDeck/config/*.properties`. Końcowy moduł Maven `vdeck-dist` kopiuje do jego
   podkatalogu `lib` oba wykonywalne JAR-y przez Maven Resources i pakuje zawartość przez Maven Assembly do
@@ -344,3 +345,63 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** `.github/workflows/build.yml` na `windows-latest` testuje każdy push i PR, a push na `main` z wersją bez `-SNAPSHOT` i bez tagu `v<wersja>` publikuje Release z `vDeck-dist-<wersja>.zip`.
 - **Powód:** Paczka ma powstawać powtarzalnie z przetestowanego `main`, nie lokalnie.
 - **Konsekwencja:** Wydanie wymaga ręcznej zmiany wersji we wszystkich POM-ach; `-SNAPSHOT` nie trafia do Releases.
+
+## AD-024 — Automatyczna aktualizacja przy starcie: launcher, updater i recovery
+
+- **Status:** obowiązująca (2026-10-27), zaakceptowana przez użytkownika; deadline 5 minut
+  wycofany (2026-10-27, zastąpiony przez AD-027).
+- **Decyzja:** Skrypt startowy uruchamia wyłącznie launcher (`vdeck-launcher`, czysta Java). Przy
+  każdym starcie launcher zdobywa bramkę `.vDeck/startup.lock` i blokadę `.vDeck/vdeck.lock`,
+  a przy `update.enabled=true`, wersji wydania i zatrzymanym serwerze sprawdza najnowszy Release
+  GitHuba. Nowszą paczkę pobiera przez HTTPS, weryfikuje SHA-256 z pola `digest` API,
+  bezpiecznie rozpakowuje do `.vDeck/update/staged` i kopiuje JRE oraz updater do niezależnego
+  `.vDeck/update/executor`. Podmianę wykonuje osobny moduł `vdeck-updater`, uruchomiony z executora,
+  w dziennikowanej transakcji `apply.journal` (zamiar przed każdą operacją, atomowe rename,
+  idempotentny rollback). Procesy przekazują sobie blokadę instalacji przez jednorazowy, potwierdzany
+  deskryptor w `.vDeck/handoff`; panel przejmuje ją przed startem Springa. Istniejący dziennik
+  sprawia, że skrypt uruchamia recovery z executora, także bez zainstalowanego `jre` i `lib`.
+- **Powód:** Ręczna aktualizacja nadpisywała ustawienia użytkownika. Działający JVM nie może
+  podmienić własnego JRE i JAR-ów w Windows, więc podmiana musi działać z osobnej kopii, a każde
+  przerwanie musi dać się cofnąć bez instalowanego środowiska.
+- **Konsekwencja:** Aktualizacja odbywa się tylko przy starcie, przy zatrzymanym panelu i serwerze,
+  nigdy nie obniża wersji i nie wymaga uprawnień administratora. Błąd sprawdzania lub pobierania
+  (deadline 5 minut, aktywne przerwanie zablokowanego odczytu) nie blokuje startu bieżącej wersji;
+  start blokują tylko nieudane recovery, błędne ustawienia startu i zajęta instalacja. Oryginały
+  ostatniej transakcji zostają w `.vDeck/update/backup` do następnej aktualizacji. Repozytorium
+  ma włączone immutable releases, a workflow oznacza wydanie jako `--latest`. Każde uruchomienie
+  launchera i updatera zapisuje własny log w `.vDeck/logs/launcher|updater/<dzień>/` (retencja 30 dni).
+  Launcher czekający na panel działa z `-Xmx32m` (zmierzone ok. 60 MB pamięci roboczej),
+  co jest świadomym kosztem wobec AD-001. Brak podpisu paczki: zaufanie opiera się na HTTPS,
+  repozytorium zapisanym w kodzie i skrócie z API.
+
+## AD-025 — Scalanie plików ustawień przy aktualizacji
+
+- **Status:** obowiązująca (2026-10-27), zaakceptowana przez użytkownika.
+- **Decyzja:** Updater scala każdy plik `.vDeck/config/*.properties` z szablonem nowej wersji:
+  klucz obecny w obu zachowuje wartość użytkownika (także pustą), klucz tylko w szablonie dostaje
+  wartość domyślną, a klucz nieobecny w szablonie znika. Kolejność i komentarze pochodzą z szablonu.
+- **Powód:** Użytkownik nie może tracić konfiguracji, a pliki nie mogą gromadzić martwych kluczy.
+- **Konsekwencja:** Szablony w `.dist/.vDeck/config` muszą zawierać dokładnie klucze i wartości
+  domyślne enumów `VdeckProperty`, `LaunchProperty` oraz ustawień startu; pilnują tego testy.
+  Wynik jest ASCII z sekwencjami `\uXXXX`, a log zawiera tylko nazwy kluczy, nigdy wartości.
+
+## AD-026 — Ustawienia startu w `vDeck-start.properties`
+
+- **Status:** obowiązująca (2026-10-27), zaakceptowana przez użytkownika.
+- **Decyzja:** Adres (`panel.address`), port (`panel.port`) i włączenie automatycznych aktualizacji
+  (`update.enabled`) leżą w `.vDeck/config/vDeck-start.properties`, czytanym przez launcher.
+  `start-vDeck.bat` nie zawiera ustawień: sprawdza tylko istnienie dziennika aktualizacji
+  i wywołuje launcher albo recovery w jednym, wcześniej sparsowanym bloku.
+- **Powód:** Edytowany przez użytkownika BAT byłby nadpisywany przy aktualizacji, a jego zmiana
+  w trakcie działania jest niebezpieczna dla `cmd.exe`.
+- **Konsekwencja:** Kontrakt BAT-a (ścieżki dziennika i executora, tryb `--recover`) jest stały dla
+  protokołu recovery 1; paczka z innym protokołem jest odrzucana przed podmianą. Błędna wartość
+  ustawienia startu zatrzymuje start z komunikatem wskazującym klucz.
+
+## AD-027 — Limit bezczynności pobierania aktualizacji
+
+- **Status:** obowiązująca (2026-10-27)
+- **Zastępuje:** AD-024 (deadline 5 minut)
+- **Decyzja:** `ReleaseDownloader` przerywa pobieranie po 30 s bez danych i pokazuje postęp w konsoli, a sufit `UpdatePreparation.BUDGET` wynosi 60 minut.
+- **Powód:** Stały limit 5 minut blokował aktualizację na wolnym łączu.
+- **Konsekwencja:** Wolne, ale postępujące pobieranie trwa do 60 minut, a każde przerwanie uruchamia bieżącą wersję.

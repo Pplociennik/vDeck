@@ -198,6 +198,7 @@ final class VdeckLauncher {
         }
         if ( installedVersion.isEmpty() ) {
             log.info( "Development build; automatic updates are skipped" );
+            console.show( LauncherMessage.DEVELOPMENT_BUILD );
             return false;
         }
         if ( serverActivity.isServerPossiblyActive() ) {

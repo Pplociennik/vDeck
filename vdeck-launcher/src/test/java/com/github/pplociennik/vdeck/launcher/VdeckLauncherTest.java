@@ -162,6 +162,7 @@ class VdeckLauncherTest {
 
         // THEN
         then( preparation ).shouldHaveNoInteractions();
+        then( console ).should().show( LauncherMessage.DEVELOPMENT_BUILD );
     }
 
     /**

@@ -256,6 +256,9 @@ z nazwą klucza (`InvalidStartSettingException`).
 **Sprawdzenie i przygotowanie.** Launcher sprawdza aktualizacje tylko przy `update.enabled=true`, wersji
 wydania (manifest `Implementation-Version` bez `-SNAPSHOT`), bez `--after-update` i gdy
 `ServerActivityCheck` nie wykrywa `server.pid` ani procesu `valheim_server.exe` tej instalacji.
+Każde pominięcie poza `--after-update` jest widoczne w konsoli: wyłączone aktualizacje
+(`UPDATES_DISABLED`), wersja deweloperska (`DEVELOPMENT_BUILD`) albo możliwy działający serwer
+(`SERVER_POSSIBLY_ACTIVE`).
 `UpdatePreparation` wykonuje w jednym wątku, pod jednym monotonicznym sufitem bezpieczeństwa
 60 minut (AD-027):
 

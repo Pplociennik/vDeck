@@ -761,6 +761,10 @@ i spróbuje ponownie przy następnym starcie.
 TIP: Aby wyłączyć automatyczne aktualizacje, ustaw `update.enabled=false` (<<adres-i-port>>).
 Przy każdym starcie okno konsoli przypomni wtedy, że aktualizacje są wyłączone.
 
+NOTE: Wersja deweloperska (zbudowana samodzielnie, z `-SNAPSHOT` w numerze wersji) nigdy się
+nie aktualizuje. Przy starcie konsola pokazuje wtedy `To jest wersja deweloperska vDeck, więc
+sprawdzanie aktualizacji zostało pominięte.`
+
 Poprzednia wersja programu i Twoje pliki ustawień sprzed aktualizacji zostają w katalogu
 `.vDeck\update\backup` do następnej aktualizacji. Kopia nie obejmuje zmian bazy `vdeck.db`
 wykonanych już przez nową wersję.

@@ -56,6 +56,11 @@ enum LauncherMessage implements ConsoleMessageIf {
     UPDATES_DISABLED( "launcher.updatesDisabled" ),
 
     /**
+     * The update check is skipped because the installed build is a development version.
+     */
+    DEVELOPMENT_BUILD( "launcher.developmentBuild" ),
+
+    /**
      * The update check is skipped because the Valheim server may still run.
      */
     SERVER_POSSIBLY_ACTIVE( "launcher.serverPossiblyActive" ),

@@ -22,7 +22,7 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   `.vDeck/startup.lock` and `.vDeck/vdeck.lock`, hands an active journal to recovery, cleans finished or
   unpublished update leftovers, reads `.vDeck/config/vDeck-start.properties` (`panel.address`,
   `panel.port`, `update.enabled`) and, for a release build with a stopped server, prepares a newer
-  GitHub release (`UpdatePreparation`: API, SHA-256 `digest`, `SafeZipExtractor`, executor copy, one
+  GitHub release (`UpdatePreparation`: API, SHA-256 `digest`, `PackageExtractor` (zip4j), executor copy, one
   download aborted after 30 s without data, progress in the console, one 60-minute safety ceiling that
   shuts the HTTP client down, AD-027). A prepared update is handed to the updater;
   any preparation failure starts the installed panel instead. The panel is handed the installation
@@ -36,8 +36,12 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   `InstallationLock`, `InstallationOwnership`, `HandoffProtocol` (one-time, acknowledged lock handoff
   through `.vDeck/handoff`), `SuccessorStarter`, `UpdateLayout`, `UpdateJournalHeader`,
   `DistributionItem`, `DurableFiles`, `RunLogFile`, `ServerActivityCheck` and `UserConsole`.
-  `ManagedLaunchStore` owns an `InstallationLock`; `VdeckApplication.main()` takes it over from the
-  launcher (`-Dvdeck.handoff=<id>`) before Spring starts and registers it as the `installationLock` bean.
+  `UserConsole` takes only message keys (`ConsoleMessageIf` enums: `ConsoleMessage`, `LauncherMessage`,
+  `UpdaterMessage`); `I18n` resolves them from `vdeck-runtime/src/main/resources/console-messages.properties`
+  with `MessageFormat` and Polish number formatting, so no console text is hardcoded.
+  `ManagedLaunchStore` owns an `InstallationLock`; `shared.lock.InstallationLockService`, called from
+  `VdeckApplication.main()`, is the only place that takes it over from the launcher
+  (`-Dvdeck.handoff=<id>`) before Spring starts and registers it as the `installationLock` bean.
 - `vdeck-app` — the Spring Boot application. Holds `VdeckApplication`, shared path/configuration
   infrastructure and the first implemented features: panel authentication (persisted admin account,
   Spring Security's generated login page, and two separate password screens — the forced
@@ -77,7 +81,7 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   launchers update from that release (AD-024); the repository must have immutable releases enabled. Releasing means setting the
   version in all POMs (`versions:set`) and merging to `main`; a failed tag lookup fails the job.
 
-`VdeckApplication.main()` accepts the launcher handoff, if any, and then starts only Spring. `config.ConsoleControlConfiguration` creates the idle
+`VdeckApplication.main()` lets `InstallationLockService` accept the launcher handoff, if any, and then start only Spring. `config.ConsoleControlConfiguration` creates the idle
 `ConsoleControlSender` bean and injects it into runtime. Each signal request starts a short-lived
 runner process with `--ctrl-sender <pid> <creation-instant> <absolute-executable>`; no helper process
 or waiting thread is started during bean creation (AD-020). Helper exit codes are 0 (event sent), 1 (signal/identity failure) and 2 (invalid

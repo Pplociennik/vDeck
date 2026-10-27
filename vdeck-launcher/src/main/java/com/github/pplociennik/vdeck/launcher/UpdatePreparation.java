@@ -61,7 +61,7 @@ final class UpdatePreparation {
 
     private final ReleaseDownloader downloader;
 
-    private final SafeZipExtractor extractor;
+    private final PackageExtractor extractor;
 
     private final UpdateExecutorPreparation executor;
 
@@ -89,7 +89,7 @@ final class UpdatePreparation {
      */
     UpdatePreparation( @Nonnull UpdateLayout layout, @Nonnull UserConsole console, @Nonnull HttpClient client,
                        @Nonnull GitHubReleaseClient releases, @Nonnull ReleaseDownloader downloader,
-                       @Nonnull SafeZipExtractor extractor, @Nonnull UpdateExecutorPreparation executor,
+                       @Nonnull PackageExtractor extractor, @Nonnull UpdateExecutorPreparation executor,
                        @Nonnull Duration budget ) {
         this.layout = requireNonNull( layout, "layout must not be null" );
         this.console = requireNonNull( console, "console must not be null" );
@@ -144,11 +144,11 @@ final class UpdatePreparation {
         Optional< ReleaseAsset > latest = releases.fetchLatest( deadline );
         if ( latest.isEmpty() || !latest.get().version().isNewerThan( installed ) ) {
             log.info( "No newer release than {} is available", installed );
-            console.show( "Brak nowszej wersji. Zainstalowana wersja vDeck " + installed + " jest aktualna." );
+            console.show( LauncherMessage.NO_NEWER_VERSION, installed );
             return Optional.empty();
         }
         ReleaseAsset asset = latest.get();
-        console.show( "Znaleziono nowszą wersję vDeck " + asset.version() + ". Pobieranie..." );
+        console.show( LauncherMessage.NEWER_VERSION_FOUND, asset.version() );
         Path download = prepareDirectory( layout.downloadDirectory() );
         Path zip = downloader.download( asset, download, deadline );
         extractor.extract( zip, layout, asset.version(), deadline );

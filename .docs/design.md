@@ -161,6 +161,8 @@ vdeck/                                           ← parent i agregator Maven
 │       │   │   ├── DurableFiles
 │       │   │   ├── RunLogFile / RunLogRetention
 │       │   │   ├── ServerActivityCheck
+│       │   │   ├── ConsoleMessageIf / ConsoleMessage ← klucze tekstów konsoli
+│       │   │   ├── I18n                         ← teksty z console-messages.properties
 │       │   │   └── UserConsole
 │       │   └── windows/                         ← adapter Windows; moduł dopiero przy 2. OS
 │       │       ├── Win32
@@ -183,10 +185,11 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── ReleaseVersion
 │       ├── GitHubReleaseClient
 │       ├── ReleaseDownloader
-│       ├── SafeZipExtractor
+│       ├── PackageExtractor                     ← zip4j i kontrola wersji paczki
 │       ├── UpdateExecutorPreparation
 │       ├── UpdatePreparation                    ← sufit 60 minut (AD-027)
-│       └── UpdateCleanup
+│       ├── UpdateCleanup
+│       └── LauncherMessage                      ← klucze tekstów konsoli launchera
 │
 ├── vdeck-updater/                               ← lib/vdeck-updater.jar, uruchamiany z executora
 │   ├── pom.xml
@@ -198,7 +201,8 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── FileReplacer
 │       ├── UpdateRollback
 │       ├── TransactionFiles
-│       └── PropertiesMerger
+│       ├── PropertiesMerger
+│       └── UpdaterMessage                       ← klucze tekstów konsoli aktualizatora
 │
 └── vdeck-app/                                   ← aplikacja Spring Boot
     ├── pom.xml
@@ -323,6 +327,8 @@ vdeck/                                           ← parent i agregator Maven
         │       ├── SystemPropertyValues
         │       ├── VdeckProperty
         │       ├── exc/
+        │       ├── lock/
+        │       │   └── InstallationLockService  ← przejęcie blokady od launchera przed Springiem
         │       ├── web/
         │       │   └── DefaultExceptionHandler  ← domyślna obsługa wyjątków (AD-014)
         │       └── service/
@@ -553,6 +559,12 @@ Teksty interfejsu nie są kanałem konfiguracji i nie leżą w katalogu instalac
 panel jest jednojęzyczny, a jego teksty pochodzą z pliku `resources/messages.properties` dołączonego
 do aplikacji i czytanego przez domyślny `MessageSource` Spring Boota.
 
+Komunikaty konsoli launchera i aktualizatora podlegają tej samej zasadzie, ale działają bez Springa:
+leżą w jednym pliku `vdeck-runtime/src/main/resources/console-messages.properties`, a `UserConsole`
+przyjmuje wyłącznie klucz (`ConsoleMessage`, `LauncherMessage`, `UpdaterMessage` implementujące
+`ConsoleMessageIf`) i argumenty. Tekst rozwiązuje `I18n` przez `ResourceBundle` i `MessageFormat`
+z polskim formatem liczb; brak klucza wyświetla sam klucz zamiast przerywać start.
+
 Pierwszą właściwością jest `game.log.directory` — względna ścieżka katalogu logów serwera gry,
 domyślnie `.vDeck/log` (AD-016). Każda skonfigurowana ścieżka przechodzi przez `PathService`: musi być
 względna, jest normalizowana i po rozwiązaniu do postaci rzeczywistej musi pozostać wewnątrz katalogu
@@ -710,7 +722,7 @@ ponowny panel wymaga jawnej adopcji, nie tworzy automatycznie drugiej instancji.
 `.vDeck/vdeck.lock` używa `FileLock` i zapewnia, że w danym katalogu najwyżej jeden proces — panel,
 launcher albo updater — może zmieniać instalację. System operacyjny zwalnia blokadę po śmierci procesu,
 również gdy nie wykona się kontrolowane zamknięcie. Panel uruchomiony przez launcher przejmuje ją
-przed startem Springa i przekazuje do `ManagedLaunchStore`; panel uruchomiony bez launchera (IDE)
+przed startem Springa w `shared.lock.InstallationLockService` i przekazuje do `ManagedLaunchStore`; panel uruchomiony bez launchera (IDE)
 zdobywa ją sam w runtime.
 
 ### Start, przekazanie blokady i aktualizacja (AD-024)
@@ -734,8 +746,9 @@ Przygotowanie (`UpdatePreparation`) działa w jednym wątku pod monotonicznym su
 60 minut (AD-027): API `releases/latest` (pełna odpowiedź w 15 s, limit 1 MiB, dokładna nazwa zasobu,
 rozmiar ≤ 512 MiB, `digest` `sha256:`, URL HTTPS na `github.com` w tym repozytorium), pobranie do
 `.part` z SHA-256 w locie (nagłówki w 30 s, przerwanie po 30 s bez danych przez strażnika zamykającego
-strumień, postęp w konsoli co 10 s; wolne, ale postępujące pobieranie trwa do sufitu), rozpakowanie do `.tmp-staged-<uuid>` z białą listą `DistributionItem`, limitami i kontrolą
-wersji oraz protokołu w manifestach, a na końcu kopia JRE i updatera do `executor`. Każda publikacja
+strumień, postęp w konsoli co 10 s; wolne, ale postępujące pobieranie trwa do sufitu), rozpakowanie biblioteką zip4j (odrzuca wpisy wychodzące poza katalog) do
+`.tmp-staged-<uuid>`, zrzut plików na dysk i kontrola kompletu plików `DistributionItem`, wersji oraz
+protokołu w manifestach, a na końcu kopia JRE i updatera do `executor`. Każda publikacja
 to atomowy rename poprzedzony kontrolą sufitu. Po przekroczeniu sufitu wątek główny zamyka klienta
 HTTP (`shutdownNow`), przerywa wątek i czeka na jego zakończenie, dopiero potem sprząta i uruchamia
 bieżącą wersję. Nowsza wersja jest instalowana tylko przy `update.enabled=true`, wersji wydania

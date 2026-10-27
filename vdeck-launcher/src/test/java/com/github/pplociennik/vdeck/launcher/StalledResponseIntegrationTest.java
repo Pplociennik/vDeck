@@ -187,7 +187,7 @@ class StalledResponseIntegrationTest {
         given( releases.fetchLatest( any() ) ).willReturn( Optional.of( stalledAsset() ) );
         UpdatePreparation preparation = new UpdatePreparation( layout, mock( UserConsole.class ), client, releases,
                 new ReleaseDownloader( client, mock( UserConsole.class ), Duration.ofMinutes( 1 ), Duration.ofDays( 1 ) ),
-                new SafeZipExtractor(), new UpdateExecutorPreparation(), Duration.ofMillis( 700 ) );
+                new PackageExtractor(), new UpdateExecutorPreparation(), Duration.ofMillis( 700 ) );
 
         // WHEN
         long started = System.nanoTime();

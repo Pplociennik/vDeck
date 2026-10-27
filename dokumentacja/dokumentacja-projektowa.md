@@ -270,10 +270,10 @@ wydania (manifest `Implementation-Version` bez `-SNAPSHOT`), bez `--after-update
    bajt, co przerywa także zablokowany odczyt; wolne, ale postępujące pobieranie trwa aż do sufitu.
    Co 10 s (`PROGRESS_INTERVAL`) konsola pokazuje postęp, np.
    `Pobieranie: 42,0 z 98,3 MB (42%), 0,8 MB/s`.
-3. `SafeZipExtractor`: rozpakowanie do `.tmp-staged-<uuid>`, odrzucenie ścieżek absolutnych, `..`,
-   dysków, ADS, nazw zarezerwowanych Windows, kolizji wielkości liter i wpisów spoza `DistributionItem`;
-   limity 10 000 wpisów, głębokości 16, 1 GiB rozpakowanych danych i współczynnika kompresji 100.
-   Wymaga kompletu plików, wersji wydania w manifestach launchera i updatera oraz obsługiwanego
+3. `PackageExtractor`: rozpakowanie biblioteką zip4j do `.tmp-staged-<uuid>`; zip4j odrzuca wpisy
+   wychodzące poza ten katalog. Paczka ma już potwierdzony skrót SHA-256 z API, a updater instaluje
+   wyłącznie pozycje `DistributionItem`, więc własna walidacja nazw wpisów nie jest potrzebna. Po
+   rozpakowaniu `DurableFiles.forceTree` zrzuca pliki na dysk. Wymaga kompletu plików, wersji wydania w manifestach launchera i updatera oraz obsługiwanego
    protokołu recovery (`Vdeck-Recovery-Protocol: 1`). Publikacja jako `staged` przez atomowy rename.
 4. `UpdateExecutorPreparation`: kopia `staged/jre` i `vdeck-updater.jar` do `.tmp-executor-<uuid>`,
    każda zweryfikowana skrótem, i publikacja jako `executor`.
@@ -287,7 +287,7 @@ a `HandoffProtocol` publikuje w `.vDeck/handoff` jednorazowy deskryptor z rolą 
 i tożsamościami obu procesów, zwalnia tylko `vdeck.lock` i czeka do 10 s na potwierdzenie. Następca
 sprawdza rolę, własną tożsamość i tożsamość rzeczywistego rodzica, przejmuje blokadę i zapisuje
 potwierdzenie. Bez potwierdzenia poprzednik kończy własnego następcę i odzyskuje blokadę albo
-zatrzymuje się bez zmian. Panel przejmuje blokadę w `VdeckApplication.main()` przed Springiem;
+zatrzymuje się bez zmian. Panel przejmuje blokadę przed Springiem w `InstallationLockService`;
 launcher trzyma bramkę aż do zakończenia panelu i zwraca jego kod wyjścia.
 
 ![Diagram przepływu: start vDeck przez launcher i automatyczna aktualizacja](diagramy/wspolne/img/przeplyw-start-i-aktualizacja.svg)
@@ -330,7 +330,10 @@ i `StartSettingsTest` pilnują, by szablony `.dist` miały dokładnie klucze i w
 **Logi uruchomień.** `LauncherMain` i `UpdaterMain` nie mają loggera: przed inicjalizacją Log4j2
 tworzą plik `.vDeck/logs/launcher|updater/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>[-n].log` (`RunLogFile`)
 i przekazują go przez `vdeck.log.file`. Plik zawiera angielski przebieg od `DEBUG`, konsola —
-polskie komunikaty loggera `vdeck.console` (`UserConsole`). Plik obraca się raz po 10 MiB, a
+polskie komunikaty loggera `vdeck.console` (`UserConsole`). Kod przekazuje konsoli tylko klucz
+(`ConsoleMessage`, `LauncherMessage`, `UpdaterMessage`), a `I18n` czyta tekst z
+`vdeck-runtime/src/main/resources/console-messages.properties` i formatuje go przez `MessageFormat`
+z polskim formatem liczb. Plik obraca się raz po 10 MiB, a
 `RunLogRetention` usuwa dni starsze niż 30, dopiero po zdobyciu blokad. Gdy pliku nie da się
 utworzyć, uruchomienie loguje tylko na konsolę.
 
@@ -374,7 +377,8 @@ Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, 
 bazy, przygotowanie plików ustawień i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
 bazowego przerywa start, zamiast pozwolić aplikacji działać z niepoprawną konfiguracją.
 
-`VdeckApplication.main()` przy uruchomieniu przez launcher (`-Dvdeck.handoff=<id>`) najpierw przejmuje
+`VdeckApplication.main()` oddaje start `shared.lock.InstallationLockService`, jedynemu miejscu obsługi
+blokady panelu. Przy uruchomieniu przez launcher (`-Dvdeck.handoff=<id>`) serwis najpierw przejmuje
 blokadę instalacji i rejestruje ją jako bean `installationLock`, którego właścicielem zostaje
 `ManagedLaunchStore`; potem uruchamia wyłącznie Springa i zwalnia blokadę, gdy start się nie powiedzie. `config.ConsoleControlConfiguration`
 tworzy bean `ConsoleControlSender`, który przy starcie nie tworzy procesu ani wątku oczekującego.

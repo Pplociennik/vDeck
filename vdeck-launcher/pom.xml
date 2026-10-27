@@ -11,6 +11,10 @@
 
     <artifactId>vdeck-launcher</artifactId>
 
+    <properties>
+        <zip4j.version>2.11.5</zip4j.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.github.pplociennik</groupId>
@@ -19,6 +23,11 @@
         <dependency>
             <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>net.lingala.zip4j</groupId>
+            <artifactId>zip4j</artifactId>
+            <version>${zip4j.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>

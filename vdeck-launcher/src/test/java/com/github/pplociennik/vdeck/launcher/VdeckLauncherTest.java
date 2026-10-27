@@ -31,7 +31,6 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -111,7 +110,7 @@ class VdeckLauncherTest {
         assertThat( exitCode ).isZero();
         assertThat( command( HandoffRole.PANEL ) ).contains( "--server.address=127.0.0.1", "--server.port=8085",
                 "--debug", "--enable-native-access=ALL-UNNAMED", "-Dvdeck.handoff=id" );
-        then( console ).should().show( "Sprawdzanie dostępnych aktualizacji vDeck (zainstalowana wersja 1.1.0)..." );
+        then( console ).should().show( LauncherMessage.UPDATE_CHECK, INSTALLED );
     }
 
     /**
@@ -128,7 +127,7 @@ class VdeckLauncherTest {
 
         // THEN
         assertThat( exitCode ).isEqualTo( 3 );
-        then( console ).should().showErrorAndWait( anyString() );
+        then( console ).should().showErrorAndWait( LauncherMessage.PANEL_EXITED, 3 );
     }
 
     /**
@@ -146,7 +145,7 @@ class VdeckLauncherTest {
         // THEN
         then( preparation ).shouldHaveNoInteractions();
         then( serverActivity ).shouldHaveNoInteractions();
-        then( console ).should().show( "Automatyczne aktualizacje vDeck są wyłączone (update.enabled=false)." );
+        then( console ).should().show( LauncherMessage.UPDATES_DISABLED );
     }
 
     /**
@@ -315,7 +314,7 @@ class VdeckLauncherTest {
 
         // THEN
         assertThat( exitCode ).isEqualTo( 1 );
-        then( console ).should().showErrorAndWait( org.mockito.ArgumentMatchers.contains( "panel.port" ) );
+        then( console ).should().showErrorAndWait( LauncherMessage.INVALID_START_SETTING, "panel.port" );
         then( successors ).shouldHaveNoInteractions();
     }
 

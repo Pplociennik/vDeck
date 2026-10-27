@@ -28,7 +28,6 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -144,8 +143,7 @@ class VdeckUpdaterTest {
         // THEN
         assertThat( exitCode ).isZero();
         assertThat( DistributionFixture.snapshot( layout.installation() ) ).isEqualTo( before );
-        then( console ).should().show( "Nie udało się przygotować aktualizacji. Zostanie uruchomiona dotychczasowa "
-                + "wersja." );
+        then( console ).should().show( UpdaterMessage.PREPARATION_FAILED );
     }
 
     /**
@@ -201,7 +199,7 @@ class VdeckUpdaterTest {
 
         // THEN
         assertThat( exitCode ).isEqualTo( 1 );
-        then( console ).should().showErrorAndWait( anyString() );
+        then( console ).should().showErrorAndWait( UpdaterMessage.REPAIR_NEEDED );
         then( successors ).should( never() ).handOff( any(), any(), any() );
     }
 
@@ -259,7 +257,7 @@ class VdeckUpdaterTest {
 
         // THEN
         assertThat( exitCode ).isEqualTo( 1 );
-        then( console ).should().showErrorAndWait( anyString() );
+        then( console ).should().showErrorAndWait( UpdaterMessage.LAUNCHER_START_FAILED );
     }
 
     /**

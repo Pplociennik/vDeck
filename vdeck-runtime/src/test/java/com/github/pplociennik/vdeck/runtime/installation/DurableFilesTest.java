@@ -213,6 +213,39 @@ class DurableFilesTest {
     }
 
     /**
+     * Verifies that forcing a tree keeps every file and its contents unchanged.
+     */
+    @Test
+    void shouldKeepContents_whenForcingTree() throws Exception {
+        // GIVEN
+        Path tree = Files.createDirectories( root.resolve( "tree/nested" ) ).getParent();
+        Files.writeString( tree.resolve( "first.txt" ), "first" );
+        Files.writeString( tree.resolve( "nested/second.txt" ), "second" );
+
+        // WHEN
+        DurableFiles.forceTree( tree );
+
+        // THEN
+        assertThat( tree.resolve( "first.txt" ) ).hasContent( "first" );
+        assertThat( tree.resolve( "nested/second.txt" ) ).hasContent( "second" );
+    }
+
+    /**
+     * Verifies that forcing a missing tree fails.
+     */
+    @Test
+    void shouldThrowException_whenForcedTreeIsMissing() {
+        // GIVEN
+        Path missing = root.resolve( "missing" );
+
+        // WHEN
+        var failure = catchThrowable( () -> DurableFiles.forceTree( missing ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOf( IOException.class );
+    }
+
+    /**
      * Verifies that null arguments are rejected.
      */
     @Test
@@ -224,10 +257,12 @@ class DurableFilesTest {
         var missingFile = catchThrowable( () -> DurableFiles.sha256( null ) );
         var missingContents = catchThrowable( () -> DurableFiles.write( file, null ) );
         var missingTree = catchThrowable( () -> DurableFiles.deleteTree( root, null ) );
+        var missingForcedTree = catchThrowable( () -> DurableFiles.forceTree( null ) );
 
         // THEN
         assertThat( missingFile ).isInstanceOf( NullPointerException.class );
         assertThat( missingContents ).isInstanceOf( NullPointerException.class );
         assertThat( missingTree ).isInstanceOf( NullPointerException.class );
+        assertThat( missingForcedTree ).isInstanceOf( NullPointerException.class );
     }
 }

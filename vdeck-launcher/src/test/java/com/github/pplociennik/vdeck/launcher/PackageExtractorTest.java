@@ -17,9 +17,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
- * Verifies that only a safe, complete package of the expected version is ever published as staged.
+ * Verifies that only a complete package of the expected version is ever published as staged.
  */
-class SafeZipExtractorTest {
+class PackageExtractorTest {
 
     // =================================================================================================
     // FIELDS
@@ -34,7 +34,7 @@ class SafeZipExtractorTest {
 
     private Deadline deadline;
 
-    private SafeZipExtractor underTest;
+    private PackageExtractor underTest;
 
     // =================================================================================================
     // BEFORE METHODS
@@ -48,7 +48,7 @@ class SafeZipExtractorTest {
         layout = new UpdateLayout( Files.createDirectory( directory.toRealPath().resolve( "installation" ) ) );
         Files.createDirectories( layout.updateDirectory() );
         deadline = Deadline.after( Duration.ofMinutes( 1 ) );
-        underTest = new SafeZipExtractor();
+        underTest = new PackageExtractor();
     }
 
     // =================================================================================================
@@ -76,16 +76,14 @@ class SafeZipExtractorTest {
     }
 
     /**
-     * Verifies that dangerous or unexpected entry names are refused and nothing is published.
+     * Verifies that an entry leaving the extraction directory is refused and nothing is published.
      *
      * @param name
      *         malicious entry name
      */
     @ParameterizedTest( name = "[{index}] entry={0}" )
-    @ValueSource( strings = { "../escape.txt", "jre/../../escape.txt", "/absolute.txt", "C:/drive.txt",
-            "jre/bin/java.exe:stream", "jre/CON.txt", "jre/nul", "jre/trailing.", "jre/back\\slash",
-            "vdeck.db", ".vDeck/server.pid", "lib/extra.jar", "jre/./bin" } )
-    void shouldRejectPackage_whenEntryNameIsUnsafe( String name ) throws Exception {
+    @ValueSource( strings = { "../escape.txt", "jre/../../escape.txt" } )
+    void shouldRejectPackage_whenEntryLeavesDirectory( String name ) throws Exception {
         // GIVEN
         Map< String, byte[] > entries = PackageFixture.entries( "1.1.0" );
         entries.put( name, new byte[] { 1 } );
@@ -97,44 +95,11 @@ class SafeZipExtractorTest {
         // THEN
         assertThat( failure ).isInstanceOf( IOException.class );
         assertThat( layout.stagedDirectory() ).doesNotExist();
+        assertThat( layout.updateDirectory().resolve( "escape.txt" ) ).doesNotExist();
+        assertThat( layout.installation().resolve( "escape.txt" ) ).doesNotExist();
         try ( var files = Files.list( layout.updateDirectory() ) ) {
             assertThat( files ).isEmpty();
         }
-    }
-
-    /**
-     * Verifies that names differing only in letter case, which Windows would merge, are refused.
-     */
-    @Test
-    void shouldRejectPackage_whenNamesCollideIgnoringCase() throws Exception {
-        // GIVEN
-        Map< String, byte[] > entries = PackageFixture.entries( "1.1.0" );
-        entries.put( "jre/lib/MODULES", new byte[] { 1 } );
-        Path zip = PackageFixture.zip( directory.resolve( "package.zip" ), entries );
-
-        // WHEN
-        var failure = catchThrowable( () -> underTest.extract( zip, layout, VERSION, deadline ) );
-
-        // THEN
-        assertThat( failure ).isInstanceOf( IOException.class ).hasMessageContaining( "colliding" );
-    }
-
-    /**
-     * Verifies that an entry with an extreme compression ratio is treated as a ZIP bomb.
-     */
-    @Test
-    void shouldRejectPackage_whenEntryIsCompressionBomb() throws Exception {
-        // GIVEN
-        Map< String, byte[] > entries = PackageFixture.entries( "1.1.0" );
-        entries.put( "jre/lib/bomb", new byte[ 8 * 1024 * 1024 ] );
-        Path zip = PackageFixture.zip( directory.resolve( "package.zip" ), entries );
-
-        // WHEN
-        var failure = catchThrowable( () -> underTest.extract( zip, layout, VERSION, deadline ) );
-
-        // THEN
-        assertThat( failure ).isInstanceOf( IOException.class ).hasMessageContaining( "compression ratio" );
-        assertThat( layout.stagedDirectory() ).doesNotExist();
     }
 
     /**
@@ -152,6 +117,7 @@ class SafeZipExtractorTest {
 
         // THEN
         assertThat( failure ).isInstanceOf( IOException.class ).hasMessageContaining( "jre/bin/javaw.exe" );
+        assertThat( layout.stagedDirectory() ).doesNotExist();
     }
 
     /**
@@ -167,6 +133,23 @@ class SafeZipExtractorTest {
 
         // THEN
         assertThat( failure ).isInstanceOf( IOException.class ).hasMessageContaining( "another vDeck version" );
+        assertThat( layout.stagedDirectory() ).doesNotExist();
+    }
+
+    /**
+     * Verifies that a file that is not a ZIP archive is refused.
+     */
+    @Test
+    void shouldRejectPackage_whenFileIsNotArchive() throws Exception {
+        // GIVEN
+        Path zip = Files.writeString( directory.resolve( "package.zip" ), "not a zip" );
+
+        // WHEN
+        var failure = catchThrowable( () -> underTest.extract( zip, layout, VERSION, deadline ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOf( IOException.class );
+        assertThat( layout.stagedDirectory() ).doesNotExist();
     }
 
     /**

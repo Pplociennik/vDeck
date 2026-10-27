@@ -24,7 +24,7 @@ import java.util.HexFormat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -100,7 +100,7 @@ class ReleaseDownloaderTest {
         underTest.download( asset( CONTENT.length, digest( CONTENT ) ), directory, deadline() );
 
         // THEN
-        then( console ).should().show( startsWith( "Pobieranie: 0,0 z 0,0 MB (100%), " ) );
+        then( console ).should().show( eq( LauncherMessage.DOWNLOAD_PROGRESS ), any(), any(), eq( 100L ), any() );
     }
 
     /**

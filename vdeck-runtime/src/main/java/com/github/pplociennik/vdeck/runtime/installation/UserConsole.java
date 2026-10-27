@@ -11,13 +11,17 @@ import java.io.InputStream;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Polish messages shown in the console window of the launcher and updater. They go through the
+ * Polish messages shown in the console window of the launcher and updater. Callers pass a message key,
+ * whose text {@link I18n} resolves from the console translation bundle. The texts go through the
  * {@code vdeck.console} Log4j2 logger, which the launcher and updater configurations route to the
  * console, so the run log file records them too. Technical details stay in English class loggers.
  */
 @Log4j2
 public final class UserConsole {
 
+    /**
+     * Logger the launcher and updater configurations route to the console and the run log.
+     */
     private static final Logger CONSOLE = LogManager.getLogger( "vdeck.console" );
 
     private final InputStream input;
@@ -43,12 +47,14 @@ public final class UserConsole {
      * Shows an informational message.
      *
      * @param message
-     *         Polish text without secrets
+     *         message key
+     * @param arguments
+     *         values of the message's placeholders, without secrets
      * @throws NullPointerException
-     *         if the message is null
+     *         if the message or the argument array is null
      */
-    public void show( @Nonnull String message ) {
-        CONSOLE.info( requireNonNull( message, "message must not be null" ) );
+    public void show( @Nonnull ConsoleMessageIf message, @Nonnull Object... arguments ) {
+        CONSOLE.info( I18n.text( message, arguments ) );
     }
 
     /**
@@ -56,13 +62,16 @@ public final class UserConsole {
      * double-clicking the start script does not vanish with the explanation.
      *
      * @param message
-     *         Polish text without secrets
+     *         message key
+     * @param arguments
+     *         values of the message's placeholders, without secrets
      * @throws NullPointerException
-     *         if the message is null
+     *         if the message or the argument array is null
      */
-    public void showErrorAndWait( @Nonnull String message ) {
-        CONSOLE.error( requireNonNull( message, "message must not be null" ) );
-        CONSOLE.error( "Naciśnij Enter, aby zamknąć okno." );
+    public void showErrorAndWait( @Nonnull ConsoleMessageIf message, @Nonnull Object... arguments ) {
+        CONSOLE.error( I18n.text( message, arguments ) );
+        CONSOLE.error( I18n.text( ConsoleMessage.PRESS_ENTER ) );
+
         try {
             int read = input.read();
             while ( read >= 0 && read != '\n' ) {

@@ -58,7 +58,7 @@ class UpdatePreparationTest {
     private ReleaseDownloader downloader;
 
     @Mock
-    private SafeZipExtractor extractor;
+    private PackageExtractor extractor;
 
     @Mock
     private UpdateExecutorPreparation executor;
@@ -103,7 +103,7 @@ class UpdatePreparationTest {
         then( extractor ).should().extract( eq( zip ), eq( layout ), eq( NEWER ), any() );
         then( executor ).should().prepare( eq( layout ), any() );
         then( client ).should( never() ).shutdownNow();
-        then( console ).should().show( "Znaleziono nowszą wersję vDeck 1.2.0. Pobieranie..." );
+        then( console ).should().show( LauncherMessage.NEWER_VERSION_FOUND, NEWER );
     }
 
     /**
@@ -120,7 +120,7 @@ class UpdatePreparationTest {
         // THEN
         assertThat( prepared ).isEmpty();
         then( downloader ).should( never() ).download( any(), any(), any() );
-        then( console ).should().show( "Brak nowszej wersji. Zainstalowana wersja vDeck 1.1.0 jest aktualna." );
+        then( console ).should().show( LauncherMessage.NO_NEWER_VERSION, INSTALLED );
     }
 
     /**

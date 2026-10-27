@@ -50,11 +50,6 @@ import static java.util.Objects.requireNonNull;
 @Log4j2
 final class VdeckUpdater {
 
-    private static final String REPAIR_MESSAGE = """
-            Nie udało się bezpiecznie dokończyć ani cofnąć aktualizacji vDeck. Panel nie zostanie uruchomiony.
-            Oryginalne pliki są w katalogu .vDeck\\update\\backup, a przebieg w .vDeck\\logs\\updater.
-            Sposób naprawy opisuje instrukcja w rozdziale o aktualizacjach.""";
-
     private final UpdateLayout layout;
 
     private final UserConsole console;
@@ -123,7 +118,7 @@ final class VdeckUpdater {
             Outcome outcome = arguments.recover() || files.exists( layout.journal() ) ? recover() : apply();
             log.info( "Updater finished with outcome {}", outcome );
             if ( outcome == Outcome.REPAIR_NEEDED ) {
-                console.showErrorAndWait( REPAIR_MESSAGE );
+                console.showErrorAndWait( UpdaterMessage.REPAIR_NEEDED );
                 return 1;
             }
             return startLauncher( owned, arguments.panelArguments() );
@@ -134,8 +129,7 @@ final class VdeckUpdater {
         if ( arguments.handoffId().isEmpty() ) {
             Optional< InstallationOwnership > owned = InstallationOwnership.tryTake( layout.installation() );
             if ( owned.isEmpty() ) {
-                console.showErrorAndWait( "vDeck jest już uruchomiony albo trwa jego uruchamianie. "
-                        + "Zamknij panel i uruchom skrypt ponownie." );
+                console.showErrorAndWait( UpdaterMessage.ALREADY_RUNNING );
             }
             return owned;
         }
@@ -146,17 +140,17 @@ final class VdeckUpdater {
                     HandoffProtocol.TIMEOUT ) );
         } catch ( IllegalArgumentException | IllegalStateException exception ) {
             log.error( "Could not take over the installation", exception );
-            console.show( "Nie udało się przejąć instalacji od launchera; aktualizacja nie została rozpoczęta." );
+            console.show( UpdaterMessage.HANDOFF_FAILED );
             return Optional.empty();
         }
     }
 
     private Outcome apply() {
         if ( serverActivity.isServerPossiblyActive() ) {
-            console.show( "Serwer Valheim może nadal działać, więc aktualizacja została pominięta." );
+            console.show( UpdaterMessage.SERVER_POSSIBLY_ACTIVE );
             return Outcome.NO_CHANGES;
         }
-        console.show( "Instalowanie aktualizacji vDeck " + ownVersion + "..." );
+        console.show( UpdaterMessage.INSTALLING, ownVersion );
         UpdateJournal journal;
         try {
             DurableFiles.deleteTree( layout.installation(), layout.backupDirectory() );
@@ -167,14 +161,14 @@ final class VdeckUpdater {
             if ( files.exists( layout.journal() ) ) {
                 return recover();
             }
-            console.show( "Nie udało się przygotować aktualizacji. Zostanie uruchomiona dotychczasowa wersja." );
+            console.show( UpdaterMessage.PREPARATION_FAILED );
             return Outcome.NO_CHANGES;
         }
         try {
             new FileReplacer( files, checkpoint ).apply( journal );
             verifyInstalled( journal );
             journal.changeState( UpdateState.COMMITTED );
-            console.show( "Zaktualizowano vDeck do wersji " + ownVersion + "." );
+            console.show( UpdaterMessage.UPDATED, ownVersion );
             return Outcome.COMMITTED;
         } catch ( IOException | RuntimeException exception ) {
             log.error( "Update {} failed; rolling back", journal.getUpdateId(), exception );
@@ -198,14 +192,14 @@ final class VdeckUpdater {
             log.info( "Update {} already ended as {}", journal.getUpdateId(), journal.getState() );
             return journal.getState() == UpdateState.COMMITTED ? Outcome.COMMITTED : Outcome.ROLLED_BACK;
         }
-        console.show( "Wykryto przerwaną aktualizację vDeck. Przywracanie poprzedniej wersji..." );
+        console.show( UpdaterMessage.RECOVERING );
         return rollBack( journal );
     }
 
     private Outcome rollBack( UpdateJournal journal ) {
         try {
             new UpdateRollback( files, checkpoint ).rollback( journal );
-            console.show( "Aktualizacja nie powiodła się. Przywrócono poprzednią wersję vDeck." );
+            console.show( UpdaterMessage.ROLLED_BACK );
             return Outcome.ROLLED_BACK;
         } catch ( IOException | RuntimeException exception ) {
             log.error( "Rollback of update {} failed", journal.getUpdateId(), exception );
@@ -245,8 +239,7 @@ final class VdeckUpdater {
                 operationId -> launcherCommand( operationId, panelArguments ) );
         if ( result instanceof HandoffResult.Failed failed ) {
             failed.lock().ifPresent( lock -> lock.close() );
-            console.showErrorAndWait( "Nie udało się uruchomić launchera vDeck. Uruchom skrypt start-vDeck.bat "
-                    + "ponownie." );
+            console.showErrorAndWait( UpdaterMessage.LAUNCHER_START_FAILED );
             return 1;
         }
         return 0;

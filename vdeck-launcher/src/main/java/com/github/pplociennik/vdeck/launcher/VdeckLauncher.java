@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.launcher;
 
+import com.github.pplociennik.vdeck.launcher.UpdateCleanup.JournalStatus;
 import com.github.pplociennik.vdeck.launcher.exc.InvalidStartSettingException;
 import com.github.pplociennik.vdeck.launcher.exc.UpdatePreparationException;
 import com.github.pplociennik.vdeck.runtime.installation.HandoffProtocol;
@@ -50,10 +51,6 @@ import static java.util.Objects.requireNonNull;
  */
 @Log4j2
 final class VdeckLauncher {
-
-    private static final String REPAIR_MESSAGE = """
-            Wykryto przerwaną aktualizację vDeck, ale brakuje plików potrzebnych do jej cofnięcia.
-            Panel nie zostanie uruchomiony. Sposób naprawy opisuje instrukcja w rozdziale o aktualizacjach.""";
 
     private final UpdateLayout layout;
 
@@ -114,41 +111,14 @@ final class VdeckLauncher {
      */
     int run( @Nonnull LauncherArguments arguments ) {
         requireNonNull( arguments, "arguments must not be null" );
+
         Optional< InstallationOwnership > ownership = takeOwnership( arguments );
         if ( ownership.isEmpty() ) {
             return 1;
         }
+
         try ( InstallationOwnership owned = ownership.get() ) {
-            RunLogRetention.deleteExpired( layout.installation(), "launcher", LocalDate.now() );
-            protocol.discardStale();
-            switch ( cleanup.inspect() ) {
-                case ACTIVE -> {
-                    return startRecovery( owned.lock(), arguments.panelArguments() );
-                }
-                case TERMINAL -> cleanup.finishTerminal();
-                case NONE -> cleanup.discardUnpublished();
-            }
-            StartSettings settings;
-            try {
-                settings = StartSettings.load( layout.installation() );
-            } catch ( InvalidStartSettingException exception ) {
-                console.showErrorAndWait( "Nieprawidłowa wartość ustawienia " + exception.getKey()
-                        + " w pliku .vDeck\\config\\vDeck-start.properties. Popraw ją i uruchom vDeck ponownie." );
-                return 1;
-            } catch ( IOException exception ) {
-                log.error( "Could not read the start settings", exception );
-                console.showErrorAndWait( "Nie można odczytać pliku .vDeck\\config\\vDeck-start.properties." );
-                return 1;
-            }
-            InstallationLock lock = owned.lock();
-            if ( shouldCheckForUpdate( arguments, settings ) ) {
-                UpdateAttempt attempt = tryUpdate( lock, arguments.panelArguments() );
-                if ( attempt.exitCode().isPresent() ) {
-                    return attempt.exitCode().get();
-                }
-                lock = attempt.lock();
-            }
-            return runPanel( lock, settings, arguments.panelArguments() );
+            return start( owned.lock(), arguments );
         }
     }
 
@@ -156,17 +126,62 @@ final class VdeckLauncher {
         if ( arguments.handoffId().isEmpty() ) {
             Optional< InstallationOwnership > owned = InstallationOwnership.tryTake( layout.installation() );
             if ( owned.isEmpty() ) {
-                console.showErrorAndWait( "vDeck jest już uruchomiony w tej instalacji albo trwa jego uruchamianie." );
+                console.showErrorAndWait( LauncherMessage.ALREADY_RUNNING );
             }
             return owned;
         }
+
         try {
             return Optional.of( InstallationOwnership.afterHandoff(
                     protocol.accept( arguments.handoffId().get(), HandoffRole.LAUNCHER, HandoffProtocol.TIMEOUT ),
                     HandoffProtocol.TIMEOUT ) );
         } catch ( IllegalArgumentException | IllegalStateException exception ) {
             log.error( "Could not take over the installation from the updater", exception );
-            console.showErrorAndWait( "Nie udało się przejąć instalacji po aktualizacji. Uruchom vDeck ponownie." );
+            console.showErrorAndWait( LauncherMessage.HANDOFF_FAILED );
+            return Optional.empty();
+        }
+    }
+
+    private int start( InstallationLock lock, LauncherArguments arguments ) {
+        RunLogRetention.deleteExpired( layout.installation(), "launcher", LocalDate.now() );
+        protocol.discardStale();
+
+        JournalStatus journal = cleanup.inspect();
+        if ( journal == JournalStatus.ACTIVE ) {
+            return startRecovery( lock, arguments.panelArguments() );
+        }
+        cleanUpPreviousUpdate( journal );
+
+        Optional< StartSettings > settings = loadSettings();
+        if ( settings.isEmpty() ) {
+            return 1;
+        }
+
+        if ( !shouldCheckForUpdate( arguments, settings.get() ) ) {
+            return runPanel( lock, settings.get(), arguments.panelArguments() );
+        }
+        UpdateAttempt attempt = tryUpdate( lock, arguments.panelArguments() );
+        return attempt.exitCode()
+                .orElseGet( () -> runPanel( attempt.lock(), settings.get(), arguments.panelArguments() ) );
+    }
+
+    private void cleanUpPreviousUpdate( JournalStatus journal ) {
+        if ( journal == JournalStatus.TERMINAL ) {
+            cleanup.finishTerminal();
+        } else {
+            cleanup.discardUnpublished();
+        }
+    }
+
+    private Optional< StartSettings > loadSettings() {
+        try {
+            return Optional.of( StartSettings.load( layout.installation() ) );
+        } catch ( InvalidStartSettingException exception ) {
+            console.showErrorAndWait( LauncherMessage.INVALID_START_SETTING, exception.getKey() );
+            return Optional.empty();
+        } catch ( IOException exception ) {
+            log.error( "Could not read the start settings", exception );
+            console.showErrorAndWait( LauncherMessage.START_SETTINGS_UNREADABLE );
             return Optional.empty();
         }
     }
@@ -178,7 +193,7 @@ final class VdeckLauncher {
         }
         if ( !settings.updateEnabled() ) {
             log.info( "Automatic updates are disabled in the start settings" );
-            console.show( "Automatyczne aktualizacje vDeck są wyłączone (update.enabled=false)." );
+            console.show( LauncherMessage.UPDATES_DISABLED );
             return false;
         }
         if ( installedVersion.isEmpty() ) {
@@ -186,58 +201,66 @@ final class VdeckLauncher {
             return false;
         }
         if ( serverActivity.isServerPossiblyActive() ) {
-            console.show( "Serwer Valheim może nadal działać, więc sprawdzanie aktualizacji zostało pominięte." );
+            console.show( LauncherMessage.SERVER_POSSIBLY_ACTIVE );
             return false;
         }
         return true;
     }
 
     private UpdateAttempt tryUpdate( InstallationLock lock, List< String > panelArguments ) {
-        log.info( "Checking for an update of the installed version {}", installedVersion.orElseThrow() );
-        console.show( "Sprawdzanie dostępnych aktualizacji vDeck (zainstalowana wersja "
-                + installedVersion.orElseThrow() + ")..." );
-        Optional< ReleaseVersion > prepared;
-        try {
-            prepared = preparations.create( installedVersion.orElseThrow() ).prepare( installedVersion.orElseThrow() );
-        } catch ( UpdatePreparationException exception ) {
-            console.show( "Nie udało się pobrać aktualizacji. Zostanie uruchomiona bieżąca wersja vDeck." );
-            if ( exception.isWorkerStopped() ) {
-                cleanup.discardUnpublished();
-            }
-            return UpdateAttempt.continueWith( lock );
-        }
+        Optional< ReleaseVersion > prepared = prepareUpdate();
         if ( prepared.isEmpty() ) {
             return UpdateAttempt.continueWith( lock );
         }
-        console.show( "Pobrano vDeck " + prepared.get() + ". Uruchamianie aktualizacji..." );
+
+        console.show( LauncherMessage.UPDATE_DOWNLOADED, prepared.get() );
         HandoffResult result = successors.handOff( lock, HandoffRole.UPDATER,
                 operationId -> executorCommand( operationId, false, panelArguments ) );
+
         return switch ( result ) {
             case HandoffResult.Accepted accepted -> UpdateAttempt.exit( 0 );
             case HandoffResult.Failed failed when failed.lock().isPresent() -> {
                 cleanup.discardUnpublished();
-                console.show( "Nie udało się uruchomić aktualizacji. Zostanie uruchomiona bieżąca wersja vDeck." );
+                console.show( LauncherMessage.UPDATER_START_FAILED );
                 yield UpdateAttempt.continueWith( failed.lock().get() );
             }
             case HandoffResult.Failed failed -> {
-                console.showErrorAndWait( "Aktualizator vDeck nie odpowiada. Uruchom vDeck ponownie." );
+                console.showErrorAndWait( LauncherMessage.UPDATER_NOT_RESPONDING );
                 yield UpdateAttempt.exit( 1 );
             }
         };
     }
 
+    private Optional< ReleaseVersion > prepareUpdate() {
+        ReleaseVersion installed = installedVersion.orElseThrow();
+        log.info( "Checking for an update of the installed version {}", installed );
+        console.show( LauncherMessage.UPDATE_CHECK, installed );
+
+        try {
+            return preparations.create( installed ).prepare( installed );
+        } catch ( UpdatePreparationException exception ) {
+            console.show( LauncherMessage.DOWNLOAD_FAILED );
+            if ( exception.isWorkerStopped() ) {
+                cleanup.discardUnpublished();
+            }
+            return Optional.empty();
+        }
+    }
+
     private int startRecovery( InstallationLock lock, List< String > panelArguments ) {
         if ( !Files.isRegularFile( layout.executorJava(), NOFOLLOW_LINKS )
                 || !Files.isRegularFile( layout.executorUpdaterJar(), NOFOLLOW_LINKS ) ) {
-            console.showErrorAndWait( REPAIR_MESSAGE );
+            console.showErrorAndWait( LauncherMessage.REPAIR_NEEDED );
             return 1;
         }
-        console.show( "Wykryto przerwaną aktualizację vDeck. Uruchamianie przywracania..." );
+
+        console.show( LauncherMessage.RECOVERY_STARTING );
         HandoffResult result = successors.handOff( lock, HandoffRole.RECOVERY,
                 operationId -> executorCommand( operationId, true, panelArguments ) );
+
         if ( result instanceof HandoffResult.Failed failed ) {
             failed.lock().ifPresent( InstallationLock::close );
-            console.showErrorAndWait( "Nie udało się uruchomić przywracania aktualizacji. Uruchom vDeck ponownie." );
+            console.showErrorAndWait( LauncherMessage.RECOVERY_START_FAILED );
             return 1;
         }
         return 0;
@@ -248,26 +271,30 @@ final class VdeckLauncher {
                 operationId -> panelCommand( operationId, settings, panelArguments ) );
         if ( !( result instanceof HandoffResult.Accepted accepted ) ) {
             ( ( HandoffResult.Failed ) result ).lock().ifPresent( InstallationLock::close );
-            console.showErrorAndWait( "Nie udało się uruchomić panelu vDeck." );
+            console.showErrorAndWait( LauncherMessage.PANEL_START_FAILED );
             return 1;
         }
-        Process panel = accepted.successor();
-        console.show( "Panel vDeck: http://" + settings.urlHost() + ":" + settings.port() );
-        console.show( "Pozostaw to okno otwarte podczas pracy panelu." );
-        // CTRL+C reaches both processes; keep the gate until the panel has shut down gracefully.
-        Runtime.getRuntime().addShutdownHook( new Thread( () -> awaitShutdown( panel ), "vdeck-panel-wait" ) );
-        int exitCode;
-        try {
-            exitCode = panel.waitFor();
-        } catch ( InterruptedException exception ) {
-            Thread.currentThread().interrupt();
-            exitCode = 1;
-        }
+
+        console.show( LauncherMessage.PANEL_ADDRESS, settings.urlHost(), settings.port() );
+        console.show( LauncherMessage.KEEP_WINDOW_OPEN );
+        int exitCode = awaitPanel( accepted.successor() );
+
         log.info( "Panel exited with code {}", exitCode );
         if ( exitCode != 0 ) {
-            console.showErrorAndWait( "vDeck zakończył pracę z kodem " + exitCode + ". Sprawdź komunikaty powyżej." );
+            console.showErrorAndWait( LauncherMessage.PANEL_EXITED, exitCode );
         }
         return exitCode;
+    }
+
+    private static int awaitPanel( Process panel ) {
+        // CTRL+C reaches both processes; keep the gate until the panel has shut down gracefully.
+        Runtime.getRuntime().addShutdownHook( new Thread( () -> awaitShutdown( panel ), "vdeck-panel-wait" ) );
+        try {
+            return panel.waitFor();
+        } catch ( InterruptedException exception ) {
+            Thread.currentThread().interrupt();
+            return 1;
+        }
     }
 
     private List< String > executorCommand( String operationId, boolean recover, List< String > panelArguments ) {

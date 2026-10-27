@@ -18,7 +18,6 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.HexFormat;
-import java.util.Locale;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -57,8 +56,6 @@ final class ReleaseDownloader {
     private static final int BUFFER_SIZE = 64 * 1024;
 
     private static final double MEBIBYTE = 1024 * 1024;
-
-    private static final Locale POLISH = Locale.forLanguageTag( "pl" );
 
     private final HttpClient client;
 
@@ -171,7 +168,7 @@ final class ReleaseDownloader {
                     }
                     long now = System.nanoTime();
                     if ( now - reported >= progressInterval.toNanos() ) {
-                        console.show( progress( total, expectedSize, now - started ) );
+                        showProgress( total, expectedSize, now - started );
                         reported = now;
                     }
                 }
@@ -194,10 +191,10 @@ final class ReleaseDownloader {
         return new InterruptedIOException( "The download stalled: no data for " + stallTimeout );
     }
 
-    private static String progress( long received, long expected, long elapsedNanos ) {
+    private void showProgress( long received, long expected, long elapsedNanos ) {
         double seconds = Math.max( elapsedNanos, 1 ) / 1_000_000_000.0;
-        return String.format( POLISH, "Pobieranie: %.1f z %.1f MB (%d%%), %.1f MB/s", received / MEBIBYTE,
-                expected / MEBIBYTE, received * 100 / expected, received / MEBIBYTE / seconds );
+        console.show( LauncherMessage.DOWNLOAD_PROGRESS, received / MEBIBYTE, expected / MEBIBYTE,
+                received * 100 / expected, received / MEBIBYTE / seconds );
     }
 
     private static Duration positive( Duration duration ) throws InterruptedIOException {

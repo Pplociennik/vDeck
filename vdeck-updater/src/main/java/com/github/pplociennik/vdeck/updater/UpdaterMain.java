@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.updater;
 
+import com.github.pplociennik.vdeck.runtime.installation.ConsoleMessage;
 import com.github.pplociennik.vdeck.runtime.installation.HandoffProtocol;
 import com.github.pplociennik.vdeck.runtime.installation.RunLogFile;
 import com.github.pplociennik.vdeck.runtime.installation.ServerActivityCheck;
@@ -52,11 +53,11 @@ public final class UpdaterMain {
         try {
             parsed = UpdaterArguments.parse( arguments );
         } catch ( IllegalArgumentException exception ) {
-            console.showErrorAndWait( "Nieprawidłowe wywołanie aktualizatora vDeck." );
+            console.showErrorAndWait( UpdaterMessage.INVALID_INVOCATION );
             return 2;
         }
         if ( installation == null ) {
-            console.showErrorAndWait( "Nie można ustalić katalogu instalacji vDeck." );
+            console.showErrorAndWait( ConsoleMessage.INSTALLATION_DIRECTORY_UNKNOWN );
             return 2;
         }
         String version = UpdaterMain.class.getPackage().getImplementationVersion();

@@ -14,6 +14,7 @@ classDiagram
         class RunLogFile
         class ServerActivityCheck
         class UserConsole
+        class I18n
     }
 
     namespace launcher {
@@ -23,7 +24,7 @@ classDiagram
         class UpdatePreparation
         class GitHubReleaseClient
         class ReleaseDownloader
-        class SafeZipExtractor
+        class PackageExtractor
         class UpdateExecutorPreparation
         class UpdateCleanup
     }
@@ -46,7 +47,7 @@ classDiagram
     VdeckLauncher --> InstallationOwnership
     UpdatePreparation --> GitHubReleaseClient
     UpdatePreparation --> ReleaseDownloader
-    UpdatePreparation --> SafeZipExtractor
+    UpdatePreparation --> PackageExtractor
     UpdatePreparation --> UpdateExecutorPreparation
     UpdaterMain --> VdeckUpdater
     VdeckUpdater --> UpdatePlan
@@ -61,3 +62,4 @@ classDiagram
     SuccessorStarter --> HandoffProtocol
     InstallationOwnership --> InstallationLock
     HandoffProtocol --> InstallationLock
+    UserConsole --> I18n

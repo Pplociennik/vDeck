@@ -34,7 +34,7 @@ class UserConsoleTest {
         underTest = new UserConsole( input );
 
         // WHEN
-        underTest.showErrorAndWait( "Błąd" );
+        underTest.showErrorAndWait( ConsoleMessage.INSTALLATION_DIRECTORY_UNKNOWN );
 
         // THEN
         assertThat( input.available() ).isEqualTo( "second".length() );
@@ -49,7 +49,7 @@ class UserConsoleTest {
         underTest = new UserConsole( new ByteArrayInputStream( new byte[ 0 ] ) );
 
         // WHEN
-        var action = ( Runnable ) () -> underTest.showErrorAndWait( "Błąd" );
+        var action = ( Runnable ) () -> underTest.showErrorAndWait( ConsoleMessage.INSTALLATION_DIRECTORY_UNKNOWN );
 
         // THEN
         assertThatCode( action::run ).doesNotThrowAnyException();

@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.launcher;
 
+import com.github.pplociennik.vdeck.runtime.installation.ConsoleMessage;
 import com.github.pplociennik.vdeck.runtime.installation.HandoffProtocol;
 import com.github.pplociennik.vdeck.runtime.installation.RunLogFile;
 import com.github.pplociennik.vdeck.runtime.installation.ServerActivityCheck;
@@ -57,11 +58,11 @@ public final class LauncherMain {
         try {
             parsed = LauncherArguments.parse( arguments );
         } catch ( IllegalArgumentException exception ) {
-            console.showErrorAndWait( "Nieprawidłowe wywołanie launchera vDeck." );
+            console.showErrorAndWait( LauncherMessage.INVALID_INVOCATION );
             return 2;
         }
         if ( installation == null ) {
-            console.showErrorAndWait( "Nie można ustalić katalogu instalacji vDeck." );
+            console.showErrorAndWait( ConsoleMessage.INSTALLATION_DIRECTORY_UNKNOWN );
             return 2;
         }
         UpdateLayout layout = new UpdateLayout( installation );
@@ -78,7 +79,7 @@ public final class LauncherMain {
         return new UpdatePreparation( layout, console, client,
                 new GitHubReleaseClient( client, GitHubReleaseClient.LATEST_RELEASE, installed ),
                 new ReleaseDownloader( client, console, ReleaseDownloader.STALL_TIMEOUT,
-                        ReleaseDownloader.PROGRESS_INTERVAL ), new SafeZipExtractor(), new UpdateExecutorPreparation(),
+                        ReleaseDownloader.PROGRESS_INTERVAL ), new PackageExtractor(), new UpdateExecutorPreparation(),
                 UpdatePreparation.BUDGET );
     }
 

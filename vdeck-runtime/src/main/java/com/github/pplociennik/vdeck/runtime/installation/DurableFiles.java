@@ -225,6 +225,32 @@ public final class DurableFiles {
     }
 
     /**
+     * Forces every regular file of a directory tree to the device, so files written by a library survive
+     * a power loss before they are published. Links are neither followed nor forced.
+     *
+     * @param tree
+     *         directory whose files are forced
+     * @throws NullPointerException
+     *         if the tree is null
+     * @throws IOException
+     *         if the tree cannot be walked or a file cannot be forced
+     */
+    public static void forceTree( @Nonnull Path tree ) throws IOException {
+        requireNonNull( tree, "tree must not be null" );
+
+        List< Path > files;
+        try ( Stream< Path > walk = Files.walk( tree ) ) {
+            files = walk.filter( entry -> Files.isRegularFile( entry, NOFOLLOW_LINKS ) ).toList();
+        }
+
+        for ( Path file : files ) {
+            try ( FileChannel channel = FileChannel.open( file, WRITE, NOFOLLOW_LINKS ) ) {
+                channel.force( true );
+            }
+        }
+    }
+
+    /**
      * Creates a SHA-256 digest, which every Java runtime must provide.
      *
      * @return new digest instance

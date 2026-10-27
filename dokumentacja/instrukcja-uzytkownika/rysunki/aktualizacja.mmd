@@ -6,7 +6,7 @@ flowchart TD
     check --> newer{{Czy jest nowsza wersja?}}
     newer -- nie --> panel
     newer -- tak --> download[vDeck pobiera paczkę i sprawdza jej sumę kontrolną]
-    download -- błąd albo ponad 5 minut --> panel
+    download -- błąd, 30 s bez danych<br/>albo ponad 60 minut --> panel
     download --> install[vDeck podmienia swoje pliki,<br/>zachowując Twoje ustawienia, bazę i światy]
     install -- powodzenie --> newPanel([Uruchamia się nowa wersja panelu])
     install -- błąd --> rollback[vDeck przywraca poprzednią wersję]

@@ -68,16 +68,17 @@ public final class LauncherMain {
         return new VdeckLauncher( layout, console, new ServerActivityCheck( installation ),
                 new HandoffProtocol( installation ), new SuccessorStarter( installation ),
                 ReleaseVersion.parse( LauncherMain.class.getPackage().getImplementationVersion() ),
-                installed -> preparation( layout, installed ) ).run( parsed );
+                installed -> preparation( layout, console, installed ) ).run( parsed );
     }
 
-    private static UpdatePreparation preparation( UpdateLayout layout, ReleaseVersion installed ) {
+    private static UpdatePreparation preparation( UpdateLayout layout, UserConsole console, ReleaseVersion installed ) {
         // NORMAL follows GitHub's redirect to its download host but never from HTTPS to HTTP.
         HttpClient client = HttpClient.newBuilder().connectTimeout( CONNECT_TIMEOUT )
                 .followRedirects( HttpClient.Redirect.NORMAL ).build();
-        return new UpdatePreparation( layout, client,
+        return new UpdatePreparation( layout, console, client,
                 new GitHubReleaseClient( client, GitHubReleaseClient.LATEST_RELEASE, installed ),
-                new ReleaseDownloader( client ), new SafeZipExtractor(), new UpdateExecutorPreparation(),
+                new ReleaseDownloader( client, console, ReleaseDownloader.STALL_TIMEOUT,
+                        ReleaseDownloader.PROGRESS_INTERVAL ), new SafeZipExtractor(), new UpdateExecutorPreparation(),
                 UpdatePreparation.BUDGET );
     }
 

@@ -1,6 +1,7 @@
 package com.github.pplociennik.vdeck.launcher;
 
 import com.github.pplociennik.vdeck.runtime.installation.DurableFiles;
+import com.github.pplociennik.vdeck.runtime.installation.UserConsole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,10 +24,13 @@ import java.util.HexFormat;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 
 /**
- * Verifies the streaming download with size and digest verification.
+ * Verifies the streaming download with size and digest verification and its progress messages. Timing of
+ * stalled and slow bodies is covered by {@link StalledResponseIntegrationTest}.
  */
 @ExtendWith( MockitoExtension.class )
 class ReleaseDownloaderTest {
@@ -46,6 +50,9 @@ class ReleaseDownloaderTest {
     @Mock
     private HttpResponse< InputStream > response;
 
+    @Mock
+    private UserConsole console;
+
     private ReleaseDownloader underTest;
 
     // =================================================================================================
@@ -53,11 +60,11 @@ class ReleaseDownloaderTest {
     // =================================================================================================
 
     /**
-     * Creates the downloader.
+     * Creates the downloader with a one-second stall timeout and no progress messages during the tests.
      */
     @BeforeEach
     void setUp() {
-        underTest = new ReleaseDownloader( client );
+        underTest = new ReleaseDownloader( client, console, Duration.ofSeconds( 1 ), Duration.ofDays( 1 ) );
     }
 
     // =================================================================================================
@@ -78,6 +85,22 @@ class ReleaseDownloaderTest {
         // THEN
         assertThat( zip ).isEqualTo( directory.resolve( "vDeck-dist-1.2.0.zip" ) ).hasBinaryContent( CONTENT );
         assertThat( directory.resolve( "vDeck-dist-1.2.0.zip.part" ) ).doesNotExist();
+    }
+
+    /**
+     * Verifies that the received amount, the total size and the percentage are shown in the console.
+     */
+    @Test
+    void shouldShowProgress_whenIntervalHasPassed() throws Exception {
+        // GIVEN
+        underTest = new ReleaseDownloader( client, console, Duration.ofSeconds( 1 ), Duration.ZERO );
+        respond( 200, CONTENT );
+
+        // WHEN
+        underTest.download( asset( CONTENT.length, digest( CONTENT ) ), directory, deadline() );
+
+        // THEN
+        then( console ).should().show( startsWith( "Pobieranie: 0,0 z 0,0 MB (100%), " ) );
     }
 
     /**

@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.launcher;
 
 import com.github.pplociennik.vdeck.launcher.exc.UpdatePreparationException;
 import com.github.pplociennik.vdeck.runtime.installation.UpdateLayout;
+import com.github.pplociennik.vdeck.runtime.installation.UserConsole;
 import com.github.pplociennik.vdeck.runtime.snapshot.FileWorldSnapshotStore;
 import jakarta.annotation.Nonnull;
 import lombok.extern.log4j.Log4j2;
@@ -23,7 +24,7 @@ import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Checks for a newer release and prepares it for the updater within one deadline (AD-024).
+ * Checks for a newer release and prepares it for the updater within one safety ceiling (AD-024, AD-027).
  *
  * <pre>
  * latest release (API) -- none / not newer --> nothing to install
@@ -32,9 +33,11 @@ import static java.util.Objects.requireNonNull;
  * download + SHA-256 -> safe extraction to staged -> executor copy -> ready for the updater
  * </pre>
  *
- * <p>All steps run in one worker thread under a single monotonic {@link #BUDGET}. When the budget runs out
- * the caller's thread shuts the HTTP client down, which aborts any blocked read, interrupts the worker and
- * waits until the worker has really finished. Only then does the caller learn of the failure, so a late
+ * <p>All steps run in one worker thread under a single monotonic {@link #BUDGET}. A stalled download is
+ * aborted much earlier by {@link ReleaseDownloader}; the budget only bounds a slow download that keeps
+ * receiving data and a slow extraction or copy. When the budget runs out the caller's thread shuts the
+ * HTTP client down, which aborts any blocked read, interrupts the worker and waits until the worker has
+ * really finished. Only then does the caller learn of the failure, so a late
  * worker can never publish files or start the updater after the launcher fell back to the current
  * version. The installation itself is never changed here.
  */
@@ -42,13 +45,15 @@ import static java.util.Objects.requireNonNull;
 final class UpdatePreparation {
 
     /**
-     * Budget from the first API request until the executor is ready.
+     * Safety ceiling from the first API request until the executor is ready.
      */
-    static final Duration BUDGET = Duration.ofMinutes( 5 );
+    static final Duration BUDGET = Duration.ofMinutes( 60 );
 
     private static final Duration WORKER_STOP_TIMEOUT = Duration.ofSeconds( 30 );
 
     private final UpdateLayout layout;
+
+    private final UserConsole console;
 
     private final HttpClient client;
 
@@ -67,6 +72,8 @@ final class UpdatePreparation {
      *
      * @param layout
      *         update layout of the canonical installation
+     * @param console
+     *         user console informed about the result of the check
      * @param client
      *         HTTP client used by the release client and downloader; shut down on timeout
      * @param releases
@@ -80,10 +87,12 @@ final class UpdatePreparation {
      * @param budget
      *         total time available, {@link #BUDGET} outside tests
      */
-    UpdatePreparation( @Nonnull UpdateLayout layout, @Nonnull HttpClient client, @Nonnull GitHubReleaseClient releases,
-                       @Nonnull ReleaseDownloader downloader, @Nonnull SafeZipExtractor extractor,
-                       @Nonnull UpdateExecutorPreparation executor, @Nonnull Duration budget ) {
+    UpdatePreparation( @Nonnull UpdateLayout layout, @Nonnull UserConsole console, @Nonnull HttpClient client,
+                       @Nonnull GitHubReleaseClient releases, @Nonnull ReleaseDownloader downloader,
+                       @Nonnull SafeZipExtractor extractor, @Nonnull UpdateExecutorPreparation executor,
+                       @Nonnull Duration budget ) {
         this.layout = requireNonNull( layout, "layout must not be null" );
+        this.console = requireNonNull( console, "console must not be null" );
         this.client = requireNonNull( client, "client must not be null" );
         this.releases = requireNonNull( releases, "releases must not be null" );
         this.downloader = requireNonNull( downloader, "downloader must not be null" );
@@ -135,9 +144,11 @@ final class UpdatePreparation {
         Optional< ReleaseAsset > latest = releases.fetchLatest( deadline );
         if ( latest.isEmpty() || !latest.get().version().isNewerThan( installed ) ) {
             log.info( "No newer release than {} is available", installed );
+            console.show( "Brak nowszej wersji. Zainstalowana wersja vDeck " + installed + " jest aktualna." );
             return Optional.empty();
         }
         ReleaseAsset asset = latest.get();
+        console.show( "Znaleziono nowszą wersję vDeck " + asset.version() + ". Pobieranie..." );
         Path download = prepareDirectory( layout.downloadDirectory() );
         Path zip = downloader.download( asset, download, deadline );
         extractor.extract( zip, layout, asset.version(), deadline );

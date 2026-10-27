@@ -39,7 +39,7 @@ import static java.util.Objects.requireNonNull;
  * read vDeck-start.properties (invalid value: stop)
  *   |
  *   +-- update.enabled, release build, no --after-update, server stopped:
- *   |      prepare newer release (5 min) --> hand over to the updater, exit
+ *   |      prepare newer release (30 s stall, 60 min ceiling) --> hand over to the updater, exit
  *   |      any failure                    --> continue with the installed version
  *   v
  * hand the installation lock to the panel, keep the gate, wait for the panel and return its exit code
@@ -178,6 +178,7 @@ final class VdeckLauncher {
         }
         if ( !settings.updateEnabled() ) {
             log.info( "Automatic updates are disabled in the start settings" );
+            console.show( "Automatyczne aktualizacje vDeck są wyłączone (update.enabled=false)." );
             return false;
         }
         if ( installedVersion.isEmpty() ) {
@@ -192,7 +193,9 @@ final class VdeckLauncher {
     }
 
     private UpdateAttempt tryUpdate( InstallationLock lock, List< String > panelArguments ) {
-        console.show( "Sprawdzanie aktualizacji vDeck..." );
+        log.info( "Checking for an update of the installed version {}", installedVersion.orElseThrow() );
+        console.show( "Sprawdzanie dostępnych aktualizacji vDeck (zainstalowana wersja "
+                + installedVersion.orElseThrow() + ")..." );
         Optional< ReleaseVersion > prepared;
         try {
             prepared = preparations.create( installedVersion.orElseThrow() ).prepare( installedVersion.orElseThrow() );

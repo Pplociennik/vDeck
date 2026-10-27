@@ -111,6 +111,7 @@ class VdeckLauncherTest {
         assertThat( exitCode ).isZero();
         assertThat( command( HandoffRole.PANEL ) ).contains( "--server.address=127.0.0.1", "--server.port=8085",
                 "--debug", "--enable-native-access=ALL-UNNAMED", "-Dvdeck.handoff=id" );
+        then( console ).should().show( "Sprawdzanie dostępnych aktualizacji vDeck (zainstalowana wersja 1.1.0)..." );
     }
 
     /**
@@ -145,6 +146,7 @@ class VdeckLauncherTest {
         // THEN
         then( preparation ).shouldHaveNoInteractions();
         then( serverActivity ).shouldHaveNoInteractions();
+        then( console ).should().show( "Automatyczne aktualizacje vDeck są wyłączone (update.enabled=false)." );
     }
 
     /**

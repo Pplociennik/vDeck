@@ -23,7 +23,8 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   unpublished update leftovers, reads `.vDeck/config/vDeck-start.properties` (`panel.address`,
   `panel.port`, `update.enabled`) and, for a release build with a stopped server, prepares a newer
   GitHub release (`UpdatePreparation`: API, SHA-256 `digest`, `SafeZipExtractor`, executor copy, one
-  5-minute deadline that shuts the HTTP client down). A prepared update is handed to the updater;
+  download aborted after 30 s without data, progress in the console, one 60-minute safety ceiling that
+  shuts the HTTP client down, AD-027). A prepared update is handed to the updater;
   any preparation failure starts the installed panel instead. The panel is handed the installation
   lock and the launcher keeps the gate until the panel exits, returning its exit code.
 - `vdeck-updater` — pure Java, no Spring, no network, `lib/vdeck-updater.jar`, always run from the

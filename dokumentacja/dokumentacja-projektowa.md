@@ -256,7 +256,8 @@ z nazwą klucza (`InvalidStartSettingException`).
 **Sprawdzenie i przygotowanie.** Launcher sprawdza aktualizacje tylko przy `update.enabled=true`, wersji
 wydania (manifest `Implementation-Version` bez `-SNAPSHOT`), bez `--after-update` i gdy
 `ServerActivityCheck` nie wykrywa `server.pid` ani procesu `valheim_server.exe` tej instalacji.
-`UpdatePreparation` wykonuje w jednym wątku, pod jednym monotonicznym deadlinem 5 minut:
+`UpdatePreparation` wykonuje w jednym wątku, pod jednym monotonicznym sufitem bezpieczeństwa
+60 minut (AD-027):
 
 1. `GitHubReleaseClient`: `GET https://api.github.com/repos/Pplociennik/vDeck/releases/latest`, połączenie
    do 5 s, pełna odpowiedź do 15 s i 1 MiB. Wymaga tagu `v<MAJOR.MINOR.PATCH>`, dokładnie jednego zasobu
@@ -264,7 +265,11 @@ wydania (manifest `Implementation-Version` bez `-SNAPSHOT`), bez `--after-update
    `github.com/Pplociennik/vDeck/releases/download/…`. `404` oznacza brak wydania. Instalowana jest tylko
    wersja ściśle nowsza (`ReleaseVersion`); nie ma obniżania wersji.
 2. `ReleaseDownloader`: strumieniowe pobranie do `.part` z SHA-256 w locie, dokładnie zadeklarowany
-   rozmiar, porównanie skrótu w stałym czasie, publikacja przez atomowy rename.
+   rozmiar, porównanie skrótu w stałym czasie, publikacja przez atomowy rename. Nagłówki muszą przyjść
+   w 30 s. Strażnik bezczynności zamyka strumień, gdy przez 30 s (`STALL_TIMEOUT`) nie przyszedł żaden
+   bajt, co przerywa także zablokowany odczyt; wolne, ale postępujące pobieranie trwa aż do sufitu.
+   Co 10 s (`PROGRESS_INTERVAL`) konsola pokazuje postęp, np.
+   `Pobieranie: 42,0 z 98,3 MB (42%), 0,8 MB/s`.
 3. `SafeZipExtractor`: rozpakowanie do `.tmp-staged-<uuid>`, odrzucenie ścieżek absolutnych, `..`,
    dysków, ADS, nazw zarezerwowanych Windows, kolizji wielkości liter i wpisów spoza `DistributionItem`;
    limity 10 000 wpisów, głębokości 16, 1 GiB rozpakowanych danych i współczynnika kompresji 100.
@@ -273,7 +278,7 @@ wydania (manifest `Implementation-Version` bez `-SNAPSHOT`), bez `--after-update
 4. `UpdateExecutorPreparation`: kopia `staged/jre` i `vdeck-updater.jar` do `.tmp-executor-<uuid>`,
    każda zweryfikowana skrótem, i publikacja jako `executor`.
 
-Po przekroczeniu limitu wątek główny wywołuje `HttpClient.shutdownNow()`, przerywa wątek roboczy
+Po przekroczeniu sufitu wątek główny wywołuje `HttpClient.shutdownNow()`, przerywa wątek roboczy
 i czeka na jego zakończenie (`UpdatePreparationException.isWorkerStopped()`); dopiero wtedy usuwa
 pliki robocze i uruchamia bieżącą wersję. Każdy błąd przygotowania kończy się startem bieżącej wersji.
 

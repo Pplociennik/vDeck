@@ -64,6 +64,8 @@ Zmiana jest kompletna, gdy wszystkie punkty mające zastosowanie są spełnione:
 - elementy mają najmniejszą potrzebną widoczność, a serwisy są wstrzykiwane przez interfejsy z
   pakietu `service`, implementowane w `service.impl`;
 - kod jest prosty, czytelny, poprawnie nazwany i nie zawiera niepotrzebnych abstrakcji;
+- powtarzająca się operacja lub mechanizm korzysta z jednego wspólnego serwisu albo klasy
+  narzędziowej udostępnionej całemu projektowi (`clean-code.md` §3);
 - Lombok usuwa możliwy do bezpiecznego wygenerowania boilerplate, w szczególności zapewnia
   `@Log4j2` klasom wymagającym loggera, bez ukrywania kontraktów i walidacji; dla prostych,
   niemutowalnych nośników danych pierwszeństwo przed klasą Lombok ma Java `record`;

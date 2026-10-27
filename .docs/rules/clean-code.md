@@ -115,6 +115,51 @@ Nową klasę warto wydzielić, gdy:
 Nie wydzielamy klasy, jeśli byłaby wyłącznie jednorazowym przekazaniem wywołania bez własnej semantyki
 i zwiększałaby liczbę elementów potrzebnych do zrozumienia prostego przepływu.
 
+### Wspólne serwisy i narzędzia
+
+Operację lub mechanizm, który powtarza się w kodzie, wydzielamy do jednego wspólnego serwisu albo
+klasy narzędziowej odpowiedzialnej za ten temat i udostępniającej go całemu projektowi. Dotyczy to
+w szczególności dostępu do plików i ścieżek, odczytu ustawień, trwałego zapisu, formatowania
+komunikatów, limitów czasu i strażników operacji blokujących, walidacji wejścia oraz komunikacji
+z procesami. Wydzielamy najpóźniej przy drugim rzeczywistym użyciu; kolejny konsument korzysta z
+istniejącej usługi zamiast tworzyć własną kopię.
+
+- Mechanizm wymagający zależności, konfiguracji albo cyklu życia Springa staje się serwisem: kontrakt
+  w pakiecie `service`, implementacja w `service.impl`, konsumenci wstrzykują kontrakt. Infrastruktura
+  współdzielona przez feature'y należy do pakietu `shared`, jak `shared.service.PathService`.
+- Bezstanowa operacja bez zależności staje się klasą `final` z prywatnym konstruktorem i metodami
+  statycznymi, jak `shared.PropertyReader` albo `runtime.installation.DurableFiles`.
+- Mechanizm potrzebny kilku modułom (`vdeck-app`, `vdeck-launcher`, `vdeck-updater`) trafia do
+  `vdeck-runtime`, z którego te moduły już korzystają; nie kopiujemy go między modułami.
+- Nazwa opisuje temat, za który klasa odpowiada (`DurableFiles`, `RunLogFile`), a nie ogólne `Utils`
+  czy `Helper` (§6). Jedna klasa obsługuje jeden temat; nie zbieramy niezwiązanych funkcji w jednym
+  worku narzędziowym.
+- Wspólna usługa ma własne testy jednostkowe i Javadoc, a konsumenci nie powtarzają jej walidacji.
+
+Reguła uzupełnia DRY: wydzielamy powtórzoną operację lub wiedzę, a nie przypadkowo podobną składnię
+fragmentów, które zmieniają się z różnych powodów.
+
+### Gotowe biblioteki zamiast własnych implementacji
+
+Nie piszemy własnej implementacji procesu, który rozwiązuje znana, popularna i bezpieczna biblioteka,
+np. parsowania formatów, kryptografii, kompresji, HTTP czy obsługi dat. Kolejność wyboru:
+
+1. JDK, Spring Boot albo zależność już obecna w module;
+2. powszechnie używana, aktywnie utrzymywana biblioteka ze stabilnym wydaniem, zgodną licencją
+   i bez znanych podatności;
+3. własna implementacja — tylko gdy żadna z powyższych nie pasuje, z powodem w Javadoc.
+
+Bibliotekę wybieramy także z uwagi na AD-001: małą, z niewieloma zależnościami przechodnimi.
+Moduły czystej Javy (`vdeck-runtime`, `vdeck-runner`, `vdeck-launcher`, `vdeck-updater`) nie mogą
+przez nią pobrać Springa. Wersję deklarujemy zgodnie z `maven.md`.
+
+Bibliotekę udostępniamy przez mały serwis albo klasę z §„Wspólne serwisy i narzędzia”, który jest
+wewnętrznym API projektu:
+
+- zawiera tylko wywołania biblioteki, jej konfigurację i tłumaczenie wyjątków na wyjątki projektu;
+- nie powtarza logiki biblioteki ani nie dodaje warstw „na zapas”;
+- konsumenci wołają serwis, a nie bibliotekę, więc jej wymiana dotyka jednego miejsca.
+
 Publiczne API klasy powinno być możliwie małe. Stan obiektu pozostaje prywatny, a poprawne niezmienniki
 są ustanawiane w konstruktorze lub fabryce. Zależności przekazujemy jawnie przez konstruktor; nie
 ukrywamy ich w globalnym stanie ani statycznym locatorze serwisów.
@@ -725,8 +770,8 @@ potrzebna do bezpiecznej implementacji feature’a jest częścią pracy. Nie ł
 funkcjonalnej z szeroką, niezwiązaną przebudową wielu modułów.
 
 Przed wydzieleniem abstrakcji należy wskazać konkretną duplikację, zmienność lub sprzężenie, które
-usuwa. Przed dodaniem zależności zewnętrznej należy sprawdzić, czy standardowa biblioteka Javy albo
-już używana zależność nie rozwiązuje problemu wystarczająco prosto.
+usuwa. Wybór między biblioteką a własną implementacją opisuje §3 „Gotowe biblioteki zamiast własnych
+implementacji”.
 
 ## 14. Kontrola przed zakończeniem zmiany
 
@@ -749,6 +794,10 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
 - czy nie dodano abstrakcji, wzorca albo opcji bez aktualnej potrzeby;
 - czy kompozycja mogła zastąpić dziedziczenie;
 - czy duplikowana wiedza została usunięta bez tworzenia sztucznej abstrakcji;
+- czy powtarzająca się operacja lub mechanizm korzysta z jednego wspólnego serwisu albo klasy
+  narzędziowej, zamiast mieć kolejną lokalną kopię;
+- czy proces rozwiązywany przez znaną, bezpieczną bibliotekę korzysta z niej przez mały serwis
+  projektu, zamiast z własnej implementacji;
 - czy błędy, zasoby, mutowalność i współbieżność mają jawne zasady;
 - czy użyte mechanizmy Java 25 poprawiają, a nie pogarszają czytelność;
 - czy Lombok usunął możliwy do bezpiecznego wygenerowania boilerplate bez ukrycia walidacji,

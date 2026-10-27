@@ -185,7 +185,7 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── ReleaseDownloader
 │       ├── SafeZipExtractor
 │       ├── UpdateExecutorPreparation
-│       ├── UpdatePreparation                    ← jeden deadline 5 minut
+│       ├── UpdatePreparation                    ← sufit 60 minut (AD-027)
 │       └── UpdateCleanup
 │
 ├── vdeck-updater/                               ← lib/vdeck-updater.jar, uruchamiany z executora
@@ -730,12 +730,13 @@ i obserwuje jego wyjście przed odzyskaniem blokady. Launcher, updater i recover
 na rzeczywiste wyjście poprzednika i zdobywają bramkę przed zmianami; panel jej nie zdobywa, bo
 launcher utrzymuje ją do końca pracy panelu.
 
-Przygotowanie (`UpdatePreparation`) działa w jednym wątku pod monotonicznym deadlinem 5 minut:
-API `releases/latest` (pełna odpowiedź w 15 s, limit 1 MiB, dokładna nazwa zasobu, rozmiar ≤ 512 MiB,
-`digest` `sha256:`, URL HTTPS na `github.com` w tym repozytorium), pobranie do `.part` z SHA-256
-w locie, rozpakowanie do `.tmp-staged-<uuid>` z białą listą `DistributionItem`, limitami i kontrolą
+Przygotowanie (`UpdatePreparation`) działa w jednym wątku pod monotonicznym sufitem bezpieczeństwa
+60 minut (AD-027): API `releases/latest` (pełna odpowiedź w 15 s, limit 1 MiB, dokładna nazwa zasobu,
+rozmiar ≤ 512 MiB, `digest` `sha256:`, URL HTTPS na `github.com` w tym repozytorium), pobranie do
+`.part` z SHA-256 w locie (nagłówki w 30 s, przerwanie po 30 s bez danych przez strażnika zamykającego
+strumień, postęp w konsoli co 10 s; wolne, ale postępujące pobieranie trwa do sufitu), rozpakowanie do `.tmp-staged-<uuid>` z białą listą `DistributionItem`, limitami i kontrolą
 wersji oraz protokołu w manifestach, a na końcu kopia JRE i updatera do `executor`. Każda publikacja
-to atomowy rename poprzedzony kontrolą deadline'u. Po przekroczeniu budżetu wątek główny zamyka klienta
+to atomowy rename poprzedzony kontrolą sufitu. Po przekroczeniu sufitu wątek główny zamyka klienta
 HTTP (`shutdownNow`), przerywa wątek i czeka na jego zakończenie, dopiero potem sprząta i uruchamia
 bieżącą wersję. Nowsza wersja jest instalowana tylko przy `update.enabled=true`, wersji wydania
 (nie `-SNAPSHOT`) i braku `server.pid` oraz procesu `valheim_server.exe` tej instalacji.

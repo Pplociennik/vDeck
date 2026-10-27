@@ -735,9 +735,12 @@ pobierać ani wypakowywać. Przebieg pokazuje <<fig-aktualizacja>>.
 image::aktualizacja.png[Schemat automatycznej aktualizacji vDeck,pdfwidth=60%]
 
 . Uruchom `start-vDeck.bat` jak zwykle, przy zatrzymanym serwerze Valheim.
-. W oknie konsoli pojawi się `Sprawdzanie aktualizacji vDeck...`. Jeśli jest nowsza wersja,
-  zobaczysz kolejno `Pobrano vDeck ...`, `Instalowanie aktualizacji vDeck ...`
-  i `Zaktualizowano vDeck do wersji ...`.
+. W oknie konsoli pojawi się `Sprawdzanie dostępnych aktualizacji vDeck (zainstalowana wersja ...)...`.
+  Gdy nowszej wersji nie ma, zobaczysz `Brak nowszej wersji. Zainstalowana wersja vDeck ... jest aktualna.`
+  Jeśli jest nowsza wersja, zobaczysz kolejno `Znaleziono nowszą wersję vDeck ... Pobieranie...`,
+  co 10 sekund postęp pobierania, np. `Pobieranie: 42,0 z 98,3 MB (42%), 0,8 MB/s`, a potem
+  `Pobrano vDeck ...`, `Instalowanie aktualizacji vDeck ...` i `Zaktualizowano vDeck do wersji ...`.
+  Na wolnym łączu pobieranie może potrwać dłużej; dopóki postęp rośnie, vDeck czeka.
 . Panel uruchomi się już w nowej wersji. Nie zamykaj okna w czasie aktualizacji.
 
 [cols="1,2",options="header"]
@@ -751,10 +754,12 @@ Nowe ustawienia dochodzą z wartościami domyślnymi, a nieużywane znikają.
 |===
 
 NOTE: Aktualizacja nie wykona się, gdy serwer Valheim działa albo panel jest już uruchomiony.
-Gdy nie ma internetu, pobieranie trwa ponad 5 minut albo paczka nie przejdzie kontroli,
-vDeck po prostu uruchamia dotychczasową wersję i spróbuje ponownie przy następnym starcie.
+Gdy nie ma internetu, przez 30 sekund nie dociera żadna część paczki, pobieranie trwa ponad
+60 minut albo paczka nie przejdzie kontroli, vDeck po prostu uruchamia dotychczasową wersję
+i spróbuje ponownie przy następnym starcie.
 
 TIP: Aby wyłączyć automatyczne aktualizacje, ustaw `update.enabled=false` (<<adres-i-port>>).
+Przy każdym starcie okno konsoli przypomni wtedy, że aktualizacje są wyłączone.
 
 Poprzednia wersja programu i Twoje pliki ustawień sprzed aktualizacji zostają w katalogu
 `.vDeck\update\backup` do następnej aktualizacji. Kopia nie obejmuje zmian bazy `vdeck.db`

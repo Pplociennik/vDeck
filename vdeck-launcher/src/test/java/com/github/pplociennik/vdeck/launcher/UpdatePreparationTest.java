@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.launcher;
 
 import com.github.pplociennik.vdeck.launcher.exc.UpdatePreparationException;
 import com.github.pplociennik.vdeck.runtime.installation.UpdateLayout;
+import com.github.pplociennik.vdeck.runtime.installation.UserConsole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +44,9 @@ class UpdatePreparationTest {
 
     @TempDir
     private Path directory;
+
+    @Mock
+    private UserConsole console;
 
     @Mock
     private HttpClient client;
@@ -99,6 +103,7 @@ class UpdatePreparationTest {
         then( extractor ).should().extract( eq( zip ), eq( layout ), eq( NEWER ), any() );
         then( executor ).should().prepare( eq( layout ), any() );
         then( client ).should( never() ).shutdownNow();
+        then( console ).should().show( "Znaleziono nowszą wersję vDeck 1.2.0. Pobieranie..." );
     }
 
     /**
@@ -115,6 +120,7 @@ class UpdatePreparationTest {
         // THEN
         assertThat( prepared ).isEmpty();
         then( downloader ).should( never() ).download( any(), any(), any() );
+        then( console ).should().show( "Brak nowszej wersji. Zainstalowana wersja vDeck 1.1.0 jest aktualna." );
     }
 
     /**
@@ -195,7 +201,7 @@ class UpdatePreparationTest {
     // =================================================================================================
 
     private UpdatePreparation preparation( Duration budget ) {
-        return new UpdatePreparation( layout, client, releases, downloader, extractor, executor, budget );
+        return new UpdatePreparation( layout, console, client, releases, downloader, extractor, executor, budget );
     }
 
     private static ReleaseAsset asset( ReleaseVersion version ) {

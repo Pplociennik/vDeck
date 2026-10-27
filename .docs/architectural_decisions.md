@@ -348,7 +348,8 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 
 ## AD-024 — Automatyczna aktualizacja przy starcie: launcher, updater i recovery
 
-- **Status:** obowiązująca (2026-10-27), zaakceptowana przez użytkownika.
+- **Status:** obowiązująca (2026-10-27), zaakceptowana przez użytkownika; deadline 5 minut
+  wycofany (2026-10-27, zastąpiony przez AD-027).
 - **Decyzja:** Skrypt startowy uruchamia wyłącznie launcher (`vdeck-launcher`, czysta Java). Przy
   każdym starcie launcher zdobywa bramkę `.vDeck/startup.lock` i blokadę `.vDeck/vdeck.lock`,
   a przy `update.enabled=true`, wersji wydania i zatrzymanym serwerze sprawdza najnowszy Release
@@ -396,3 +397,11 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Konsekwencja:** Kontrakt BAT-a (ścieżki dziennika i executora, tryb `--recover`) jest stały dla
   protokołu recovery 1; paczka z innym protokołem jest odrzucana przed podmianą. Błędna wartość
   ustawienia startu zatrzymuje start z komunikatem wskazującym klucz.
+
+## AD-027 — Limit bezczynności pobierania aktualizacji
+
+- **Status:** obowiązująca (2026-10-27)
+- **Zastępuje:** AD-024 (deadline 5 minut)
+- **Decyzja:** `ReleaseDownloader` przerywa pobieranie po 30 s bez danych i pokazuje postęp w konsoli, a sufit `UpdatePreparation.BUDGET` wynosi 60 minut.
+- **Powód:** Stały limit 5 minut blokował aktualizację na wolnym łączu.
+- **Konsekwencja:** Wolne, ale postępujące pobieranie trwa do 60 minut, a każde przerwanie uruchamia bieżącą wersję.

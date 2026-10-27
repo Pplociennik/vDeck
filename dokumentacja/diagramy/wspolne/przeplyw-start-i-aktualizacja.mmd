@@ -16,9 +16,9 @@ flowchart TD
     settings -- błędna wartość --> invalid([Komunikat z kluczem, kod 1])
     settings --> check{update.enabled, wersja wydania,<br/>brak --after-update, serwer zatrzymany?}
     check -- nie --> panel
-    check -- tak --> prepare[Przygotowanie w limicie 5 minut:<br/>API latest, pobranie z SHA-256,<br/>bezpieczne rozpakowanie, kopia executora]
+    check -- tak --> prepare[Przygotowanie z sufitem 60 minut:<br/>API latest, pobranie z SHA-256 i postępem,<br/>bezpieczne rozpakowanie, kopia executora]
     prepare -- brak nowszej wersji --> panel
-    prepare -- błąd lub limit czasu --> fallback[Przerwanie HTTP, zakończenie wątku,<br/>sprzątanie plików roboczych]
+    prepare -- błąd, 30 s bez danych<br/>lub sufit czasu --> fallback[Przerwanie HTTP, zakończenie wątku,<br/>sprzątanie plików roboczych]
     fallback --> panel
     prepare -- gotowe --> updater[[Przekazanie blokady updaterowi z executora,<br/>launcher kończy pracę]]
     updater --> apply[Updater: dziennikowana podmiana<br/>i scalanie ustawień]

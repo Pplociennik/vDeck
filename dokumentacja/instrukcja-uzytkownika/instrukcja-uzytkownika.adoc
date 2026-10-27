@@ -182,7 +182,7 @@ image::ekran-glowny.jpg[Ekran główny z wyspą akcji, stanem serwera i przycisk
 [horizontal]
 1:: *Wyspa akcji* — przyciski sterowania serwerem i panelem, widoczne na każdym ekranie.
 2:: *Stan serwera* — kropka w kolorze stanu i jego nazwa.
-3:: *Menu* — otwiera menu boczne z ekranami ustawień.
+3:: *Menu* — otwiera menu boczne z ekranami ustawień i konsolą.
 
 === Wyspa akcji
 
@@ -213,17 +213,18 @@ da się zatrzymać, a działającego — uruchomić drugi raz.
 === Menu boczne i przycisk strony głównej
 
 Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Sekcja *Konfiguracja* prowadzi do
-ekranów ustawień.
+ekranów ustawień, a sekcja *Procesy* — do konsoli serwera.
 
 .Menu boczne
-image::menu-boczne.jpg[Menu boczne z wyróżnionymi pozycjami Serwer i Ustawienia gry,pdfwidth=40%]
+image::menu-boczne.jpg[Menu boczne z wyróżnionymi pozycjami Serwer, Ustawienia gry i Konsola,pdfwidth=40%]
 
 [horizontal]
 1:: *Serwer* — tożsamość serwera, dostęp, świat i kopie automatyczne.
 2:: *Ustawienia gry* — poziom trudności i zasady świata.
+3:: *Konsola* — log działającego serwera (<<konsola>>).
 
-Pozycje *Test* w sekcjach *Operacje* i *Kopie bezpieczeństwa* to miejsca na przyszłe ekrany;
-na razie nic nie robią.
+Pozycja *Test* w sekcji *Kopie bezpieczeństwa* to miejsce na przyszły ekran; na razie nic nie
+robi.
 
 Na każdym ekranie poza stroną główną obok przycisku menu jest mały przycisk z domkiem — wraca
 na stronę główną.
@@ -481,6 +482,26 @@ zablokowany, żeby nie uruchomić drugiej kopii serwera na tym samym świecie.
 Naciśnij btn:[Przejmij zarządzanie serwerem], aby panel znów nim sterował. Przejąć można tylko
 serwer uruchomiony wcześniej przez panel. Serwer uruchomiony poza panelem trzeba zatrzymać
 samodzielnie.
+
+[#konsola]
+=== Konsola
+
+Ekran *Konsola* pokazuje log serwera, czyli komunikaty, które serwer Valheim zapisuje w czasie
+pracy. Otworzysz go z menu bocznego: sekcja *Procesy*, pozycja *Konsola*.
+
+.Ekran „Konsola”
+image::ekran-konsola.jpg[Ekran Konsola z oknem logu serwera]
+
+* Okno odświeża się samo co sekundę — nowe wiersze pojawiają się na dole.
+* Jeżeli przewiniesz okno w górę, żeby przeczytać starsze wiersze, panel nie przewija go z
+  powrotem. Przewiń na sam dół, aby znów śledzić najnowsze wiersze.
+* Okno pokazuje tylko bieżące uruchomienie. Po ponownym uruchomieniu serwera zaczyna od nowa.
+* Okno jest puste, zanim uruchomisz serwer i po jego zatrzymaniu. Gdy serwer nie wystartował
+  albo uległ awarii, okno nadal pokazuje jego log — pomaga to ustalić przyczynę.
+* Przy bardzo długim logu panel pokazuje tylko ostatnie wiersze. Cały log leży w pliku,
+  domyślnie w katalogu `.vDeck\log` (<<pliki>>).
+
+NOTE: Konsola służy tylko do czytania. Nie można w niej wpisywać poleceń dla serwera.
 
 [#zamykanie-panelu]
 === Zamykanie panelu

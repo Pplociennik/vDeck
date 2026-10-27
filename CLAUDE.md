@@ -55,7 +55,11 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   `LaunchConfiguration` (secret-free profile plus password) after settings initialization and every
   successful profile save. Start captures it once for validation and command generation. The builder
   returns `LaunchSpec` directly; the mirror script is rendered from that same specification. Start, Stop and manually confirmed Kill are wired to the island.
-  Restart is not implemented. `server-status.js` polls the island every two seconds while visible. Views with navigation embed the side menu
+  Restart is not implemented. `server-status.js` polls the island every two seconds while visible.
+  The `logs` feature serves `/console` ("Konsola", in the side menu's "Procesy" section): `console.js`
+  polls `GET /console/log?offset=N` every second and `LogServiceImpl` reads the log file named by
+  `ServerStatus.getLogFile()` from that byte (at most 256 KiB, cut at the last line break; the last
+  256 KiB without an offset). It keeps nothing in memory and uses no SSE. Views with navigation embed the side menu
   (`templates/common/side-menu.html` + `static/js/side-menu.js`) and, as a separate fragment, the round
   home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` controls the advanced settings section.
 - `.dist` (`vdeck-dist`) — packaging-only module depending on app and runner. Builds

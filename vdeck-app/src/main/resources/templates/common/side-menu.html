@@ -31,7 +31,7 @@
     <nav id="side-menu-panel" class="side-menu-panel" data-state="closed" data-side-menu-panel inert
          th:attr="aria-label=#{sideMenu.label}">
         <div class="side-menu-surface surface surface--side-menu">
-            <!-- Real panel entries and placeholders labelled "Test" showing the three levels; placeholders are replaced by real panels. -->
+            <!-- Real panel entries and a placeholder labelled "Test"; the placeholder is replaced by a real panel. -->
             <div class="side-menu-sections">
                 <section class="side-menu-section" aria-labelledby="side-menu-section-title-configuration">
                     <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.configuration', 'side-menu-section-title-configuration')}"></h2>
@@ -45,31 +45,11 @@
                     </ul>
                 </section>
 
-                <section class="side-menu-section" aria-labelledby="side-menu-section-title-operation">
-                    <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.operation', 'side-menu-section-title-operation')}"></h2>
+                <section class="side-menu-section" aria-labelledby="side-menu-section-title-processes">
+                    <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.processes', 'side-menu-section-title-processes')}"></h2>
                     <ul class="side-menu-list side-menu-list--level-1">
                         <li class="side-menu-item">
-                            <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.label', 'icon-key', 'side-menu-section-3')}"></button>
-                            <div class="side-menu-children" id="side-menu-section-3" inert>
-                                <ul class="side-menu-list side-menu-list--level-2">
-                                    <li class="side-menu-item">
-                                        <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.label', null)}"></button>
-                                    </li>
-                                    <li class="side-menu-item">
-                                        <button th:replace="~{common/side-menu :: branchToggle('sideMenu.dummy.label', null, 'side-menu-section-3-group-2')}"></button>
-                                        <div class="side-menu-children" id="side-menu-section-3-group-2" inert>
-                                            <ul class="side-menu-list side-menu-list--level-3">
-                                                <li class="side-menu-item">
-                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.label', null)}"></button>
-                                                </li>
-                                                <li class="side-menu-item">
-                                                    <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.label', null)}"></button>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </li>
-                                </ul>
-                            </div>
+                            <a th:replace="~{common/side-menu :: link('sideMenu.entry.console', 'icon-console', '/console', 'console')}"></a>
                         </li>
                     </ul>
                 </section>

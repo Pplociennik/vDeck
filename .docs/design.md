@@ -305,8 +305,10 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │       ├── PlayerService
         │   │   │       └── impl/
         │   │   │           └── PlayerServiceImpl
-        │   │   ├── logs/                        ← SSE i bufor logów dla UI
-        │   │   │   ├── LogStreamController
+        │   │   ├── logs/                        ← konsola: odpytywany log bieżącego uruchomienia
+        │   │   │   ├── ConsoleController
+        │   │   │   ├── dto/
+        │   │   │   │   └── LogChunk
         │   │   │   └── service/
         │   │   │       ├── LogService
         │   │   │       └── impl/
@@ -414,6 +416,9 @@ Implementacja zatrzymania rozszerza powyższe poddrzewa o:
 - app/feature/backup: `service.BackupPathService` i `service.impl.BackupPathServiceImpl`;
 - app/feature/server/exc: `ServerStopException`, `ServerKillException`;
 - templates/server: `kill-confirmation.html`; static/js: `server-status.js`.
+
+Konsola (feature `logs`, opisany w drzewie powyżej) dodaje szablon `templates/logs/console.html`,
+`static/js/console.js` i `static/css/console.css`.
 
 
 ## 4. Persystencja
@@ -658,8 +663,9 @@ serwera, a panel jedynie go śledzi, dzięki czemu logowanie nie zależy od życ
 
 Launcher nie dziedziczy więc żadnych uchwytów: `stdout` i `stderr` procesu pozostają domyślne, a
 `STARTUPINFO` nie ustawia `STARTF_USESTDHANDLES`. Uchwyty `PROCESS_INFORMATION` są zamykane
-bezpośrednio po uruchomieniu procesu. Każdy start otrzymuje nową ścieżkę logu; przyszły `LogTailer`
-wiąże śledzenie z konkretnym uruchomieniem zamiast zakładać nadpisywanie stałego pliku przy restarcie.
+bezpośrednio po uruchomieniu procesu. Każdy start otrzymuje nową ścieżkę logu; konsola
+(`feature.logs`) wiąże śledzenie z konkretnym uruchomieniem przez nazwę pliku zamiast zakładać
+nadpisywanie stałego pliku przy restarcie.
 
 Łagodne zatrzymanie odbywa się przez osobny, krótkotrwały proces-helper wykonujący:
 
@@ -923,12 +929,12 @@ jeden znacznik pending, aby odczyty nie tworzyły nieograniczonej kolejki skanó
 | Widoki | Thymeleaf, fragmenty HTMX i natywne moduły ES bez obowiązkowego procesu budowania frontendu. |
 | Nawigacja | Menu boczne jako wspólny fragment `common/side-menu.html`: domyślnie ukryte, otwierane okrągłym przyciskiem w lewym dolnym rogu, z pozycjami pogrupowanymi w tytułowane sekcje; w obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach działające jak akordeon. Drzewo jest zapisane w znacznikach fragmentu, bez modelu w Javie. Menu nie jest osadzane na ekranie wymuszonej zmiany hasła początkowego. Obok przycisku menu, stycznie z prawej strony, leży mniejszy okrągły przycisk strony głównej — osobny fragment `common/home-button.html`, osadzany przez te same widoki. |
 | Profil uruchomieniowy | Dwa ekrany otwierane z sekcji „Konfiguracja” menu bocznego: „Serwer” (`/server-settings` — tożsamość, dostęp, świat i zapis, kopie automatyczne) oraz „Ustawienia gry” (`/game-settings` — zestaw ustawień świata na górze, a modyfikatory i klucze świata w sekcji „Zaawansowane”, domyślnie ukrytej, z zapamiętywaną widocznością). Pola odpowiadają opcjom `valheim_server.exe` z instrukcji serwera dedykowanego, są pogrupowane w sekcje i każde ma opis z dozwolonymi wartościami. Każdy ekran zapisuje atomowo wyłącznie własne ustawienia; hasło serwera nigdy nie wraca do przeglądarki. Zmiany obowiązują od następnego uruchomienia serwera. |
-| Logi | Aktualizowane w przeglądarce przez SSE. |
+| Konsola | Ekran `/console` z sekcji „Procesy” menu bocznego pokazuje log bieżącego uruchomienia. `console.js` co sekundę pobiera `GET /console/log?offset=N`; serwer czyta plik z `ServerStatus.getLogFile()` od podanego bajtu (najwyżej 256 KiB, do ostatniego pełnego wiersza), a bez pozycji zwraca ostatnie 256 KiB. Bez SSE i bez bufora w pamięci. |
 | Bezpieczeństwo żądań | Włączone CSRF; token jest dodawany do `hx-post` przez `htmx:configRequest`. |
 
 Natywny JavaScript pozostaje bez build-stepu, dopóki jego rozmiar i zależności nie uzasadnią
-wprowadzenia bundlera. Logi SSE korzystają z bufora pierścieniowego, aby nowy klient mógł otrzymać
-ostatnie zdarzenia bez przechowywania nieograniczonej historii w pamięci.
+wprowadzenia bundlera. Konsola nie przechowuje historii logu w pamięci: każde odpytanie czyta plik,
+a nowy klient zaczyna od końcówki pliku.
 
 ---
 

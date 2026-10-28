@@ -1,0 +1,25 @@
+%% Diagram przepływu: panel „Co nowego w vDeck” po aktualizacji
+flowchart TD
+    start([Start panelu]) --> fresh{DataInitializer:<br/>konto 'admin' istnieje?}
+    fresh -- nie, świeża baza --> ackFresh[acknowledgeInstalled:<br/>zapis zainstalowanej wersji]
+    fresh -- tak, aktualizacja --> home
+    ackFresh --> home[GET /: HomeController.showHome<br/>ReleaseNotesService.findUnacknowledged]
+    home --> build{BuildProperties obecne<br/>i wersja to MAJOR.MINOR.PATCH?<br/>bez -SNAPSHOT}
+    build -- nie --> none([Strona główna bez panelu])
+    build -- tak --> acked{Wersja zainstalowana<br/>w release_notes_acknowledgements?}
+    acked -- tak --> none
+    acked -- nie --> read[ReleaseNotesReader:<br/>classpath*:release-notes/*.md<br/>nazwa X.Y.Z.md, parsowanie]
+    read -- plik uszkodzony --> warn[WARN w logu,<br/>plik pominięty]
+    warn --> read
+    read --> any{Jakiekolwiek<br/>potwierdzenie w bazie?}
+    any -- nie --> onlyInstalled[Tylko lista wersji zainstalowanej]
+    any -- tak --> range[Wersje nowsze od ostatnio potwierdzonej<br/>i nie nowsze od zainstalowanej]
+    onlyInstalled --> empty{Po odrzuceniu list<br/>bez zmian coś zostało?}
+    range --> empty
+    empty -- nie --> none
+    empty -- tak --> panel([Panel „Co nowego w vDeck”<br/>wersje od najnowszej, każda z numerem])
+    panel --> close[Zamknij:<br/>POST /release-notes/acknowledge z CSRF]
+    close --> save{Zapis zainstalowanej wersji<br/>w release_notes_acknowledgements}
+    save -- sukces --> redirect([redirect:/ — panel już się nie pokazuje])
+    save -- DataAccessException --> error[ReleaseNotesException<br/>ReleaseNotesExceptionHandler: ERROR w logu]
+    error --> retry([redirect:/ z komunikatem błędu,<br/>panel nadal widoczny])

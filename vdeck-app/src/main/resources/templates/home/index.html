@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="#{home.title}">vDeck</title>
     <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/home.css}">
     <script type="module" th:src="@{/js/server-status.js}"></script>
 </head>
 <body>
@@ -28,6 +29,33 @@
             <button class="form-submit" type="submit" th:text="#{server.recovery.adopt}"></button>
         </form>
     </section>
+    <!--
+        Change lists of the versions installed since the administrator last closed this panel, newest
+        first. It stays on the home page until "Zamknij" stores the acknowledgement.
+    -->
+    <div class="panel-frame" th:unless="${releaseNotes.isEmpty()}">
+        <section class="view-card view-card--wide surface release-notes" aria-labelledby="release-notes-title">
+            <h1 class="view-title" id="release-notes-title" th:text="#{releaseNotes.title}"></h1>
+            <p class="view-lead" th:text="#{releaseNotes.lead(${releaseNotes[0].version})}"></p>
+            <p class="form-alert" role="alert"
+               th:if="${releaseNotesErrorKey}" th:text="#{${releaseNotesErrorKey}}"></p>
+            <article class="release-notes__version" th:each="notes : ${releaseNotes}">
+                <h2 class="release-notes__version-title" th:text="#{releaseNotes.version(${notes.version})}"></h2>
+                <section class="release-notes__section" th:each="section : ${notes.sections}">
+                    <h3 class="form-section__title" th:text="#{${section.category.key}}"></h3>
+                    <ul class="release-notes__entries">
+                        <li class="release-notes__entry" th:each="entry : ${section.entries}">
+                            <strong class="release-notes__entry-title" th:text="${entry.title}"></strong>
+                            <span class="release-notes__entry-description" th:text="${entry.description}"></span>
+                        </li>
+                    </ul>
+                </section>
+            </article>
+            <form class="settings-footer" th:action="@{/release-notes/acknowledge}" method="post">
+                <button class="form-submit" type="submit" th:text="#{releaseNotes.close}"></button>
+            </form>
+        </section>
+    </div>
 </main>
 
 <div th:replace="~{common/home-button :: homeButton}"></div>

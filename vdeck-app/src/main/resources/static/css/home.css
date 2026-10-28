@@ -1,0 +1,62 @@
+@import url("variables.css");
+
+/*
+ * Change list panel of the home page, shown after an update. It uses the shared panel frame and view
+ * card; this sheet only lays out the versions and their entries inside the card.
+ */
+.release-notes {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-lg);
+}
+
+.release-notes .view-lead {
+    margin-block-end: 0;
+}
+
+/* One version: its number first, then its sections, each opened by the shared section title. */
+.release-notes__version {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    border-radius: var(--field-radius);
+    background-color: var(--color-inset-surface);
+}
+
+.release-notes__version-title {
+    margin: 0;
+    font-size: var(--font-size-lead);
+    font-weight: 600;
+    color: var(--color-accent);
+}
+
+.release-notes__entries {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* A change reads as a one-line title with its short description directly below. */
+.release-notes__entry {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding-inline-start: var(--space-sm);
+    border-inline-start: var(--side-menu-section-line-width) solid var(--side-menu-section-line-color);
+}
+
+.release-notes__entry-title {
+    font-size: var(--font-size-field);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.release-notes__entry-description {
+    font-size: var(--font-size-label);
+    line-height: 1.45;
+    color: var(--color-text-muted);
+}

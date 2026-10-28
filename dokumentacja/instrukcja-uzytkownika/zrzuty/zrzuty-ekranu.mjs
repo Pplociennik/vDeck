@@ -5,12 +5,14 @@
 // The panel refuses to start there unless its startup check is disabled, so start the package with
 //   set JAVA_TOOL_OPTIONS=-Dvdeck.server-file-check=false
 //   start-vDeck.bat
-// The script changes the administrator password, edits the launch profile with sample values and
-// toggles the advanced game settings, so never point it at a real installation.
+// The script changes the administrator password, edits the launch profile with sample values,
+// toggles the advanced game settings and clears the acknowledged release notes in vdeck.db, so never
+// point it at a real installation.
 //
 // Usage:
 //   npm install
 //   set VDECK_NEW_PASSWORD=<password meeting the panel rules>
+//   set VDECK_INSTALLATION=<directory of the extracted package, holding vdeck.db>
 //   npm run zrzuty
 //
 // VDECK_URL defaults to http://127.0.0.1:8085. VDECK_BROWSER_CHANNEL selects the installed
@@ -20,6 +22,7 @@
 // element shots of single form sections, so the text in the PDF stays legible at the page width.
 
 import { chromium } from 'playwright';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -28,6 +31,10 @@ const channel = process.env.VDECK_BROWSER_CHANNEL ?? 'msedge';
 const newPassword = process.env.VDECK_NEW_PASSWORD;
 if ( !newPassword ) {
     throw new Error( 'Set VDECK_NEW_PASSWORD to the password that replaces the initial "admin".' );
+}
+const installation = process.env.VDECK_INSTALLATION;
+if ( !installation ) {
+    throw new Error( 'Set VDECK_INSTALLATION to the extracted package that runs the panel.' );
 }
 const imageDirectory = path.resolve( path.dirname( fileURLToPath( import.meta.url ) ), '..', 'img' );
 
@@ -143,6 +150,21 @@ try {
     ] );
     await page.screenshot( { path: imagePath( 'start-blad-walidacji', 'jpg' ), type: 'jpeg', quality: 85,
         clip: { x: 240, y: 0, width: 800, height: 500 } } );
+    await clearMarks( page );
+
+    // A fresh installation acknowledges its own version, so the "Co nowego" panel only appears once the
+    // acknowledgements are gone - as after an update from a version that never stored one.
+    forgetReleaseNotesAcknowledgements();
+    await page.setViewportSize( { width: 1280, height: 1100 } );
+    await page.goto( `${baseUrl}/` );
+    // The card stretches to the viewport height, so the shot ends below its Close button.
+    await page.waitForLoadState( 'networkidle' );
+    const card = await page.locator( '.release-notes' ).boundingBox();
+    const footer = await page.locator( '.release-notes .settings-footer' ).boundingBox();
+    await page.screenshot( { path: imagePath( 'co-nowego', 'jpg' ), type: 'jpeg', quality: 85,
+        clip: { x: card.x, y: card.y, width: card.width, height: footer.y + footer.height + 24 - card.y } } );
+    await Promise.all( [ page.waitForNavigation(), page.click( '.release-notes .form-submit' ) ] );
+    await page.setViewportSize( { width: 1280, height: 800 } );
     await desktop.close();
 
     const phone = await browser.newContext( { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: 'pl-PL' } );
@@ -154,6 +176,15 @@ try {
     await phone.close();
 } finally {
     await browser.close();
+}
+
+function forgetReleaseNotesAcknowledgements() {
+    const database = new DatabaseSync( path.join( installation, 'vdeck.db' ) );
+    try {
+        database.exec( 'DELETE FROM release_notes_acknowledgements' );
+    } finally {
+        database.close();
+    }
 }
 
 async function logIn( page, password ) {

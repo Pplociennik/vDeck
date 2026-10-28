@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.launcher;
 
+import com.github.pplociennik.vdeck.runtime.installation.ReleaseVersion;
 import jakarta.annotation.Nonnull;
 
 import java.net.URI;

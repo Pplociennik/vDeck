@@ -39,6 +39,7 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   `UserConsole` takes only message keys (`ConsoleMessageIf` enums: `ConsoleMessage`, `LauncherMessage`,
   `UpdaterMessage`); `I18n` resolves them from `vdeck-runtime/src/main/resources/console-messages.properties`
   with `MessageFormat` and Polish number formatting, so no console text is hardcoded.
+  `ReleaseVersion` (`MAJOR.MINOR.PATCH`) lives here too, shared by the launcher and the panel.
   `ManagedLaunchStore` owns an `InstallationLock`; `shared.lock.InstallationLockService`, called from
   `VdeckApplication.main()`, is the only place that takes it over from the launcher
   (`-Dvdeck.handoff=<id>`) before Spring starts and registers it as the `installationLock` bean.
@@ -59,7 +60,13 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   The `logs` feature serves `/console` ("Konsola", in the side menu's "Procesy" section): `console.js`
   polls `GET /console/log?offset=N` every second and `LogServiceImpl` reads the log file named by
   `ServerStatus.getLogFile()` from that byte (at most 256 KiB, cut at the last line break; the last
-  256 KiB without an offset). It keeps nothing in memory and uses no SSE. Views with navigation embed the side menu
+  256 KiB without an offset). It keeps nothing in memory and uses no SSE. The `releasenotes` feature
+  (AD-029) shows the „Co nowego w vDeck" card on `/` after an update: `ReleaseNotesReader` reads
+  `release-notes/<X.Y.Z>.md` from the classpath, `ReleaseNotesServiceImpl` selects versions newer than
+  the highest row of `release_notes_acknowledgements` and not newer than the installed version
+  (`BuildProperties` from the `build-info` goal, `-SNAPSHOT` stripped; without it the feature is off),
+  and `POST /release-notes/acknowledge` („Zamknij") stores the installed version. `DataInitializer`
+  acknowledges it on a fresh database, so a new installation shows nothing. Views with navigation embed the side menu
   (`templates/common/side-menu.html` + `static/js/side-menu.js`) and, as a separate fragment, the round
   home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` controls the advanced settings section.
 - `.dist` (`vdeck-dist`) — packaging-only module depending on app and runner. Builds
@@ -84,6 +91,13 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   with `vDeck-dist-<version>.zip` marked `--latest`, tagging the built commit (AD-023). Installed
   launchers update from that release (AD-024); the repository must have immutable releases enabled. Releasing means setting the
   version in all POMs (`versions:set`) and merging to `main`; a failed tag lookup fails the job.
+  The release description is `vdeck-app/src/main/resources/release-notes/<version>.md` (`--notes-file`
+  plus `--generate-notes`); the workflow and `.env/release.bat` refuse a release whose file has no
+  `- **` entry, and `release.bat` creates the next version's file from `.env/release-notes-template.md`.
+  Every user-visible change adds an entry to the current version's file (`documentation.md` §3.7):
+  sections `## Nowości`, `## Zmiany`, `## Poprawki` in that order, each entry `- **Title**` (≤ 80
+  chars) plus one description line indented by two spaces (≤ 200 chars). `ReleaseNotesFilesTest` fails
+  the build on a malformed file or a missing file for the built version.
 
 `VdeckApplication.main()` lets `InstallationLockService` accept the launcher handoff, if any, and then start only Spring. `config.ConsoleControlConfiguration` creates the idle
 `ConsoleControlSender` bean and injects it into runtime. Each signal request starts a short-lived

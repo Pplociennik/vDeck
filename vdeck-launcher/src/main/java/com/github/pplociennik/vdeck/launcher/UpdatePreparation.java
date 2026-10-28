@@ -1,6 +1,7 @@
 package com.github.pplociennik.vdeck.launcher;
 
 import com.github.pplociennik.vdeck.launcher.exc.UpdatePreparationException;
+import com.github.pplociennik.vdeck.runtime.installation.ReleaseVersion;
 import com.github.pplociennik.vdeck.runtime.installation.UpdateLayout;
 import com.github.pplociennik.vdeck.runtime.installation.UserConsole;
 import com.github.pplociennik.vdeck.runtime.snapshot.FileWorldSnapshotStore;

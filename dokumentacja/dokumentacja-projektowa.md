@@ -52,6 +52,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.9 Techniczny helper CTRL+C](#59-techniczny-helper-ctrlc)
   - [5.10 Zatrzymanie, snapshoty i odzyskiwanie](#510-zatrzymanie-snapshoty-i-odzyskiwanie)
   - [5.11 Konsola](#511-konsola)
+  - [5.12 Lista zmian po aktualizacji](#512-lista-zmian-po-aktualizacji)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -211,7 +212,11 @@ wydania wykonuje `mvnw clean package` (testy, JRE, PDF instrukcji, ZIP — sekcj
 [1.4](#14-budowanie-dystrybucji)), sprawdza obecność `target/vDeck-dist-<wersja>.zip` i przez
 `gh release create --latest` publikuje GitHub Release `vDeck <wersja>` z tym ZIP-em, oznaczony jako
 najnowszy, bo z niego aktualizują się zainstalowane kopie (sekcja [1.7](#17-launcher-i-automatyczna-aktualizacja)).
-Polecenie tworzy tag `v<wersja>` na budowanym commicie, a opis wydania generuje z historii zmian.
+Polecenie tworzy tag `v<wersja>` na budowanym commicie. Opisem wydania jest lista zmian wersji
+`vdeck-app/src/main/resources/release-notes/<wersja>.md` (AD-029, sekcja
+[5.12](#512-lista-zmian-po-aktualizacji)) podana jako `--notes-file`; `--generate-notes` dopisuje pod
+nią listę scalonych pull requestów. Gdy plik nie istnieje albo nie zawiera żadnej pozycji `- **`,
+krok publikacji kończy job błędem przed utworzeniem wydania.
 Repozytorium ma włączone immutable releases, więc opublikowany zasób nie może zostać podmieniony. Błąd odczytu tagów
 przerywa job zamiast traktować tag jako nieistniejący. Przy nieudanym buildzie raporty Surefire
 trafiają do artefaktu `surefire-reports` (retencja 7 dni). Każdy ref ma osobną grupę współbieżności
@@ -229,6 +234,11 @@ do `main`:
 
 Kolejny push bez zmiany wersji nie tworzy ponownie wydania, bo tag już istnieje. Po wydaniu wersję
 podnosi się do następnego `-SNAPSHOT`.
+
+Skrypt `.env/release.bat` przeprowadza oba kroki. Przed zmianą wersji przerywa wydanie, gdy plik
+`release-notes\<wersja>.md` nie istnieje albo nie zawiera żadnej pozycji. Po przejściu na następny
+`-SNAPSHOT` zakłada plik następnej wersji, kopiując szablon `.env/release-notes-template.md` z samymi
+nagłówkami, i dodaje go do commita.
 
 ![Diagram przepływu: ciągła integracja i wydania vDeck](diagramy/wspolne/img/przeplyw-ci-wydanie.svg)
 
@@ -384,6 +394,7 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | `config` | Kompozycja kontekstu Springa: `PathConfiguration`, `SecurityConfiguration` oraz inicjalizacja startowa `SystemPropertiesInitializer` i `DataInitializer` |
 | `feature.authentication` | Pionowy feature uwierzytelniania: kontrolery i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `persistence`, `service` i `service.impl` |
 | `feature.home` | Strona główna panelu: `HomeController` |
+| `feature.releasenotes` | Panel „Co nowego w vDeck” na stronie głównej: `ReleaseNotesController` i jego `@ControllerAdvice`, `domain`, `exc`, `persistence`, `service` i `service.impl` |
 | `feature.server` | Start serwera, walidacja, polecenie startowe, logi i udostępnienie stanu runtime widokom; wiring w `config.ServerRuntimeConfiguration` |
 | `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery ekranów „Serwer” i „Ustawienia gry” i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-013) |
 | `feature.logs` | Konsola z logiem bieżącego uruchomienia serwera: `ConsoleController`, `dto.LogChunk`, `service` i `service.impl` |
@@ -672,6 +683,11 @@ nazwie `admin`, tworzy konto:
 - rola: `ADMIN`;
 - `passwordChangeRequired`: `true`.
 
+Brak konta oznacza świeżą instalację, więc w tej samej transakcji `DataInitializer` wywołuje
+`ReleaseNotesService.acknowledgeInstalled()`: zainstalowana wersja jest od razu potwierdzona i nowy
+użytkownik nie widzi listy zmian (sekcja [5.12](#512-lista-zmian-po-aktualizacji)). Przy istniejącym
+koncie potwierdzenia nie zapisuje — wtedy panel startuje po aktualizacji.
+
 Inicjalizacja jest idempotentna — istniejące rekordy nigdy nie są nadpisywane, więc kolejne starty nie
 resetują zmienionego hasła. Błąd zapisu jest propagowany, aby aplikacja nie wystartowała bez zdatnych
 poświadczeń.
@@ -805,13 +821,15 @@ vdeck-app/src/main/resources/
 ├── static/
 │   ├── css/
 │   │   ├── variables.css        ← wszystkie zmienne CSS panelu
-│   │   └── base.css             ← baza dokumentu, layout, karta widoku, formularze, panele ustawień, komponenty wspólne
+│   │   ├── base.css             ← baza dokumentu, layout, karta widoku, formularze, panele ustawień, komponenty wspólne
+│   │   └── home.css             ← panel „Co nowego w vDeck” na stronie głównej
 │   ├── icons/icons.svg          ← jeden sprite ze wszystkimi ikonami
 │   ├── img/                     ← page-, config-, panel-, island- i side-menu-background.jpg
 │   └── js/
 │       ├── side-menu.js         ← zachowanie menu bocznego
 │       └── game-settings.js     ← sekcja „Zaawansowane” ekranu „Ustawienia gry”
 ├── messages.properties          ← polski zestaw tekstów interfejsu
+├── release-notes/<X.Y.Z>.md     ← lista zmian każdej wersji (AD-029)
 └── templates/
     ├── common/home-button.html     ← komponent wspólny: przycisk strony głównej
     ├── common/island.html          ← komponent wspólny: wyspa akcji
@@ -917,7 +935,8 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
 
 - **Strona główna** (`home/index.html`, `HomeController`, adres `/`) osadza wyspę akcji nad pustym
   obszarem treści oraz menu boczne. Pokazuje komunikaty sterowania serwerem i minimalną opcję jawnej adopcji
-  po restarcie panelu, kiedy istnieje pasujący token uruchomienia.
+  po restarcie panelu, kiedy istnieje pasujący token uruchomienia. Po aktualizacji pod wyspą pokazuje
+  szeroką kartę „Co nowego w vDeck” — opisaną w [5.12](#512-lista-zmian-po-aktualizacji).
 - **Wymuszona zmiana hasła początkowego** (`authentication/initial-password-change.html`) to
   wyśrodkowana karta na wspólnej powierzchni `.surface`, **bez wyspy, bez menu bocznego i bez
   jakiejkolwiek innej akcji**: nagłówek z ikoną klucza, opis, opcjonalny komunikat błędu z `role="alert"` oraz formularz
@@ -1427,6 +1446,78 @@ Przebieg odpytywania:
 Oba adresy wymagają roli `ADMIN` jak każdy inny. Są to żądania `GET` bez skutków ubocznych, więc nie
 potrzebują CSRF. Konsola nie ma własnych ustawień.
 
+### 5.12 Lista zmian po aktualizacji
+
+Feature `releasenotes` (AD-029) pokazuje administratorowi, co zmieniło się w vDecku od wersji, której
+listę zmian ostatnio zamknął. Ten sam plik listy zmian jest opisem wydania na GitHubie (sekcja
+[1.6](#16-ciągła-integracja-i-wydania)), więc treść powstaje raz, w trakcie implementacji.
+
+**Plik listy zmian.** Każda wersja ma plik `vdeck-app/src/main/resources/release-notes/<X.Y.Z>.md`
+(bez `-SNAPSHOT`), dołączany do `vdeck.jar`. Format jest ograniczonym, poprawnym Markdownem:
+
+```markdown
+## Nowości
+- **Lista zmian po aktualizacji**
+  Po pierwszym uruchomieniu nowej wersji panel pokazuje, co się w niej zmieniło.
+```
+
+`ReleaseNotesParser` przyjmuje wyłącznie nagłówki `## Nowości`, `## Zmiany` i `## Poprawki`
+(`ReleaseNotesCategory`) w tej kolejności i bez powtórzeń. Każda pozycja to wiersz `- **Tytuł**`
+(do 80 znaków) i dokładnie jeden wiersz opisu wcięty dwiema spacjami (do 200 znaków). Puste wiersze,
+BOM i końcowe spacje są ignorowane, puste sekcje są pomijane, a plik z samymi nagłówkami jest poprawny.
+Każde inne odstępstwo jest błędem z numerem wiersza. Plik nie jest renderowany jako Markdown: szablon
+wyświetla tytuł i opis przez `th:text`, więc treść jest zawsze escapowana.
+
+**Zainstalowana wersja** pochodzi z `BuildProperties`, które generuje cel `build-info` wtyczki
+`spring-boot-maven-plugin`; przyrostek `-SNAPSHOT` jest usuwany, więc build deweloperski pokazuje plik
+wersji w toku. Bez `BuildProperties` (uruchomienie z IDE bez Mavena) albo z wersją innej postaci niż
+`MAJOR.MINOR.PATCH` feature jest wyłączony: nic nie pokazuje i niczego nie zapisuje. Wersje porównuje
+numerycznie `ReleaseVersion` z `vdeck-runtime` (`runtime.installation`), tak samo jak launcher.
+
+**Które wersje pokazuje panel** (`ReleaseNotesServiceImpl.findUnacknowledged`):
+
+- nic, gdy zainstalowana wersja jest już w `release_notes_acknowledgements`;
+- w przeciwnym razie listy wersji nowszych od najwyższej potwierdzonej i nie nowszych od
+  zainstalowanej, od najnowszej — także wtedy, gdy aktualizacja przeskoczyła kilka wydań;
+- bez żadnego potwierdzenia (aktualizacja z wersji sprzed tej funkcji) — tylko listę wersji
+  zainstalowanej;
+- listy bez żadnej pozycji są pomijane; pusta lista oznacza brak panelu.
+
+`ReleaseNotesReader` czyta pliki przez `classpath*:release-notes/*.md`, co działa także w JAR-ze.
+Plik o nazwie innej niż `<X.Y.Z>.md`, nieczytelny albo z błędem formatu jest pomijany z ostrzeżeniem
+w logu, żeby strona główna działała dalej. W buildzie taki plik zatrzymuje `ReleaseNotesFilesTest`,
+który sprawdza też, że istnieje plik wersji budowanej.
+
+**Widok.** Strona główna (`home/index.html`, style w `home.css`) pokazuje pod wyspą akcji kartę
+„Co nowego w vDeck” z wierszem „Zaktualizowano vDeck do wersji X.Y.Z”. Każda wersja ma własny blok
+z nagłówkiem „Wersja X.Y.Z”, a w nim sekcje „Nowości”, „Zmiany” i „Poprawki” z pogrubionym tytułem
+i drobniejszym opisem każdej pozycji. Nazwy sekcji pochodzą z `messages.properties`, nie z pliku.
+
+**Zamknięcie.** Przycisk „Zamknij” wysyła formularz `POST /release-notes/acknowledge` z tokenem CSRF.
+`ReleaseNotesController` wywołuje `acknowledgeInstalled()`, które zapisuje zainstalowaną wersję,
+i przekierowuje na `/`. Panel znika dopiero wtedy; samo przejście do innego ekranu, wylogowanie albo
+restart panelu go nie ukrywają. Błąd zapisu (`DataAccessException`) staje się `ReleaseNotesException`.
+`ReleaseNotesExceptionHandler` loguje go na `ERROR` i przekierowuje na `/` z komunikatem błędu nad
+listą, która pozostaje widoczna.
+
+**Świeża instalacja** nie pokazuje panelu, bo `DataInitializer` potwierdza zainstalowaną wersję razem
+z utworzeniem konta `admin` (sekcja [4.3](#43-domyślne-konto-administratora)).
+
+![Diagram przepływu: panel „Co nowego w vDeck” po aktualizacji](diagramy/releasenotes/img/przeplyw-lista-zmian.svg)
+
+Źródło diagramu: [`diagramy/releasenotes/przeplyw-lista-zmian.mmd`](diagramy/releasenotes/przeplyw-lista-zmian.mmd)
+
+| Komponent | Pakiet | Rola |
+|---|---|---|
+| `ReleaseNotesController` | `feature.releasenotes` | `POST /release-notes/acknowledge` |
+| `ReleaseNotesExceptionHandler` | `feature.releasenotes` | Komunikat nieudanego zapisu potwierdzenia na stronie głównej |
+| `ReleaseNotes`, `ReleaseNotesSection`, `ReleaseNotesEntry`, `ReleaseNotesCategory` | `feature.releasenotes.domain` | Niemutowalny model listy zmian jednej wersji |
+| `ReleaseNotesAcknowledgement` | `feature.releasenotes.domain` | Encja potwierdzenia wersji |
+| `ReleaseNotesAcknowledgementRepository` | `feature.releasenotes.persistence` | `JpaRepository` potwierdzeń |
+| `ReleaseNotesService` / `ReleaseNotesServiceImpl` | `feature.releasenotes.service` / `.impl` | Wybór list do pokazania i zapis potwierdzenia |
+| `ReleaseNotesReader`, `ReleaseNotesParser` | `feature.releasenotes.service.impl` | Odczyt plików z classpath i parsowanie formatu |
+| `HomeController` | `feature.home` | Dodaje do modelu strony głównej listy do pokazania |
+
 ## 6. Bezpieczeństwo
 
 Zaimplementowane mechanizmy przekrojowe:
@@ -1473,11 +1564,14 @@ schematu. Błąd changesetu albo niezgodność sumy kontrolnej wydanego changese
 Changelog leży w `vdeck-app/src/main/resources/db/changelog`. `db.changelog-master.xml` dołącza w
 kolejności wydań po jednym pliku XML na wersję projektu (`versions/<wersja>.xml`); changesety
 jednego zadania tworzą w nim blok oznaczony numerem i opisem zadania (`clean-code.md` §13). Wersja
-0.0.1 zawiera changeset `VDEC-24-create-panel-users`. `DatabaseSchemaIntegrationTest` uruchamia
+0.0.1 zawiera changesety `VDEC-24-create-panel-users` i `VDEC-27-create-release-notes-acknowledgements`. `DatabaseSchemaIntegrationTest` uruchamia
 panel z `ddl-auto: validate`, więc changeset niezgodny z encją wykrywa build.
 
-Obecnie utrwalana jest jedna encja — `PanelUser` w tabeli `panel_users`. Repozytorium `UserRepository`
-rozszerza `JpaRepository< PanelUser, String >` i nie deklaruje własnych metod. Operacje zmieniające
+Utrwalane są dwie encje. `PanelUser` leży w tabeli `panel_users`; repozytorium `UserRepository`
+rozszerza `JpaRepository< PanelUser, String >` i nie deklaruje własnych metod.
+`ReleaseNotesAcknowledgement` w tabeli `release_notes_acknowledgements` ma jedną kolumnę — klucz
+`version VARCHAR(32)` z numerem wersji, której listę zmian administrator zamknął (sekcja
+[5.12](#512-lista-zmian-po-aktualizacji)); wiersze tylko przybywają. Operacje zmieniające
 stan (`DataInitializer.run`, `PanelUserServiceImpl.changePassword` oraz
 `PanelUserServiceImpl.changeInitialPassword`) są `@Transactional`; zmiana hasła zapisuje się przez
 dirty checking zarządzanej encji, bez jawnego `save`.
@@ -1508,6 +1602,12 @@ Przyczyny walidacji trafiają na `DEBUG`, a odrzucenie obsługiwane przez `Serve
 na `INFO`. Błąd tworzenia procesu zachowuje stack trace na `ERROR`; błąd zapisu skryptu lustrzanego
 lub retencji jest ostrzeżeniem `WARN`. `LaunchSpec.toString()` redaguje argumenty i środowisko.
 
+Feature `releasenotes` loguje zapis potwierdzenia wersji i brak `BuildProperties` na `INFO`.
+Wersję builda innej postaci niż `MAJOR.MINOR.PATCH` oraz pominięty plik listy zmian (zła nazwa,
+błąd odczytu, błąd formatu z numerem wiersza) zapisuje na `WARN`. Nieudany zapis potwierdzenia
+`ReleaseNotesExceptionHandler` loguje na `ERROR` ze stack trace. Liczbę wczytanych plików i wybrane
+wersje zapisuje na `DEBUG`.
+
 Feature `logs` nie kopiuje logu serwera do logu aplikacji. Na `DEBUG` zapisuje rozpoczęcie odczytu od
 końca pliku, a na `TRACE` — brak pliku przed jego utworzeniem przez serwer. Błąd odczytu loguje
 `DefaultExceptionHandler` na `WARN`.
@@ -1531,7 +1631,8 @@ dwóch wydań.
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
 Restart z GUI, ekran zarządzania światami i kopiami, restore, wysyłanie poleceń z konsoli,
 przeglądanie logów wcześniejszych uruchomień, listy graczy, RCON, mody, harmonogramy i aktualizacje
-serwera. Podgląd logu bieżącego uruchomienia opisuje [5.11](#511-konsola).
+serwera. Podgląd logu bieżącego uruchomienia opisuje [5.11](#511-konsola), a listę zmian po
+aktualizacji — [5.12](#512-lista-zmian-po-aktualizacji).
 
 Plan realizacji Stop i Kill oraz kontrolowanego zamknięcia panelu znajduje się w
 [planie implementacji zatrzymania serwera](../.docs/plans/server-stop.md).
@@ -1562,6 +1663,8 @@ Znane ograniczenia stanu bieżącego:
 - pliki ustawień są czytane wyłącznie przy starcie, więc ręczna edycja wymaga restartu panelu;
 - zapis pliku ustawień gubi komentarze i kolejność kluczy;
 - brak testów ArchUnit egzekwujących opisane granice pakietów;
+- lista zmian znika dla całej instalacji po zamknięciu przez dowolną sesję, bo potwierdzenie dotyczy
+  wersji, a nie konta; bez `BuildProperties` (uruchomienie z IDE) panel nie pojawia się wcale;
 - automatyczna aktualizacja jest pomijana, gdy działa panel albo serwer; przerwana aktualizacja bez
   kompletnego executora wymaga ręcznej naprawy z kopii `.vDeck/update/backup`.
 
@@ -1605,3 +1708,4 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Snapshot świata | przepływ | [SVG](diagramy/backup/img/przeplyw-snapshot.svg) | [MMD](diagramy/backup/przeplyw-snapshot.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odzyskiwanie procesu | przepływ | [SVG](diagramy/server/img/przeplyw-odzyskiwanie.svg) | [MMD](diagramy/server/przeplyw-odzyskiwanie.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odpytywanie logu w konsoli | sekwencja | [`img/przeplyw-konsola.svg`](diagramy/logs/img/przeplyw-konsola.svg) | [`diagramy/logs/przeplyw-konsola.mmd`](diagramy/logs/przeplyw-konsola.mmd) | [5.11](#511-konsola) |
+| Lista zmian po aktualizacji | przepływ | [`img/przeplyw-lista-zmian.svg`](diagramy/releasenotes/img/przeplyw-lista-zmian.svg) | [`diagramy/releasenotes/przeplyw-lista-zmian.mmd`](diagramy/releasenotes/przeplyw-lista-zmian.mmd) | [5.12](#512-lista-zmian-po-aktualizacji) |

@@ -22,4 +22,6 @@ flowchart TD
     reports --> fail([Build przerwany])
     package -- sukces --> zip{target/vDeck-dist-wersja.zip<br/>istnieje?}
     zip -- nie --> reports
-    zip -- tak --> release([gh release create v-wersja<br/>GitHub Release z ZIP-em i tagiem])
+    zip -- tak --> notes{release-notes/wersja.md istnieje<br/>i zawiera pozycję '- **'?}
+    notes -- nie --> reports
+    notes -- tak --> release([gh release create v-wersja --notes-file<br/>--generate-notes --latest<br/>GitHub Release z ZIP-em, opisem i tagiem])

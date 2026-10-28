@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.launcher;
 
 import com.github.pplociennik.vdeck.runtime.installation.ConsoleMessage;
 import com.github.pplociennik.vdeck.runtime.installation.HandoffProtocol;
+import com.github.pplociennik.vdeck.runtime.installation.ReleaseVersion;
 import com.github.pplociennik.vdeck.runtime.installation.RunLogFile;
 import com.github.pplociennik.vdeck.runtime.installation.ServerActivityCheck;
 import com.github.pplociennik.vdeck.runtime.installation.SuccessorStarter;

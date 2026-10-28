@@ -36,6 +36,6 @@ flowchart TD
     profile --> init[DataInitializer.run]
     init --> adminExists{Konto 'admin'<br/>istnieje?}
     adminExists -- tak --> skip[Pominięcie inicjalizacji]
-    adminExists -- nie --> createAdmin[Zapis PanelUser 'admin'<br/>z zahaszowanym hasłem 'admin'<br/>i passwordChangeRequired = true]
+    adminExists -- nie --> createAdmin[Zapis PanelUser 'admin'<br/>z zahaszowanym hasłem 'admin'<br/>i passwordChangeRequired = true<br/>oraz potwierdzenie listy zmian<br/>zainstalowanej wersji]
     skip --> up([Panel nasłuchuje na 127.0.0.1])
     createAdmin --> up

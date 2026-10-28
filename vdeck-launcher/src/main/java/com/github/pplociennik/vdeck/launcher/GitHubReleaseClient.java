@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.launcher;
 
+import com.github.pplociennik.vdeck.runtime.installation.ReleaseVersion;
 import jakarta.annotation.Nonnull;
 import lombok.extern.log4j.Log4j2;
 import tools.jackson.core.JacksonException;

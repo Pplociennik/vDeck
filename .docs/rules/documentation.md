@@ -254,6 +254,37 @@ Build przerywa ostrzeżenie Asciidoctora, np. brakujący obrazek albo nieistniej
 instrukcji generujemy PDF (`.\mvnw.cmd package` albo samo wykonanie `user-manual-pdf` modułu `.dist`)
 i przeglądamy zmienione strony.
 
+### 3.7 Lista zmian wersji
+
+Zgodnie z AD-029 plik `vdeck-app/src/main/resources/release-notes/<X.Y.Z>.md` (wersja bez
+`-SNAPSHOT`) jest opisem wydania na GitHubie i treścią panelu „Co nowego w vDeck”. Każda zmiana
+widoczna dla użytkownika dopisuje do pliku bieżącej wersji jedną pozycję w tej samej zmianie co kod.
+Zmiany wyłącznie wewnętrzne (refaktoryzacja, testy, dokumentacja programisty) nie trafiają do pliku.
+
+```markdown
+## Nowości
+- **Lista zmian po aktualizacji**
+  Po pierwszym uruchomieniu nowej wersji panel pokazuje, co się w niej zmieniło.
+
+## Poprawki
+- **Konsola**
+  Ostatnia linia logu pojawia się od razu.
+```
+
+- Dozwolone są wyłącznie nagłówki `## Nowości`, `## Zmiany`, `## Poprawki`, w tej kolejności, każdy
+  co najwyżej raz; pusty nagłówek jest dozwolony.
+- Pozycja to wiersz `- **Tytuł**` (do 80 znaków) i dokładnie jeden wiersz opisu wcięty dwiema
+  spacjami (do 200 znaków). Opis jest obowiązkowy.
+- Piszemy po polsku, dla użytkownika końcowego: co zmieniło się w jego pracy, a nie w kodzie. Bez
+  HTML-a, linków, numerów zadań i nazw klas.
+- Pozycję poprawiamy, zamiast dopisywać drugą, gdy kolejna zmiana w tej samej wersji dotyczy tej
+  samej funkcji.
+- Plik wydanej wersji jest niezmienny. Plik następnej wersji tworzy `.env/release.bat` z szablonu
+  `.env/release-notes-template.md`.
+
+`ReleaseNotesFilesTest` sprawdza format każdego pliku i istnienie pliku bieżącej wersji; workflow
+i `release.bat` przerywają wydanie, gdy plik nie zawiera żadnej pozycji.
+
 ## 4. Zakres obowiązkowego Javadoc
 
 Javadoc jest wymagany nad:
@@ -443,4 +474,5 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
 - czy dokumentacja nie przedstawia niezaimplementowanego zachowania jako gotowego;
 - czy zmiana widoczna dla użytkownika jest opisana w instrukcji obsługi, zrzuty ekranu zostały
   odtworzone skryptem, a PDF buduje się bez ostrzeżeń i został przejrzany;
+- czy zmiana widoczna dla użytkownika ma pozycję w `release-notes/<X.Y.Z>.md` bieżącej wersji (§3.7);
 - czy odnośniki i nazwy plików nadal są poprawne.

@@ -213,7 +213,8 @@ jest skracana; całą pokazuje podpowiedź po najechaniu kursorem.
 |===
 
 Przycisk, którego nie można teraz użyć, jest wyszarzony. Na przykład zatrzymanego serwera nie
-da się zatrzymać, a działającego — uruchomić drugi raz.
+da się zatrzymać, a działającego — uruchomić drugi raz. Przyciski oznaczone jako jeszcze
+niedostępne są wyszarzone zawsze.
 
 === Menu boczne i przycisk strony głównej
 
@@ -227,9 +228,6 @@ image::menu-boczne.jpg[Menu boczne z wyróżnionymi pozycjami Serwer, Ustawienia
 1:: *Serwer* — tożsamość serwera, dostęp, świat i kopie automatyczne.
 2:: *Ustawienia gry* — poziom trudności i zasady świata.
 3:: *Konsola* — log działającego serwera (<<konsola>>).
-
-Pozycja *Test* w sekcji *Kopie bezpieczeństwa* to miejsce na przyszły ekran; na razie nic nie
-robi.
 
 Na każdym ekranie poza stroną główną obok przycisku menu jest mały przycisk z domkiem — wraca
 na stronę główną.

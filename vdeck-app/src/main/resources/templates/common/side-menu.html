@@ -31,7 +31,6 @@
     <nav id="side-menu-panel" class="side-menu-panel" data-state="closed" data-side-menu-panel inert
          th:attr="aria-label=#{sideMenu.label}">
         <div class="side-menu-surface surface surface--side-menu">
-            <!-- Real panel entries and a placeholder labelled "Test"; the placeholder is replaced by a real panel. -->
             <div class="side-menu-sections">
                 <section class="side-menu-section" aria-labelledby="side-menu-section-title-configuration">
                     <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.configuration', 'side-menu-section-title-configuration')}"></h2>
@@ -50,15 +49,6 @@
                     <ul class="side-menu-list side-menu-list--level-1">
                         <li class="side-menu-item">
                             <a th:replace="~{common/side-menu :: link('sideMenu.entry.console', 'icon-console', '/console', 'console')}"></a>
-                        </li>
-                    </ul>
-                </section>
-
-                <section class="side-menu-section" aria-labelledby="side-menu-section-title-backup">
-                    <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.backup', 'side-menu-section-title-backup')}"></h2>
-                    <ul class="side-menu-list side-menu-list--level-1">
-                        <li class="side-menu-item">
-                            <button th:replace="~{common/side-menu :: leaf('sideMenu.dummy.label', 'icon-play')}"></button>
                         </li>
                     </ul>
                 </section>
@@ -104,15 +94,5 @@
     </svg>
     <span class="side-menu-entry__label" th:text="#{${labelKey}}"></span>
 </a>
-
-<!--
-    Placeholder entry without behaviour, standing in for a panel that does not exist yet.
--->
-<button class="side-menu-entry" type="button" th:fragment="leaf(labelKey, iconId)">
-    <svg class="icon" th:if="${iconId}" aria-hidden="true" focusable="false">
-        <use th:href="@{'/icons/icons.svg#' + ${iconId}}"></use>
-    </svg>
-    <span class="side-menu-entry__label" th:text="#{${labelKey}}"></span>
-</button>
 </body>
 </html>

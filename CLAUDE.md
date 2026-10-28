@@ -290,7 +290,13 @@ decision.
 - Log4j2 is the required application logging API and backend; `spring-boot-starter-log4j2` is declared
   in `vdeck-app` and `spring-boot-starter-logging` is excluded from **every** starter that pulls it in
   (exclusions apply per declaration path, so one omission puts Logback back). Production classes use
-  Lombok `@Log4j2` by default and do not introduce a parallel logging facade
+  Lombok `@Log4j2` by default and do not introduce a parallel logging facade. Each panel run also logs to
+  `.vDeck/logs/panel/<day>/<timestamp>.log` (AD-032): `shared.log.PanelRunLog` creates the file in
+  `main()` and adds `log4j2-vdeck-file.xml` to `logging.log4j2.config.override` (a system property, so it
+  repeats the console override of `application.yaml`; `PanelRunLogTest` keeps them equal). Without a file
+  (tests) nothing is added. `config.PanelLogRetention` applies `panel.log.retention.enabled`/`.days`
+  after start; `shared.LogRetention` interprets that pair and the `game.log.retention.*` pair alike —
+  `0` days keeps every log
 - Lombok is preferred wherever it safely removes mechanical boilerplate without hiding validation or
   domain behavior, but Java records take precedence when both approaches model an immutable data
   carrier equally well. Its annotation processor is wired explicitly in `pom.xml` for both

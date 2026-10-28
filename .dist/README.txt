@@ -35,7 +35,9 @@ USTAWIENIA I DANE
 - .vDeck\config\valheim-server.properties — profil uruchomieniowy serwera Valheim.
 - vdeck.db — konto administratora panelu; baza powstaje przy pierwszym uruchomieniu.
 - valheim-data — domyślny katalog zapisu świata; można go zmienić w panelu.
-- .vDeck\log — domyślne logi serwera gry.
+- .vDeck\log — domyślne logi serwera gry (game.log.retention.*, domyślnie 14 dni).
+- .vDeck\logs\panel — log każdego uruchomienia panelu (panel.log.retention.*, domyślnie
+  30 dni; days=0 zachowuje wszystkie logi).
 - .vDeck\shutdown-snapshots — kopie świata z zatrzymania; nazwę podkatalogu ustawia
   snapshot.directory w vDeck.properties.
 - .vDeck\logs\launcher, .vDeck\logs\updater — przebieg uruchomień i aktualizacji (30 dni).

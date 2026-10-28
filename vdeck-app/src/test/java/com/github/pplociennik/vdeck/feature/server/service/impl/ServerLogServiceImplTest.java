@@ -324,25 +324,25 @@ class ServerLogServiceImplTest {
     }
 
     /**
-     * Verifies that zero retention removes yesterday while keeping today's existing logs.
+     * Verifies that zero retention days keep every log, however old, while retention stays switched on.
      *
      * @throws IOException
      *         if the day directories cannot be prepared
      */
     @Test
-    void shouldKeepCurrentDay_whenRetentionIsZero() throws IOException {
+    void shouldKeepEveryLog_whenRetentionIsZero() throws IOException {
         // GIVEN
         givenConfiguredLogDirectory();
         givenRetentionDays( "0" );
         Path yesterday = givenDayDirectoryAgedDays( 1 );
-        Path today = givenDayDirectoryAgedDays( 0 );
+        Path ancient = givenDayDirectoryAgedDays( 400 );
 
         // WHEN
         underTest.createLogFileForNewStart();
 
         // THEN
-        assertThat( yesterday ).doesNotExist();
-        assertThat( today.resolve( "old-run.log" ) ).exists();
+        assertThat( yesterday.resolve( "old-run.log" ) ).exists();
+        assertThat( ancient.resolve( "old-run.log" ) ).exists();
     }
 
     /**

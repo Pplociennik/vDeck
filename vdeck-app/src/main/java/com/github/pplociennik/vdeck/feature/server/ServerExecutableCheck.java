@@ -3,7 +3,7 @@ package com.github.pplociennik.vdeck.feature.server;
 import com.github.pplociennik.vdeck.feature.server.service.ServerService;
 import com.github.pplociennik.vdeck.runtime.installation.ConsoleMessage;
 import com.github.pplociennik.vdeck.runtime.installation.I18n;
-import com.github.pplociennik.vdeck.runtime.installation.UpdateLayout;
+import com.github.pplociennik.vdeck.shared.InstallationDirectory;
 import jakarta.annotation.Nonnull;
 import lombok.extern.log4j.Log4j2;
 
@@ -75,7 +75,7 @@ public final class ServerExecutableCheck {
             return true;
         }
 
-        Path directory = installationDirectory();
+        Path directory = InstallationDirectory.resolve( systemProperties, applicationHome );
         if ( Files.isRegularFile( directory.resolve( ServerService.EXECUTABLE_NAME ) ) ) {
             log.debug( "Found {} in {}", ServerService.EXECUTABLE_NAME, directory );
             return true;
@@ -84,10 +84,5 @@ public final class ServerExecutableCheck {
         log.warn( "{} is missing in {}; the panel does not start", ServerService.EXECUTABLE_NAME, directory );
         console.println( I18n.text( ConsoleMessage.SERVER_EXECUTABLE_MISSING, directory ) );
         return false;
-    }
-
-    private Path installationDirectory() {
-        String configured = systemProperties.getProperty( UpdateLayout.SERVER_DIRECTORY_PROPERTY, "" ).strip();
-        return configured.isEmpty() ? applicationHome : Path.of( configured );
     }
 }

@@ -804,10 +804,15 @@ przeglądarka ma sama otworzyć panel, oraz `panel.close.strategy` (`stop`, `gra
 | Domyślny katalog światów (zmienisz go na panelu *Serwer* → *Świat i zapis*).
 
 | `.vDeck\log`
-| Logi serwera gry, osobny plik dla każdego uruchomienia.
+| Logi serwera gry, osobny plik dla każdego uruchomienia. Domyślnie przechowywane 14 dni
+(<<retencja-logow>>).
 
 | `.vDeck\shutdown-snapshots`
 | Kopie świata robione przez panel przy zatrzymaniu.
+
+| `.vDeck\logs\panel`
+| Wszystko, co panel wypisał w oknie konsoli, osobny plik dla każdego uruchomienia panelu.
+Domyślnie przechowywane 30 dni (<<retencja-logow>>).
 
 | `.vDeck\logs\launcher`, `.vDeck\logs\updater`
 | Przebieg każdego uruchomienia vDeck i każdej aktualizacji, przechowywany 30 dni.
@@ -821,6 +826,35 @@ katalogu serwera.
 
 CAUTION: Pliki `.properties` edytuj ręcznie tylko przy zamkniętym panelu. Wygodniej i bezpieczniej
 jest zmieniać ustawienia w panelu, który sprawdza poprawność wartości.
+
+[#retencja-logow]
+=== Jak długo przechowywane są logi
+
+Stare logi serwera gry i panelu są usuwane automatycznie: logi gry przed każdym startem serwera,
+logi panelu po jego uruchomieniu. Ustawiasz to w pliku `.vDeck\config\vDeck.properties`:
+
+[cols="2,1,3",options="header"]
+|===
+| Wpis | Domyślnie | Znaczenie
+
+| `game.log.retention.enabled`
+| `true`
+| `false` wyłącza usuwanie logów serwera gry.
+
+| `game.log.retention.days`
+| `14`
+| Z ilu dni przed dzisiejszym zachować logi serwera gry. `0` zachowuje wszystkie.
+
+| `panel.log.retention.enabled`
+| `true`
+| `false` wyłącza usuwanie logów panelu.
+
+| `panel.log.retention.days`
+| `30`
+| Z ilu dni przed dzisiejszym zachować logi panelu. `0` zachowuje wszystkie.
+|===
+
+Dzisiejsze logi nigdy nie są usuwane. Wartość ujemna albo niebędąca liczbą działa jak domyślna.
 
 [#kopie]
 === Kopie świata
@@ -976,8 +1010,9 @@ Nie pamiętam hasła do panelu::
   i kopie pozostaną nietknięte.
 
 Szczegóły błędów::
-  Panel zapisuje szczegóły problemów w oknie konsoli, a uruchamianie i aktualizacje — w plikach
-  `.vDeck\logs\launcher` i `.vDeck\logs\updater`. Dołącz je, zgłaszając problem.
+  Panel zapisuje szczegóły problemów w oknie konsoli i w plikach `.vDeck\logs\panel`, a uruchamianie
+  i aktualizacje — w plikach `.vDeck\logs\launcher` i `.vDeck\logs\updater`. Dołącz je, zgłaszając
+  problem.
 
 [appendix]
 == Dołączone oprogramowanie

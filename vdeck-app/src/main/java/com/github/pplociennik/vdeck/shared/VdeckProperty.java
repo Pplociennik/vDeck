@@ -25,9 +25,10 @@ public enum VdeckProperty implements SystemPropertyIf {
     GAME_LOG_RETENTION_ENABLED( "game.log.retention.enabled", "true", true ),
 
     /**
-     * How many days of game server logs are kept while {@link #GAME_LOG_RETENTION_ENABLED} is on. Older
-     * day directories are removed before a launch, so one log file per start cannot grow without bound
-     * (AD-016).
+     * How many days before today game server logs are kept while {@link #GAME_LOG_RETENTION_ENABLED} is on;
+     * {@code 0} keeps every log. Older day directories are removed before a launch, so one log file per
+     * start cannot grow without bound (AD-016). A negative value or one that is not a number counts as the
+     * default.
      */
     GAME_LOG_RETENTION_DAYS( "game.log.retention.days", "14", true ),
 
@@ -62,7 +63,21 @@ public enum VdeckProperty implements SystemPropertyIf {
      * process that survives, {@code leave} keeps it running for explicit adoption by the next panel. Any
      * other value counts as the default.
      */
-    PANEL_CLOSE_STRATEGY( "panel.close.strategy", "stop", true );
+    PANEL_CLOSE_STRATEGY( "panel.close.strategy", "stop", true ),
+
+    /**
+     * Whether old panel run logs in {@code .vDeck/logs/panel} are removed at all; {@code true} or
+     * {@code false}. With {@code false} every log is kept and {@link #PANEL_LOG_RETENTION_DAYS} is ignored
+     * (AD-032).
+     */
+    PANEL_LOG_RETENTION_ENABLED( "panel.log.retention.enabled", "true", true ),
+
+    /**
+     * How many days before today panel run logs are kept while {@link #PANEL_LOG_RETENTION_ENABLED} is on;
+     * {@code 0} keeps every log. Older day directories are removed once the panel has started (AD-032). A
+     * negative value or one that is not a number counts as the default.
+     */
+    PANEL_LOG_RETENTION_DAYS( "panel.log.retention.days", "30", true );
 
     /**
      * Name of the properties file owning every setting declared by this enum.

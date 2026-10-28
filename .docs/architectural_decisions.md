@@ -233,7 +233,7 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Status:** obowiązująca (2026-09-29)
 - **Decyzja:** Każdy start zapisuje przez `-logFile` osobny log w `<game.log.directory>/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>.log`.
 - **Powód:** Historia uruchomień nie ginie przy ponownym starcie.
-- **Konsekwencja:** Panel nie przechwytuje konsoli, domyślny katalog to `.vDeck/log`, a dzienną retencją steruje `game.log.retention.days` z wartością domyślną 14; `game.log.retention.enabled=false` (domyślnie `true`) wyłącza retencję i zachowuje wszystkie logi.
+- **Konsekwencja:** Panel nie przechwytuje konsoli, domyślny katalog to `.vDeck/log`, a dzienną retencją steruje `game.log.retention.days` z wartością domyślną 14; `game.log.retention.enabled=false` (domyślnie `true`) wyłącza retencję i zachowuje wszystkie logi. Znaczenie `0` dni ustala AD-032.
 
 ## AD-017 — Nieudany Stop pozostawia serwer uruchomiony
 
@@ -434,3 +434,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** `ServerShutdownCoordinator` w `@PreDestroy` wykonuje `PanelCloseStrategy` z `panel.close.strategy`: `stop` (domyślnie, Kill po nieudanym Stopie), `graceful` lub `leave`.
 - **Powód:** Administrator wybiera, czy zamknięcie panelu zatrzymuje serwer.
 - **Konsekwencja:** Wymusza tylko `stop` dla `STOP_FAILED`; ręczny Kill bez zmian.
+
+## AD-032 — Logi panelu i retencja logów
+
+- **Status:** obowiązująca (2026-10-28)
+- **Decyzja:** Każde uruchomienie panelu zapisuje log w `.vDeck/logs/panel/<dzień>/`, a logi panelu i gry czyszczą pary `panel|game.log.retention.enabled` i `.days`, gdzie `0` dni zachowuje wszystko.
+- **Powód:** Log panelu znikał razem z oknem konsoli.
+- **Konsekwencja:** Oba rodzaje logów stosują tę samą regułę `LogRetention`; `0` dni nie oznacza już samego bieżącego dnia gry.

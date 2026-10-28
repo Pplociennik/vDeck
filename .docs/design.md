@@ -346,11 +346,15 @@ vdeck/                                           ← parent i agregator Maven
         │   │   └── PasswordChangeAuthenticationSuccessHandler
         │   ├── persistence/                    ← wspólna konfiguracja JPA i SQLite
         │   └── shared/                          ← wyłącznie elementy faktycznie współdzielone
+        │       ├── InstallationDirectory        ← katalog instalacji przed startem Springa
+        │       ├── LogRetention                 ← reguła retencji logów gry i panelu (AD-032)
         │       ├── PropertyReader               ← statyczny odczyt wartości typowanych
         │       ├── SystemPropertyIf
         │       ├── SystemPropertyValues
         │       ├── VdeckProperty
         │       ├── exc/
+        │       ├── log/
+        │       │   └── PanelRunLog              ← plik logu uruchomienia panelu (AD-032)
         │       ├── lock/
         │       │   └── InstallationLockService  ← przejęcie blokady od launchera przed Springiem
         │       ├── web/
@@ -631,8 +635,9 @@ część profilu uruchomieniowego: jej zmiana nie wpływa na opcje przekazywane 
 `game.log.retention.enabled` (domyślnie `true`) włącza retencję logów gry; `false` zachowuje
 wszystkie logi, a wartość inna niż `true`/`false` używa domyślnej. Przy włączonej retencji
 `game.log.retention.days` (domyślnie `14`) określa retencję dziennych katalogów logów; przed startem
-usuwane są katalogi starsze niż bieżąca data minus tę liczbę dni. Zero zachowuje bieżący dzień;
-wartość ujemna lub nienumeryczna przywraca domyślne 14 dni. Katalog bieżącego dnia jest tworzony
+usuwane są katalogi starsze niż bieżąca data minus tę liczbę dni. Zero zachowuje wszystkie logi
+(AD-032); wartość ujemna lub nienumeryczna przywraca domyślne 14 dni. Regułę tej pary interpretuje
+`shared.LogRetention`, wspólne z logami panelu. Katalog bieżącego dnia jest tworzony
 tylko wtedy, gdy jeszcze nie istnieje. `server.start.script` (domyślnie
 `start_headless_server.bat`) wskazuje skrypt producenta czytany wyłącznie po `SteamAppId` (AD-015).
 Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
@@ -641,6 +646,16 @@ Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
 (AD-018); wartość z separatorem, `.` albo `..` przerywa start serwera.
 `panel.close.strategy` (domyślnie `stop`; także `graceful`, `leave`) określa los serwera przy
 zamknięciu panelu (AD-031, §6); inna wartość oznacza `stop`.
+
+Każde uruchomienie panelu zapisuje własny log (AD-032) w
+`.vDeck/logs/panel/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>[-n].log`. `VdeckApplication.main()` tworzy plik
+przez `shared.log.PanelRunLog` (`RunLogFile`) przed startem Springa i ustawia `vdeck.log.file` oraz
+`logging.log4j2.config.override` z dodatkowym `log4j2-vdeck-file.xml`; Spring Boot dołącza wtedy do
+korzenia loggerów `RollingFile` (10 MiB, jedna kopia). Bez pliku, np. w testach, panel loguje tylko na
+konsolę. Wpisy sprzed konfiguracji logowania przez Springa trafiają jedynie na konsolę. Retencją
+sterują `panel.log.retention.enabled` (domyślnie `true`) i `panel.log.retention.days` (domyślnie `30`,
+`0` zachowuje wszystkie) według tej samej reguły co logi gry; `config.PanelLogRetention` stosuje ją po
+`ApplicationReadyEvent`, gdy panel trzyma blokadę instalacji, przez `RunLogRetention.deleteBefore`.
 
 Podstawowy układ danych:
 
@@ -666,6 +681,7 @@ Podstawowy układ danych:
 │   ├── handoff/                      ← jednorazowe deskryptory przekazania blokady
 │   ├── update/                       ← download, staged, merged, executor, backup, apply.journal
 │   ├── logs/launcher|updater/<dzień>/ ← log każdego uruchomienia, retencja 30 dni
+│   ├── logs/panel/<dzień>/           ← log każdego uruchomienia panelu, retencja z vDeck.properties
 │   ├── server.pid                    ← bezsekretny token uruchomienia
 │   ├── vDeck-server-start.bat          ← regenerowany skrypt lustrzany bez hasła
 │   └── log/                           ← domyślny `game.log.directory`

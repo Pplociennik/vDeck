@@ -368,6 +368,21 @@ z polskim formatem liczb. Plik obraca się raz po 10 MiB, a
 `RunLogRetention` usuwa dni starsze niż 30, dopiero po zdobyciu blokad. Gdy pliku nie da się
 utworzyć, uruchomienie loguje tylko na konsolę.
 
+**Logi uruchomień panelu (AD-032).** `VdeckApplication.main()` po `ServerExecutableCheck` wywołuje
+`shared.log.PanelRunLog`, który przez `RunLogFile` tworzy
+`.vDeck/logs/panel/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>[-n].log` w katalogu instalacji wyznaczonym przez
+`shared.InstallationDirectory`. Ustawia `vdeck.log.file` i `logging.log4j2.config.override` z
+dodatkowym `log4j2-vdeck-file.xml`, więc Spring Boot dołącza do korzenia loggerów `RollingFile`
+(10 MiB, jedna kopia) z tymi samymi wpisami co konsola. Właściwość systemowa zastępuje listę z
+`application.yaml`, dlatego powtarza jej override konsoli; zgodność pilnuje `PanelRunLogTest`. Bez pliku
+— w testach albo przy błędzie zapisu — panel loguje tylko na konsolę. Wpisy sprzed konfiguracji
+logowania przez Springa (np. przejęcie blokady od launchera) trafiają jedynie na konsolę.
+`config.PanelLogRetention` po `ApplicationReadyEvent`, gdy panel trzyma blokadę instalacji, czyta
+`panel.log.retention.enabled` (domyślnie `true`) i `panel.log.retention.days` (domyślnie `30`) przez
+`shared.LogRetention` — tę samą regułę co logi gry: `false` albo `0` dni zachowuje wszystkie logi, `N`
+zachowuje dzisiejszy dzień i `N` dni przed nim — i usuwa starsze katalogi dni przez
+`RunLogRetention.deleteBefore`. Bieżący log jest datowany dzisiaj, więc nigdy nie jest usuwany.
+
 ![Diagram klas: moduły launchera, updatera i wspólny kontrakt instalacji](diagramy/wspolne/img/klasy-aktualizacja.svg)
 
 Źródło diagramu: [`diagramy/wspolne/klasy-aktualizacja.mmd`](diagramy/wspolne/klasy-aktualizacja.mmd)
@@ -504,11 +519,13 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 |---|---|---|---|
 | `game.log.directory` | Katalog dziennych podkatalogów logów gry, względny wobec instalacji | tak | `.vDeck/log` |
 | `game.log.retention.enabled` | Czy przed startem usuwać stare logi gry; `false` zachowuje wszystkie logi, wartość inna niż `true`/`false` używa domyślnej | tak | `true` |
-| `game.log.retention.days` | Nieujemna liczba dni retencji logów gry przy włączonej retencji; wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
+| `game.log.retention.days` | Nieujemna liczba dni przed dzisiejszym, z których logi gry są zachowywane przy włączonej retencji; `0` zachowuje wszystkie, wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
 | `server.start.script` | Skrypt producenta czytany po `SteamAppId`, nigdy wykonywany przez panel | tak | `start_headless_server.bat` |
 | `snapshot.directory` | Nazwa jednego podkatalogu `.vDeck` na snapshoty świata (AD-018); separator, `.` lub `..` przerywa start serwera | tak | `shutdown-snapshots` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 | `panel.open.browser` | Czy panel uruchomiony skryptem startowym otwiera swój adres w domyślnej przeglądarce; `true` albo `false`, inna wartość używa domyślnej (patrz [1.7](#17-launcher-i-automatyczna-aktualizacja)) | tak | `true` |
+| `panel.log.retention.enabled` | Czy po starcie panelu usuwać stare logi jego uruchomień (`.vDeck/logs/panel`); `false` zachowuje wszystkie, inna wartość niż `true`/`false` używa domyślnej (patrz [1.7](#17-launcher-i-automatyczna-aktualizacja)) | tak | `true` |
+| `panel.log.retention.days` | Nieujemna liczba dni przed dzisiejszym, z których logi panelu są zachowywane; `0` zachowuje wszystkie, wartość ujemna lub nienumeryczna używa domyślnej | tak | `30` |
 | `panel.close.strategy` | Los serwera przy zamknięciu panelu (AD-031): `stop` — łagodny Stop, a gdy proces przeżyje, wymuszenie; `graceful` — tylko łagodny Stop; `leave` — serwer działa dalej; inna wartość używa domyślnej (patrz [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie)) | tak | `stop` |
 
 Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obowiązkowe. Wartość
@@ -1245,8 +1262,9 @@ Plik tworzy serwer przez `-logFile`; panel nie przekierowuje konsoli. Przed star
 `game.log.retention.enabled` ma wartość `true` (domyślnie), usuwa katalogi dzienne starsze niż
 bieżąca data minus `game.log.retention.days` (domyślnie 14); dzień graniczny i katalogi o nazwach
 innych niż daty zostają. Przy `false` wszystkie logi są zachowywane, a liczba dni nie jest czytana.
-Błąd retencji jest ostrzeżeniem i nie blokuje startu. Zero zachowuje bieżący dzień; wartość ujemna
-lub nienumeryczna daje domyślne 14 dni. Katalog bieżącego dnia jest tworzony tylko wtedy, gdy jeszcze
+Błąd retencji jest ostrzeżeniem i nie blokuje startu. Zero zachowuje wszystkie logi (AD-032); wartość
+ujemna lub nienumeryczna daje domyślne 14 dni. Tę regułę interpretuje `shared.LogRetention`, wspólne
+z logami panelu. Katalog bieżącego dnia jest tworzony tylko wtedy, gdy jeszcze
 nie istnieje. Datę wyznacza wstrzykiwany `Clock`, produkcyjnie w lokalnej strefie czasowej.
 Usuwanie starych katalogów realizuje pakietowa klasa `ServerLogRetention`, a akcje na katalogach —
 nazwę i rozpoznanie katalogu dnia, utworzenie brakującego katalogu i rekurencyjne usunięcie —

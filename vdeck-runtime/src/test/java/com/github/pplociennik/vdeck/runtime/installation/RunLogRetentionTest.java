@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
- * Verifies the 30-day retention of run logs.
+ * Verifies the fixed 30-day and the configured retention of run logs.
  */
 class RunLogRetentionTest {
 
@@ -110,6 +110,45 @@ class RunLogRetentionTest {
 
         // THEN
         assertThat( failure ).isInstanceOf( NullPointerException.class );
+    }
+
+    /**
+     * Verifies that a configured oldest day keeps that day and removes only the days before it.
+     */
+    @Test
+    void shouldDeleteDaysBeforeOldestKept_whenWindowIsConfigured() throws Exception {
+        // GIVEN
+        Path expired = day( "2026-10-19" );
+        Path oldestKept = day( "2026-10-20" );
+        Path today = day( "2026-10-27" );
+
+        // WHEN
+        int deleted = RunLogRetention.deleteBefore( installation, "launcher", LocalDate.of( 2026, 10, 20 ) );
+
+        // THEN
+        assertThat( deleted ).isEqualTo( 1 );
+        assertThat( expired ).doesNotExist();
+        assertThat( oldestKept ).exists();
+        assertThat( today ).exists();
+    }
+
+    /**
+     * Verifies that a configured window rejects every missing argument.
+     */
+    @Test
+    void shouldThrowException_whenConfiguredWindowArgumentIsNull() {
+        // GIVEN
+        LocalDate oldestKept = TODAY;
+
+        // WHEN
+        var missingInstallation = catchThrowable( () -> RunLogRetention.deleteBefore( null, "panel", oldestKept ) );
+        var missingComponent = catchThrowable( () -> RunLogRetention.deleteBefore( installation, null, oldestKept ) );
+        var missingDay = catchThrowable( () -> RunLogRetention.deleteBefore( installation, "panel", null ) );
+
+        // THEN
+        assertThat( missingInstallation ).isInstanceOf( NullPointerException.class );
+        assertThat( missingComponent ).isInstanceOf( NullPointerException.class );
+        assertThat( missingDay ).isInstanceOf( NullPointerException.class );
     }
 
     // =================================================================================================

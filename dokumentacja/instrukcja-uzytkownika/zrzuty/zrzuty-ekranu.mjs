@@ -70,7 +70,8 @@ try {
     await page.waitForTimeout( 400 );
     await mark( page, [
         { selector: '.side-menu-entry[href$="/server-settings"]', label: '1' },
-        { selector: '.side-menu-entry[href$="/game-settings"]', label: '2' }
+        { selector: '.side-menu-entry[href$="/game-settings"]', label: '2' },
+        { selector: '.side-menu-entry[href$="/console"]', label: '3' }
     ] );
     await captureAround( page, '.side-menu-panel', 'menu-boczne', 16 );
     await clearMarks( page );
@@ -118,6 +119,10 @@ try {
     await captureElement( page, '#game-settings-advanced', 'gra-sekcja-zaawansowane' );
     await page.uncheck( '[data-advanced-toggle]' );
     await page.setViewportSize( { width: 1280, height: 800 } );
+
+    // The package has no valheim_server.exe, so no launch has a log and the console stays empty.
+    await page.goto( `${baseUrl}/console` );
+    await capture( page, 'ekran-konsola' );
 
     await page.setViewportSize( { width: 1280, height: 1100 } );
     await page.goto( `${baseUrl}/change-password` );

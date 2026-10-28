@@ -51,6 +51,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.8 Przycisk strony głównej](#58-przycisk-strony-głównej)
   - [5.9 Techniczny helper CTRL+C](#59-techniczny-helper-ctrlc)
   - [5.10 Zatrzymanie, snapshoty i odzyskiwanie](#510-zatrzymanie-snapshoty-i-odzyskiwanie)
+  - [5.11 Konsola](#511-konsola)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -368,6 +369,7 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | `feature.home` | Strona główna panelu: `HomeController` |
 | `feature.server` | Start serwera, walidacja, polecenie startowe, logi i udostępnienie stanu runtime widokom; wiring w `config.ServerRuntimeConfiguration` |
 | `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery ekranów „Serwer” i „Ustawienia gry” i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-013) |
+| `feature.logs` | Konsola z logiem bieżącego uruchomienia serwera: `ConsoleController`, `dto.LogChunk`, `service` i `service.impl` |
 | `security` | Przekrojowe filtry i handlery Spring Security, niezwiązane z jednym feature'em |
 | `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc`, domyślna obsługa wyjątków w `shared.web` |
 
@@ -871,7 +873,7 @@ Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są 
 Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
 `icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
 `icon-key`, `icon-logout`, `icon-home` (przycisk strony głównej), `icon-menu` (przycisk menu bocznego), `icon-server` (ekran „Serwer”),
-`icon-sliders` (ekran „Ustawienia gry”) i `icon-chevron` (stan gałęzi menu). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
+`icon-sliders` (ekran „Ustawienia gry”), `icon-console` (ekran „Konsola”) i `icon-chevron` (stan gałęzi menu). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
 przyciski tworzą kopię, a nie pobierają pliku.
 
 Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlatego
@@ -897,6 +899,8 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
 - **Serwer** (`launch/server-settings.html`, adres `/server-settings`) i **Ustawienia gry**
   (`launch/game-settings.html`, adres `/game-settings`) to szerokie karty z domyślną teksturą panelu,
   osadzone pod wyspą akcji, z menu bocznym — opisane w [5.6](#56-serwer-i-ustawienia-gry).
+- **Konsola** (`logs/console.html`, adres `/console`) to szeroka karta pod wyspą akcji, z menu
+  bocznym, wypełniona przewijanym oknem logu serwera — opisana w [5.11](#511-konsola).
 - **Logowanie** korzysta ze strony generowanej przez Spring Security — nie jest ani stylowane, ani
   tłumaczone, więc pozostaje w języku angielskim.
 
@@ -907,7 +911,7 @@ i `title` pochodzą z tłumaczeń opisanych w [3.5](#35-tłumaczenia-interfejsu)
 
 Menu boczne jest komponentem wspólnym — plik `templates/common/side-menu.html` z fragmentem
 `sideMenu`, osadzanym przez `th:replace="~{common/side-menu :: sideMenu}"` na stronie głównej, na
-ekranie zmiany hasła na życzenie oraz na ekranach „Serwer” i „Ustawienia gry”. Widok otwierany z menu
+ekranie zmiany hasła na życzenie oraz na ekranach „Serwer”, „Ustawienia gry” i „Konsola”. Widok otwierany z menu
 przekazuje identyfikator swojej pozycji — np. `~{common/side-menu :: sideMenu(activeEntry='gameSettings')}` —
 dzięki czemu pozycja jest oznaczona jako bieżąca strona. Fragment dołącza własny moduł
 `/js/side-menu.js`, więc widok nie musi o nim pamiętać; style leżą w `base.css`.
@@ -931,15 +935,17 @@ Widoczne zachowanie:
   menu i przyciskiem. Zamknięcie zwija wszystkie gałęzie, a fokus z wnętrza menu wraca na przycisk.
 - Pozycje są pogrupowane w sekcje. Sekcja nie ma własnej ramy — wyróżnia ją jedynie tytuł: przygaszony
   tekst na środku poziomej linii. Sekcje dzielą większe odstępy niż pozycje wewnątrz nich. Sekcje to
-  „Konfiguracja”, „Operacje” i „Kopie bezpieczeństwa”.
-- Pierwsze pozycje sekcji „Konfiguracja” to „Serwer” (odnośnik do `/server-settings`, identyfikator
-  `serverSettings`) i „Ustawienia gry” (odnośnik do `/game-settings`, identyfikator `gameSettings`).
+  „Konfiguracja”, „Procesy” i „Kopie bezpieczeństwa”.
+- Sekcja „Konfiguracja” zawiera „Serwer” (odnośnik do `/server-settings`, identyfikator
+  `serverSettings`) i „Ustawienia gry” (odnośnik do `/game-settings`, identyfikator `gameSettings`),
+  a sekcja „Procesy” — „Konsola” (odnośnik do `/console`, identyfikator `console`).
   Na swoim ekranie pozycja ma `aria-current="page"` oraz obramowanie i tekst w kolorze akcentu.
-  Pozostałe pozycje — w sekcjach „Operacje” i „Kopie bezpieczeństwa” — są przykładowe, wszystkie
-  noszą etykietę „Test” (klucz `sideMenu.dummy.label`) i nie otwierają żadnego panelu.
-- W obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach, działające jak akordeon:
+  Jedyna pozostała pozycja, w sekcji „Kopie bezpieczeństwa”, jest przykładowa: nosi etykietę „Test”
+  (klucz `sideMenu.dummy.label`) i nie otwiera żadnego panelu.
+- W obrębie sekcji pozycje mogą tworzyć drzewo o co najwyżej trzech poziomach, działające jak akordeon:
   gałąź rozwija swoje dzieci w miejscu, z wcięciem, a rozwinięcie gałęzi zwija rozwinięte rodzeństwo
-  z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron.
+  z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron. Obecnie żadna
+  sekcja nie ma gałęzi — wszystkie pozycje leżą na pierwszym poziomie.
 - Rozmiar menu jest ograniczony do widoku, więc strona nie przewija się także na telefonie w poziomie;
   gdy pozycje się nie mieszczą, przewija się lista wewnątrz menu.
 
@@ -1334,6 +1340,62 @@ odczyty statusu zlecają ponowne sprawdzenie, które może odblokować Start.
 
 Źródło: [przeplyw-odzyskiwanie.mmd](diagramy/server/przeplyw-odzyskiwanie.mmd).
 
+### 5.11 Konsola
+
+Feature `logs` pokazuje w panelu log bieżącego uruchomienia serwera Valheim. Konsola jest na razie
+tylko podglądem: nie przyjmuje poleceń i nie przechwytuje konsoli procesu. Czyta plik, który serwer
+sam zapisuje przez `-logFile` (patrz [5.7](#57-uruchamianie-serwera)).
+
+Widoczne zachowanie:
+
+- Ekran `/console` otwiera pozycja „Konsola” z sekcji „Procesy” menu bocznego. Karta zawiera
+  przewijane okno logu (`pre[role=log]`). Strona się nie przewija, a długie linie zawijają się zamiast
+  poszerzać kartę.
+- Okno jest puste, gdy panel nie zna logu uruchomienia — przed pierwszym startem i po zatrzymaniu
+  serwera (`ServerStatus.stopped()` nie ma ścieżki logu). Po nieudanym starcie albo awarii
+  (`START_FAILED`, `CRASHED`) pokazuje log tego uruchomienia. Po adopcji ścieżka pochodzi z tokenu
+  `server.pid`.
+- `console.js` pyta co sekundę o nowe linie i dopisuje je na końcu. Okno przewija się w dół tylko
+  wtedy, gdy administrator był przy jego końcu, więc czytanie starszych linii nie jest przerywane.
+  Okno trzyma najwyżej 5000 linii; starsze są usuwane.
+- Nowe uruchomienie zmienia nazwę pliku (`source`), więc okno zaczyna od nowa bez przeładowania strony.
+
+Przebieg odpytywania:
+
+- `GET /console/log?offset=N` (`ConsoleController.readLog`) zwraca JSON `LogChunk` z polami `source`
+  (sama nazwa pliku, bez ścieżki instalacji), `offset`, `text` i `reset`. Pierwsze żądanie nie ma
+  `offset`.
+- `LogServiceImpl.readCurrent` bierze plik wyłącznie z `ServerService.getStatus().getLogFile()` —
+  klient wybiera tylko miejsce kontynuacji, nigdy plik. Plik jest otwierany przez `FileChannel` z
+  `NOFOLLOW_LINKS`. Java na Windows otwiera go ze współdzieleniem odczytu i zapisu, więc nie blokuje
+  serwera. Między żądaniami nic nie jest trzymane w pamięci.
+- Brak `offset`, wartość ujemna albo większa niż rozmiar pliku zwraca ostatnie 256 KiB (`TAIL_BYTES`)
+  z `reset = true`. Pierwsza, prawdopodobnie ucięta linia takiej końcówki jest pomijana.
+- Kontynuacja zwraca najwyżej 256 KiB (`MAX_CHUNK_BYTES`), uciętych do ostatniego znaku nowej linii.
+  Niedokończona linia przychodzi więc w całości w kolejnym żądaniu, a znak UTF-8 nie jest dzielony.
+  Tylko pełny blok bez żadnego znaku nowej linii jest zwracany w całości, aby jedna ogromna linia
+  nie zatrzymała odczytu.
+- Tekst jest dekodowany jako UTF-8 z zastępowaniem błędnych bajtów, a znaki `\r` są usuwane.
+- Gdy serwer jeszcze nie utworzył pliku, odpowiedź jest pusta (`NoSuchFileException` jest
+  udokumentowaną wartością zastępczą). Inny błąd odczytu staje się `UncheckedIOException`.
+  `DefaultExceptionHandler` loguje go na `WARN` i zwraca `500`, a okno zachowuje ostatni stan.
+- Przeglądarka nie wysyła żądania, gdy strona jest ukryta albo poprzednie żądanie jeszcze trwa. Tekst
+  trafia do okna wyłącznie jako węzeł tekstowy, nigdy jako HTML.
+
+![Diagram sekwencji: odpytywanie logu bieżącego uruchomienia na ekranie „Konsola”](diagramy/logs/img/przeplyw-konsola.svg)
+
+Źródło diagramu: [`diagramy/logs/przeplyw-konsola.mmd`](diagramy/logs/przeplyw-konsola.mmd)
+
+| Komponent | Pakiet | Rola |
+|---|---|---|
+| `ConsoleController` | `feature.logs` | `GET /console` (widok `logs/console`) i `GET /console/log` (JSON) |
+| `LogChunk` | `feature.logs.dto` | Odpowiedź jednego odpytania; `LogChunk.none()` dla panelu bez logu |
+| `LogService` / `LogServiceImpl` | `feature.logs.service` / `.impl` | Przyrostowy odczyt pliku bieżącego uruchomienia |
+| `console.js`, `console.css` | `static/js`, `static/css` | Odpytywanie co 1 s, dopisywanie tekstu, przewijane okno |
+
+Oba adresy wymagają roli `ADMIN` jak każdy inny. Są to żądania `GET` bez skutków ubocznych, więc nie
+potrzebują CSRF. Konsola nie ma własnych ustawień.
+
 ## 6. Bezpieczeństwo
 
 Zaimplementowane mechanizmy przekrojowe:
@@ -1406,6 +1468,10 @@ Przyczyny walidacji trafiają na `DEBUG`, a odrzucenie obsługiwane przez `Serve
 na `INFO`. Błąd tworzenia procesu zachowuje stack trace na `ERROR`; błąd zapisu skryptu lustrzanego
 lub retencji jest ostrzeżeniem `WARN`. `LaunchSpec.toString()` redaguje argumenty i środowisko.
 
+Feature `logs` nie kopiuje logu serwera do logu aplikacji. Na `DEBUG` zapisuje rozpoczęcie odczytu od
+końca pliku, a na `TRACE` — brak pliku przed jego utworzeniem przez serwer. Błąd odczytu loguje
+`DefaultExceptionHandler` na `WARN`.
+
 ## 9. Stan implementacji i znane ograniczenia
 
 Zaimplementowane: infrastruktura konfiguracji (`shared`), rozwiązywanie ścieżek, uwierzytelnianie
@@ -1423,8 +1489,9 @@ testowych, a pierwszej aktualizacji z prawdziwego wydania GitHuba nie można spr
 dwóch wydań.
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
-Restart z GUI, ekran zarządzania światami i kopiami, restore, podgląd logów, listy
-graczy, RCON, mody, harmonogramy i aktualizacje serwera.
+Restart z GUI, ekran zarządzania światami i kopiami, restore, wysyłanie poleceń z konsoli,
+przeglądanie logów wcześniejszych uruchomień, listy graczy, RCON, mody, harmonogramy i aktualizacje
+serwera. Podgląd logu bieżącego uruchomienia opisuje [5.11](#511-konsola).
 
 Plan realizacji Stop i Kill oraz kontrolowanego zamknięcia panelu znajduje się w
 [planie implementacji zatrzymania serwera](../.docs/plans/server-stop.md).
@@ -1439,8 +1506,10 @@ Znane ograniczenia stanu bieżącego:
 - strona główna pokazuje wyspę, komunikaty operacji i ewentualną adopcję; status wyspy odświeża polling;
 - Restart i przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji;
 - serwer może przeżyć zamknięcie panelu; nieudany Stop nigdy nie przechodzi automatycznie do Kill;
-- menu boczne ma dwie działające pozycje — „Serwer” i „Ustawienia gry”; pozostałe są przykładowe
-  (etykieta „Test”), pokazują trzy poziomy drzewa i nie otwierają żadnego panelu;
+- menu boczne ma trzy działające pozycje — „Serwer”, „Ustawienia gry” i „Konsola”; pozycja
+  w sekcji „Kopie bezpieczeństwa” jest przykładowa (etykieta „Test”) i nie otwiera żadnego panelu;
+- konsola odświeża się przez odpytywanie co sekundę, więc nowe linie pojawiają się z opóźnieniem do
+  około sekundy, a każda otwarta karta konsoli wysyła jedno żądanie na sekundę;
 - hasło serwera Valheim leży w pliku ustawień jawnym tekstem, chronione wyłącznie uprawnieniami
   systemu plików;
 - panel jest jednojęzyczny i nie ma mechanizmu zmiany języka; zmiana brzmienia tekstu wymaga nowego
@@ -1496,3 +1565,4 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Zatrzymanie serwera | przepływ | [SVG](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg) | [MMD](diagramy/server/przeplyw-zatrzymanie-serwera.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Snapshot świata | przepływ | [SVG](diagramy/backup/img/przeplyw-snapshot.svg) | [MMD](diagramy/backup/przeplyw-snapshot.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odzyskiwanie procesu | przepływ | [SVG](diagramy/server/img/przeplyw-odzyskiwanie.svg) | [MMD](diagramy/server/przeplyw-odzyskiwanie.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
+| Odpytywanie logu w konsoli | sekwencja | [`img/przeplyw-konsola.svg`](diagramy/logs/img/przeplyw-konsola.svg) | [`diagramy/logs/przeplyw-konsola.mmd`](diagramy/logs/przeplyw-konsola.mmd) | [5.11](#511-konsola) |

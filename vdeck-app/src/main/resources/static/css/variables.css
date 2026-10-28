@@ -183,6 +183,16 @@
     --font-size-label: 0.875rem;
     /* Form controls stay at 1rem or more; smaller text makes mobile browsers zoom in on focus */
     --font-size-field: 1rem;
+    /* Game server log on the console screen: fixed-width so the columns of the log stay aligned */
+    --font-family-console: Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+    --font-size-console: 0.8125rem;
+    --console-surface: var(--color-inset-surface);
+    /* Black frame of the log window, lit on its outer edge and sunk inwards like an inset screen */
+    --console-frame-width: 0.1875rem;
+    --console-frame-shadow: 0 0 0 0.0625rem var(--color-edge-highlight),
+            inset 0 0.125rem 0.625rem rgba(0, 0, 0, 0.7);
+    /* Lines of the log still visible on a phone held in landscape */
+    --console-min-block-size: 8rem;
 
     --transition-fast: 120ms ease;
     /*

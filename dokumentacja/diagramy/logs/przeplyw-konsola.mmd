@@ -1,0 +1,33 @@
+%% Diagram sekwencji: odpytywanie logu bieżącego uruchomienia na ekranie „Konsola”
+sequenceDiagram
+    autonumber
+    actor A as Administrator
+    participant B as Przeglądarka<br/>(console.js)
+    participant C as ConsoleController
+    participant L as LogServiceImpl
+    participant S as ServerService
+    participant F as Plik logu<br/>(-logFile serwera)
+    participant H as DefaultExceptionHandler
+
+    A->>C: GET /console
+    C-->>A: ekran z pustym oknem konsoli
+    loop co 1 s, gdy strona jest widoczna i poprzednie żądanie się zakończyło
+        B->>C: GET /console/log?offset=N<br/>(bez offset przy pierwszym żądaniu)
+        C->>L: readCurrent(offset)
+        L->>S: getStatus().getLogFile()
+        alt brak logu uruchomienia
+            L-->>B: source = null, reset — okno pozostaje puste
+        else pliku jeszcze nie ma
+            L-->>B: nazwa pliku, pusty tekst, reset
+        else brak offset albo offset poza plikiem
+            L->>F: odczyt ostatnich 256 KiB
+            L-->>B: pełne linie końcówki, nowy offset, reset
+        else offset w pliku
+            L->>F: odczyt od offset, najwyżej 256 KiB
+            L-->>B: pełne linie dopisane od offset, nowy offset
+        else błąd odczytu
+            L-)H: UncheckedIOException
+            H-->>B: WARN, 500 — okno zachowuje ostatni stan
+        end
+        B->>B: zmiana source albo reset czyści okno,<br/>tekst dopisany jako węzeł tekstowy,<br/>przewinięcie w dół tylko przy końcu okna
+    end

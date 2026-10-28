@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pl" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{console.title}">Konsola · vDeck</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/console.css}">
+    <script type="module" th:src="@{/js/server-status.js}"></script>
+    <script type="module" th:src="@{/js/console.js}"></script>
+</head>
+<body>
+<!--
+    "Konsola" screen: the game server log of the current launch, read from the file the server writes and
+    refreshed by console.js every second. The output area scrolls on its own, so the page never does; it
+    stays empty while no launch has a log.
+-->
+<div th:replace="~{common/island :: island}"></div>
+
+<main class="page-content">
+    <div class="panel-frame">
+        <div class="surface view-card view-card--wide console-card">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-console}"></use>
+                </svg>
+                <h1 class="view-title" th:text="#{console.heading}">Konsola</h1>
+            </div>
+            <p class="view-lead" th:text="#{console.lead}"></p>
+            <pre class="console-output" role="log" tabindex="0" data-console-output
+                 th:attr="aria-label=#{console.output.label},data-log-url=@{/console/log}"></pre>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{common/home-button :: homeButton}"></div>
+<div th:replace="~{common/side-menu :: sideMenu(activeEntry='console')}"></div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+@import url("variables.css");
+
+/* The card keeps its fixed frame height and hands the space left under its heading to the log. */
+.console-card {
+    display: flex;
+    flex-direction: column;
+}
+
+/*
+ * The log scrolls inside its own area, so the page never does. Long lines wrap instead of widening the
+ * card; a minimum height keeps a few lines readable on a phone held in landscape, where the card itself
+ * scrolls to reach them.
+ */
+.console-output {
+    flex: 1 1 auto;
+    min-block-size: var(--console-min-block-size);
+    margin: 0;
+    /* Keeps the log text clear of the frame on every side */
+    padding: var(--space-md);
+    overflow: auto;
+    overscroll-behavior: contain;
+    border: var(--console-frame-width) solid var(--color-frame);
+    border-radius: var(--field-radius);
+    box-shadow: var(--console-frame-shadow);
+    background-color: var(--console-surface);
+    color: var(--color-text);
+    font-family: var(--font-family-console);
+    font-size: var(--font-size-console);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-color);
+}
+
+.console-output:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: var(--focus-ring-offset);
+}

@@ -79,6 +79,13 @@
         <circle cx="10" cy="18" r="2.6"/>
     </symbol>
 
+    <!-- Terminal window with a prompt and a cursor: the console showing the server log. -->
+    <symbol id="icon-console" viewBox="0 0 24 24">
+        <path fill-rule="evenodd" d="M2 4h20v16H2zM4 6v12h16V6z"/>
+        <path d="M6.3 8.6 7.7 7.2l4.3 4.3-4.3 4.3-1.4-1.4 2.9-2.9z"/>
+        <rect x="12.5" y="14.6" width="5.5" height="2"/>
+    </symbol>
+
     <!-- Points to the right; an expanded branch rotates it to point down. -->
     <symbol id="icon-chevron" viewBox="0 0 24 24">
         <path d="M9.4 5.6 8 7l5 5-5 5 1.4 1.4 6.4-6.4z"/>

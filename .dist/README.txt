@@ -47,7 +47,9 @@ Ręczne zmiany plików properties wykonuj przy wyłączonym panelu.
 ZATRZYMYWANIE
 Zatrzymaj serwer przyciskiem Stop i poczekaj na wynik. Panel zamkniesz przez Ctrl+C
 w jego oknie; zamykanie może potrwać kilka minut. Nieudany Stop pozostawia serwer
-uruchomiony. Wymuszone Kill wymaga potwierdzenia i może spowodować utratę postępu.
+uruchomiony. Przy zamknięciu panel postępuje z serwerem zgodnie z panel.close.strategy
+w vDeck.properties: stop (domyślnie) zatrzymuje go, a gdy to się nie uda, wymusza
+zakończenie; graceful tylko zatrzymuje; leave zostawia serwer uruchomiony. Wymuszone Kill wymaga potwierdzenia i może spowodować utratę postępu.
 Kopia działającego świata nie gwarantuje spójnego zapisu gry.
 
 AKTUALIZACJE

@@ -19,9 +19,11 @@ import java.util.concurrent.CompletionStage;
  * <p>Implementations serialise every state change onto one thread, so concurrent HTTP requests cannot
  * interleave a start with a process-exit notification. All methods are safe to call from any thread.
  *
- * <p>A successfully created server may outlive the panel. Failed graceful stop never grants force,
- * and closing runtime resources never terminates the process. A durable launch token and installation
- * lock prevent duplicate launches; adopting a surviving process requires explicit identity verification.
+ * <p>A successfully created server may outlive the panel. Failed graceful stop never grants force by
+ * itself: force needs a manually confirmed Kill or, while the panel shuts down, an explicit shutdown Kill
+ * chosen by the panel close strategy (AD-031). Closing runtime resources never terminates the process.
+ * A durable launch token and installation lock prevent duplicate launches; adopting a surviving process
+ * requires explicit identity verification.
  */
 public interface ServerRuntime {
 
@@ -84,6 +86,8 @@ public interface ServerRuntime {
      * The total deadline is five minutes. Rejection is synchronous; accepted work completes only
      * after observed exit, or exceptionally while retaining a live process. Shutdown never grants force.
      * Confirmed Kill tolerates snapshot failures but never bypasses cancellation, deadline or identity checks.
+     * After {@link #shutdown()} only shutdown requests are accepted, including
+     * {@link StopRequest#shutdownKill(String)} for a process left alive by failed graceful shutdown.
      *
      * @param request
      *         launch-specific authorization
@@ -97,7 +101,8 @@ public interface ServerRuntime {
     CompletionStage< Void > stop( @Nonnull StopRequest request );
 
     /**
-     * Blocks new launches and gracefully stops, or joins, the currently managed process.
+     * Blocks new launches and gracefully stops, or joins, the currently managed process. Force afterwards
+     * requires a separate {@link StopRequest#shutdownKill(String)}.
      *
      * @return completion without any implicit force permission
      */

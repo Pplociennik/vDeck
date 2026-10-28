@@ -129,6 +129,24 @@ class VdeckPropertyTest {
     }
 
     /**
+     * Verifies that the panel close strategy defaults to stopping the server and is always present in the
+     * file (AD-031).
+     */
+    @Test
+    void shouldExposeStopDefault_whenPanelCloseStrategyIsDeclared() {
+        // GIVEN
+        VdeckProperty property = VdeckProperty.PANEL_CLOSE_STRATEGY;
+
+        // WHEN
+        String name = property.getName();
+
+        // THEN
+        assertThat( name ).isEqualTo( "panel.close.strategy" );
+        assertThat( property.getDefaultValue() ).isEqualTo( "stop" );
+        assertThat( property.isMandatory() ).isTrue();
+    }
+
+    /**
      * Verifies that no two settings share a key, which would make one of them unreachable.
      */
     @Test

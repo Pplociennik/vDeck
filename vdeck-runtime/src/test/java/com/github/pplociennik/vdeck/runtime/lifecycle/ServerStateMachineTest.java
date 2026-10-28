@@ -1017,6 +1017,36 @@ class ServerStateMachineTest {
             verify( processHandle, never() ).destroyForcibly();
         }
 
+        /** The close strategy's shutdown Kill forces a process left alive by failed graceful shutdown. */
+        @Test
+        void shouldForceProcess_whenShutdownKillFollowsFailedShutdown() {
+            // GIVEN
+            given( processHandle.destroyForcibly() ).willReturn( true );
+            underTest.shutdown();
+            runGracefulLadder();
+            underTest.stop( StopRequest.shutdownKill( id ) );
+            worker.runNext();
+            // WHEN
+            worker.runNext();
+            // THEN
+            verify( processHandle ).destroyForcibly();
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPING );
+        }
+
+        /** A manual Kill is still refused once the panel shuts down; only the shutdown Kill is admitted. */
+        @Test
+        void shouldRejectManualKill_whenPanelShutsDown() {
+            // GIVEN
+            underTest.shutdown();
+            runGracefulLadder();
+            // WHEN
+            var failure = catchThrowable( () -> underTest.stop( StopRequest.confirmedKill( id ) ) );
+            // THEN
+            assertThat( failure ).isInstanceOf( IllegalStateException.class );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOP_FAILED );
+            verify( processHandle, never() ).destroyForcibly();
+        }
+
         /** A late exit after failed Stop restores STOPPED without changing the failed completion. */
         @Test
         void shouldObserveLateExit_whenStopPreviouslyFailed() {

@@ -1,0 +1,22 @@
+%% Diagram przepływu: strategia serwera przy zamknięciu panelu (AD-031)
+flowchart TD
+    close[Zamknięcie kontekstu Springa<br/>serwer WWW już zatrzymany] --> coordinator["ServerShutdownCoordinator<br/>@PreDestroy"]
+    coordinator --> read{panel.close.strategy}
+    read -- nieznana / nieczytelna --> stopMode
+    read -- stop --> stopMode[StopPanelCloseStrategy]
+    read -- graceful --> gracefulMode[GracefulPanelCloseStrategy]
+    read -- leave --> leaveMode[LeavePanelCloseStrategy<br/>bez sygnału]
+    stopMode --> shutdown[ServerRuntime.shutdown<br/>czekaj najwyżej 6 min]
+    gracefulMode --> gracefulShutdown[ServerRuntime.shutdown<br/>czekaj najwyżej 6 min]
+    shutdown -- sukces --> released
+    shutdown -- błąd / odmowa / timeout --> state{Stan STOP_FAILED?}
+    state -- nie --> released
+    state -- tak --> kill[StopRequest.shutdownKill<br/>snapshot, destroyForcibly<br/>czekaj najwyżej 6 min]
+    kill -- wyjście zaobserwowane --> released
+    kill -- błąd --> retained[STOP_FAILED<br/>proces i token zachowane]
+    gracefulShutdown -- sukces --> released
+    gracefulShutdown -- błąd --> retained
+    leaveMode --> running[Serwer działa dalej<br/>aktywny Stop porzucony]
+    retained --> released[ServerRuntime.close<br/>zwolnienie zasobów i blokady]
+    running --> released
+    released --> adopt[Następny panel: jawna adopcja<br/>żywego procesu po tokenie]

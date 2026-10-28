@@ -28,7 +28,17 @@ classDiagram
         class BackupPathService {
             <<interface>>
         }
-        class ServerShutdownLifecycle
+        class ServerShutdownCoordinator {
+            closeServer() @PreDestroy
+        }
+        class PanelCloseStrategy {
+            <<interface>>
+            getMode()
+            apply()
+        }
+        class StopPanelCloseStrategy
+        class GracefulPanelCloseStrategy
+        class LeavePanelCloseStrategy
         class ConsoleControlConfiguration
         class ServerRuntimeConfiguration
     }
@@ -94,7 +104,12 @@ classDiagram
     ServerStateMachine --> ConsoleControlSender : żądanie sygnału na workerze
     JvmConsoleControlSender ..|> ConsoleControlSender
     ServerStateMachine --> ManagedLaunchStore : token i FileLock
-    ServerShutdownLifecycle --> ServerRuntime : shutdown przed close
+    ServerShutdownCoordinator --> PanelCloseStrategy : wybór wg panel.close.strategy
+    StopPanelCloseStrategy ..|> PanelCloseStrategy
+    GracefulPanelCloseStrategy ..|> PanelCloseStrategy
+    LeavePanelCloseStrategy ..|> PanelCloseStrategy
+    StopPanelCloseStrategy --> ServerRuntime : shutdown, potem shutdownKill
+    GracefulPanelCloseStrategy --> ServerRuntime : shutdown przed close
     JvmConsoleControlSender ..> VdeckRunner : uruchomienie JAR na żądanie
     VdeckRunner --> WindowsConsoleControlSender : osobna JVM
     WindowsConsoleControlSender --> Win32 : izolowane CTRL+C

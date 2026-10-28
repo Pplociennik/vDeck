@@ -54,7 +54,15 @@ public enum VdeckProperty implements SystemPropertyIf {
      * Whether the panel opens its address in the default browser once it has started from the start
      * script; {@code true} or {@code false}. Any other value counts as the default.
      */
-    PANEL_OPEN_BROWSER( "panel.open.browser", "true", true );
+    PANEL_OPEN_BROWSER( "panel.open.browser", "true", true ),
+
+    /**
+     * What happens to the managed Valheim server when the panel closes (AD-031): {@code stop} stops it
+     * gracefully and forces it to exit when that fails, {@code graceful} only stops it gracefully and keeps a
+     * process that survives, {@code leave} keeps it running for explicit adoption by the next panel. Any
+     * other value counts as the default.
+     */
+    PANEL_CLOSE_STRATEGY( "panel.close.strategy", "stop", true );
 
     /**
      * Name of the properties file owning every setting declared by this enum.

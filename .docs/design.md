@@ -1,6 +1,6 @@
 # vDeck — główne założenia projektowe
 
-> Data: 2026-08-17 · Aktualizacja: 2026-10-12 · Status: żywy opis uzgodnionej architektury
+> Data: 2026-08-17 · Aktualizacja: 2026-10-28 · Status: żywy opis uzgodnionej architektury
 
 vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim. Aplikacja jest
 dystrybuowana razem z instalacją serwera, uruchamiana lokalnie, a następnie obsługiwana z poziomu
@@ -436,7 +436,9 @@ Implementacja zatrzymania rozszerza powyższe poddrzewa o:
 - runtime/snapshot: `FileWorldSnapshotStore`;
 - runtime/windows: `JvmConsoleControlSender`, `WindowsConsoleControlSender`;
 - runner: `VdeckRunner`;
-- app/config: `ConsoleControlConfiguration`, `ServerShutdownLifecycle`;
+- app/config: `ConsoleControlConfiguration`, `ServerShutdownCoordinator`;
+- app/feature/server/service: `PanelCloseStrategy`, `PanelCloseMode`; impl: `StopPanelCloseStrategy`,
+  `GracefulPanelCloseStrategy`, `LeavePanelCloseStrategy`, `StopCompletion` (AD-031);
 - app/feature/backup: `service.BackupPathService` i `service.impl.BackupPathServiceImpl`;
 - app/feature/server/exc: `ServerStopException`, `ServerKillException`;
 - templates/server: `kill-confirmation.html`; static/js: `server-status.js`.
@@ -637,6 +639,8 @@ Nie jest kanałem wykonywania poleceń. Panel generuje własny skrypt lustrzany
 `.vDeck/vDeck-server-start.bat` bez zapisanego hasła, ale nigdy go nie uruchamia.
 `snapshot.directory` (domyślnie `shutdown-snapshots`) to nazwa jednego podkatalogu `.vDeck` na snapshoty świata
 (AD-018); wartość z separatorem, `.` albo `..` przerywa start serwera.
+`panel.close.strategy` (domyślnie `stop`; także `graceful`, `leave`) określa los serwera przy
+zamknięciu panelu (AD-031, §6); inna wartość oznacza `stop`.
 
 Podstawowy układ danych:
 
@@ -756,16 +760,23 @@ błąd zapisu tokenu zachowuje własność, `onExit()` i timer, więc Stop oraz 
 Panel udostępnia również Kill realizowany przez `ProcessHandle.destroyForcibly()`. Użycie tej
 możliwości podlega zasadom bezpieczeństwa danych opisanym niżej.
 
-Zamknięcie panelu zatrzymuje zarządzany serwer przez asynchroniczne `SmartLifecycle.stop(Runnable)`,
-nie przez własny shutdown hook. Koordynator wysyła polecenie do kolejki zdarzeń i wywołuje callback
-Springa po zakończeniu operacji albo po przekroczeniu jej deadline’u. Ma jawną fazę zamykania i
-zależność od runtime, który zachowuje kolejkę, writer i token aż do zakończenia fazy.
-Token procesu jest plikiem i nie zależy od `DataSource`.
+Los zarządzanego serwera przy zamknięciu panelu wybiera `panel.close.strategy` w `vDeck.properties`
+(AD-031). `config.ServerShutdownCoordinator` w metodzie `@PreDestroy`, a nie we własnym shutdown hooku,
+czyta ustawienie, wybiera jedyną `PanelCloseStrategy` o danym `PanelCloseMode` i blokuje do jej
+zakończenia. `@PreDestroy` działa po zatrzymaniu serwera WWW, a strategie zależą od `ServerRuntime`,
+więc Spring niszczy runtime — kolejkę, writer i token — dopiero po strategii. Token procesu jest
+plikiem i nie zależy od `DataSource`.
 
-Globalny deadline zatrzymania wynosi domyślnie 5 minut, a konfiguracja vDeck ustawia
-`spring.lifecycle.timeout-per-shutdown-phase` na 6 minut. Aktualizacja lub kontrolowany restart
-panelu próbuje więc zatrzymać serwer Valheim. Niepowodzenie pozostawia żywy serwer i token;
-ponowny panel wymaga jawnej adopcji, nie tworzy automatycznie drugiej instancji.
+| Wartość | Zachowanie |
+|---|---|
+| `stop` (domyślna) | `ServerRuntime.shutdown()`; gdy po niepowodzeniu proces żyje w `STOP_FAILED`, `StopRequest.shutdownKill` — próba snapshotu i wymuszenie. |
+| `graceful` | Wyłącznie `shutdown()`; nieudany Stop zostawia żywy proces (dotychczasowe zachowanie). |
+| `leave` | Brak sygnału; serwer działa dalej, a `close()` runtime porzuca aktywny Stop bez kończenia procesu. |
+
+Nieznana wartość albo nieczytelne ustawienia dają `stop`. Każda operacja runtime ma własny
+deadline 5 minut, a `StopCompletion` czeka na nią najwyżej 6 minut; odmowa, błąd, timeout i
+przerwanie są logowane i nie przerywają zamykania panelu. Przy `graceful` i nieudanym `stop` żywy
+serwer zachowuje token; ponowny panel wymaga jawnej adopcji, nie tworzy automatycznie drugiej instancji.
 
 ---
 
@@ -915,7 +926,8 @@ Ręcznie potwierdzony Kill:
 
 Każda operacja podlega jednemu monotonicznemu deadline 5 minut, obejmującemu próbę kopii.
 Timeout i nieudany Stop kończą się STOP_FAILED z zachowaniem procesu, nigdy automatycznym
-wymuszeniem (AD-017). Kill wymaga jawnego potwierdzenia ryzyka dla konkretnego launchId.
+wymuszeniem (AD-017); jedynym wyjątkiem jest zamknięcie panelu ze strategią `stop` (AD-031).
+Kill wymaga jawnego potwierdzenia ryzyka dla konkretnego launchId.
 Potwierdzenie obejmuje zakończenie także bez backupu; nie ma dodatkowego checkboxa ani warunku
 wcześniejszego błędu snapshotu. Runtime próbuje wykonać kopię w każdej operacji Kill, a po błędzie
 kopii kontynuuje wymuszenie. Nie ignoruje anulowania, przerwania workera ani wyczerpania deadline.
@@ -923,7 +935,10 @@ Brak pewnej tożsamości nadal zabrania wymuszenia. `destroyForcibly() == true` 
 obserwacji wyjścia: żywy proces po odmowie API lub czasie oczekiwania pozostaje w STOP_FAILED.
 W zwykłym Stop błąd helpera przerywa operację; retry następuje po udanym wysłaniu pierwszego
 CTRL+C i wyczerpaniu czasu na wyjście. Shutdown dołącza do aktywnej operacji bez odnawiania
-zgody lub deadline; nowy shutdown sam nigdy nie przyznaje zgody na Kill.
+zgody lub deadline; nowy shutdown sam nigdy nie przyznaje zgody na Kill. Po `shutdown()` runtime
+przyjmuje wyłącznie żądania shutdown: ręczne `confirmedKill` jest odrzucane, a `shutdownKill`
+(force i shutdown) wysyła tylko strategia `stop` dla procesu w STOP_FAILED, z tymi samymi
+kontrolami tożsamości, anulowania i deadline co Kill.
 
 `WorldContext` pochodzi z konfiguracji przechwyconej przy starcie. Snapshoty mają wyłącznie
 BEST_EFFORT: kopia żywych plików nie dowodzi zakończonego ani spójnego semantycznie zapisu.

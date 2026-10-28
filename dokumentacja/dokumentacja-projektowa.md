@@ -509,6 +509,7 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 | `snapshot.directory` | Nazwa jednego podkatalogu `.vDeck` na snapshoty świata (AD-018); separator, `.` lub `..` przerywa start serwera | tak | `shutdown-snapshots` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 | `panel.open.browser` | Czy panel uruchomiony skryptem startowym otwiera swój adres w domyślnej przeglądarce; `true` albo `false`, inna wartość używa domyślnej (patrz [1.7](#17-launcher-i-automatyczna-aktualizacja)) | tak | `true` |
+| `panel.close.strategy` | Los serwera przy zamknięciu panelu (AD-031): `stop` — łagodny Stop, a gdy proces przeżyje, wymuszenie; `graceful` — tylko łagodny Stop; `leave` — serwer działa dalej; inna wartość używa domyślnej (patrz [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie)) | tak | `stop` |
 
 Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obowiązkowe. Wartość
 flagi podaje konstruktor enuma, obok klucza i wartości domyślnej. Ustawienie obowiązkowe ma zawsze
@@ -1266,8 +1267,8 @@ dostarczeniem zdarzeń oraz potwierdzeń startu bez oczekiwania na upływ czasu.
 
 Zgodnie z AD-017 `KILL_ON_JOB_CLOSE` chroni tylko nieukończone tworzenie procesu.
 Launcher wyłącza flagę przed udanym przekazaniem własności runtime. Nieudany Stop pozostawia
-żywy serwer, również po zamknięciu lub awarii panelu. `close()` zamyka zasoby bez kończenia procesu;
-asynchroniczny `ServerShutdownLifecycle` wcześniej próbuje wykonać zwykły Stop. Mechanizm
+żywy serwer, również po awarii panelu. `close()` zamyka zasoby bez kończenia procesu; wcześniej
+`ServerShutdownCoordinator` stosuje strategię zamknięcia panelu (AD-031, [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie)). Mechanizm
 odzyskiwania i token zapobiegają uruchomieniu drugiej instancji; szczegóły w [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie).
 
 `WindowsProcessLauncher` otrzymuje granicę wywołań `Win32`, funkcję wyszukiwania `ProcessHandle`
@@ -1363,12 +1364,39 @@ dodatkowego checkboxa ani wymogu wcześniejszego błędu kopii. Po wymuszeniu pa
 na wyjście. Każda operacja ma deadline 5 min, obejmujący kopię. Anulowanie, przerwanie workera,
 brak pewnej tożsamości lub czasu nadal zabrania wymuszenia; zgoda nie przechodzi na kolejne żądania.
 Sukces API sygnału nie potwierdza wyjścia ani zapisu; STOPPED wymaga obserwacji wyjścia.
-Shutdown dołącza do aktywnej operacji albo zleca Stop bez zgody na wymuszenie. Faza Springa ma 6 min.
-RCON nie jest brany pod uwagę.
+Shutdown dołącza do aktywnej operacji albo zleca Stop bez zgody na wymuszenie. Po shutdown runtime
+przyjmuje wyłącznie żądania shutdown: ręczny Kill jest odrzucany, a `StopRequest.shutdownKill`
+wysyła tylko strategia zamknięcia `stop`. RCON nie jest brany pod uwagę.
 
 ![Zatrzymanie serwera](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg)
 
 Źródło: [przeplyw-zatrzymanie-serwera.mmd](diagramy/server/przeplyw-zatrzymanie-serwera.mmd).
+
+#### Strategia zamknięcia panelu
+
+Los zarządzanego serwera przy zamknięciu panelu wybiera `panel.close.strategy` w `vDeck.properties`
+(AD-031). `config.ServerShutdownCoordinator` w metodzie `@PreDestroy` — po zatrzymaniu serwera WWW,
+a przed zniszczeniem beana runtime — czyta ustawienie przez `PropertyReader.readOptional` i
+`PanelCloseMode.fromValue`, wybiera jedyną `PanelCloseStrategy` danego trybu (kontrakt w
+`feature.server.service`, implementacje w `service.impl`) i blokuje do jej zakończenia. Brak
+strategii dla trybu albo dwie strategie jednego trybu przerywają start kontekstu.
+
+| Wartość | Strategia | Zachowanie |
+|---|---|---|
+| `stop` (domyślna) | `StopPanelCloseStrategy` | `ServerRuntime.shutdown()`; gdy się nie powiedzie, a stan to STOP_FAILED, `StopRequest.shutdownKill` — próba snapshotu, weryfikacja tożsamości, `destroyForcibly` i obserwacja wyjścia. |
+| `graceful` | `GracefulPanelCloseStrategy` | Wyłącznie `shutdown()`; nieudany Stop zachowuje żywy proces i token. |
+| `leave` | `LeavePanelCloseStrategy` | Brak sygnału; serwer działa dalej, a `close()` runtime porzuca aktywny Stop bez kończenia procesu. |
+
+Nieznana wartość albo ustawienia nieczytelne po nieudanym starcie dają `stop` z WARN. Każdą
+operację runtime ogranicza jej deadline 5 min, a `StopCompletion` czeka na nią najwyżej 6 min.
+Odmowa, błąd, przekroczenie czasu i przerwanie oczekiwania są logowane i nie przerywają zamykania;
+wyjątek strategii loguje koordynator. Przy stanie innym niż STOP_FAILED (np. STOPPING po upływie
+oczekiwania) strategia `stop` nie wymusza zakończenia. Żywy proces pozostawiony przez `graceful`,
+`leave` albo nieudany Kill zachowuje token i wymaga jawnej adopcji w następnym panelu.
+
+![Diagram przepływu: strategia serwera przy zamknięciu panelu](diagramy/server/img/przeplyw-zamkniecie-panelu.svg)
+
+Źródło diagramu: [`diagramy/server/przeplyw-zamkniecie-panelu.mmd`](diagramy/server/przeplyw-zamkniecie-panelu.mmd)
 
 Snapshot używa świata i saveDirectory przechwyconych przy starcie, niezależnie od późniejszej
 edycji profilu. AD-018 wyznacza `<instalacja>/.vDeck/<snapshot.directory>` przez osobny
@@ -1679,7 +1707,10 @@ Znane ograniczenia stanu bieżącego:
   strona błędu Spring Boota, bez treści wyjątku;
 - strona główna pokazuje wyspę, komunikaty operacji i ewentualną adopcję; status wyspy odświeża polling;
 - Restart i przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji, dlatego są stale wyłączone;
-- serwer może przeżyć zamknięcie panelu; nieudany Stop nigdy nie przechodzi automatycznie do Kill;
+- serwer może przeżyć zamknięcie panelu przy strategii `graceful` albo `leave`; nieudany ręczny Stop
+  nigdy nie przechodzi automatycznie do Kill — robi to wyłącznie strategia zamknięcia `stop`;
+- zamknięcie okna konsoli może zakończyć panel, zanim strategia zamknięcia skończy pracę;
+  przewidywalne zamknięcie daje CTRL+C w konsoli;
 - menu boczne ma gałąź „Serwer” z czterema panelami oraz pozycje „Ustawienia gry” i „Konsola”;
 - konsola odświeża się przez odpytywanie co sekundę, więc nowe linie pojawiają się z opóźnieniem do
   około sekundy, a każda otwarta karta konsoli wysyła jedno żądanie na sekundę;
@@ -1738,6 +1769,7 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Feature server i runtime | klasy | [`img/klasy-komponenty.svg`](diagramy/server/img/klasy-komponenty.svg) | [`diagramy/server/klasy-komponenty.mmd`](diagramy/server/klasy-komponenty.mmd) | [5.7](#57-uruchamianie-serwera) |
 | Techniczny helper CTRL+C | przepływ | [`img/przeplyw-helper-ctrl-c.svg`](diagramy/server/img/przeplyw-helper-ctrl-c.svg) | [`diagramy/server/przeplyw-helper-ctrl-c.mmd`](diagramy/server/przeplyw-helper-ctrl-c.mmd) | [5.9](#59-techniczny-helper-ctrlc) |
 | Zatrzymanie serwera | przepływ | [SVG](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg) | [MMD](diagramy/server/przeplyw-zatrzymanie-serwera.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
+| Strategia zamknięcia panelu | przepływ | [SVG](diagramy/server/img/przeplyw-zamkniecie-panelu.svg) | [MMD](diagramy/server/przeplyw-zamkniecie-panelu.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Snapshot świata | przepływ | [SVG](diagramy/backup/img/przeplyw-snapshot.svg) | [MMD](diagramy/backup/przeplyw-snapshot.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odzyskiwanie procesu | przepływ | [SVG](diagramy/server/img/przeplyw-odzyskiwanie.svg) | [MMD](diagramy/server/przeplyw-odzyskiwanie.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odpytywanie logu w konsoli | sekwencja | [`img/przeplyw-konsola.svg`](diagramy/logs/img/przeplyw-konsola.svg) | [`diagramy/logs/przeplyw-konsola.mmd`](diagramy/logs/przeplyw-konsola.mmd) | [5.11](#511-konsola) |

@@ -237,7 +237,8 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 
 ## AD-017 — Nieudany Stop pozostawia serwer uruchomiony
 
-- **Status:** obowiązująca (2026-10-07), zaakceptowana przez użytkownika.
+- **Status:** obowiązująca (2026-10-07), zaakceptowana przez użytkownika; zamykanie panelu
+  zastąpione przez AD-031 (2026-10-28).
 - **Decyzja:** Niepowodzenie łagodnego zatrzymania, także podczas zamykania panelu, nie upoważnia
   do wymuszonego zakończenia serwera. `STOP_FAILED` zachowuje żywy proces. Wymuszenie wymaga
   osobnej, ręcznie potwierdzonej akcji Kill dla konkretnego uruchomienia. Kill próbuje wykonać
@@ -425,3 +426,11 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** Ustawienia serwera z AD-011 edytują cztery panele gałęzi „Serwer” menu bocznego (`/server-settings/<panel>`), każdy z własnym formularzem i zapisem tylko swoich ustawień.
 - **Powód:** Jeden formularz czterech sekcji był trudny w przeglądaniu, zwłaszcza na telefonie.
 - **Konsekwencja:** Reguła hasła względem nazwy serwera sprawdza zapisaną wartość z drugiego panelu.
+
+## AD-031 — Strategia zamknięcia panelu
+
+- **Status:** obowiązująca (2026-10-28)
+- **Zastępuje:** AD-017 przy zamykaniu panelu
+- **Decyzja:** `ServerShutdownCoordinator` w `@PreDestroy` wykonuje `PanelCloseStrategy` z `panel.close.strategy`: `stop` (domyślnie, Kill po nieudanym Stopie), `graceful` lub `leave`.
+- **Powód:** Administrator wybiera, czy zamknięcie panelu zatrzymuje serwer.
+- **Konsekwencja:** Wymusza tylko `stop` dla `STOP_FAILED`; ręczny Kill bez zmian.

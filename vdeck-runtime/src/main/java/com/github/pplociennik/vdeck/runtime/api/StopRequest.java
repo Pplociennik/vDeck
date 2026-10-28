@@ -5,7 +5,10 @@ import lombok.Getter;
 
 import static java.util.Objects.requireNonNull;
 
-/** Immutable authorization for one launch; only the explicitly confirmed variant permits force. */
+/**
+ * Immutable authorization for one launch. Only a manually confirmed Kill and a shutdown Kill chosen by the
+ * panel close strategy (AD-031) permit force.
+ */
 @Getter
 public final class StopRequest {
 
@@ -68,5 +71,22 @@ public final class StopRequest {
      */
     public static @Nonnull StopRequest shutdown( @Nonnull String launchId ) {
         return new StopRequest( launchId, false, true );
+    }
+
+    /**
+     * Authorizes immediate force after a snapshot attempt while the panel shuts down, for this request only.
+     * The panel close strategy {@code stop} sends it after graceful shutdown left a live process (AD-031);
+     * unlike {@link #confirmedKill(String)} it is accepted after {@link ServerRuntime#shutdown()}.
+     *
+     * @param launchId
+     *         current managed launch
+     * @return shutdown request carrying force permission
+     * @throws NullPointerException
+     *         if the identifier is null
+     * @throws IllegalArgumentException
+     *         if the identifier is empty, unsafe or longer than 100 characters
+     */
+    public static @Nonnull StopRequest shutdownKill( @Nonnull String launchId ) {
+        return new StopRequest( launchId, true, true );
     }
 }

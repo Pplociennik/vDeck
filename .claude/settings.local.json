@@ -72,7 +72,12 @@
       "Bash(./mvnw test *)",
       "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD|Reactor Summary|SUCCESS \\\\[|FAILURE \\\\[\")",
       "Bash(./mvnw -q clean package -DskipTests)",
-      "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD|FAIL\")"
+      "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD|FAIL\")",
+      "Bash(cd /d/DEV_PROJECTS/vDeck/vdeck/vdeck-app/src/main/java/com/github/pplociennik/vdeck && cat shared/VdeckProperty.java shared/PropertyReader.java && cat ../../../../../../../.dist/.vDeck/config/vDeck.properties)",
+      "Read(//d/.dist/.vDeck/config/**)",
+      "Bash(./mvnw -q install -DskipTests -pl vdeck-runtime)",
+      "Bash(npx -y @mermaid-js/mermaid-cli -i dokumentacja/diagramy/server/przeplyw-zamkniecie-panelu.mmd -o dokumentacja/diagramy/server/img/przeplyw-zamkniecie-panelu.svg -b white -c dokumentacja/diagramy/mermaid-config.json)",
+      "Bash(npx -y @mermaid-js/mermaid-cli -i dokumentacja/diagramy/server/przeplyw-zamkniecie-panelu.mmd -o \"C:/Users/Pszemko/AppData/Local/Temp/claude/d--DEV-PROJECTS-vDeck-vdeck/3cf6f269-f5d5-4449-a9d2-19f45bcc66ae/scratchpad/zamkniecie.png\" -b white -c dokumentacja/diagramy/mermaid-config.json)"
     ]
   }
 }

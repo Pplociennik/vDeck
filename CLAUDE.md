@@ -8,7 +8,8 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
 
 - `vdeck-runtime` — pure Java, no Spring. Owns the serialized lifecycle, Windows FFM launcher,
   launch identity, complete BEST_EFFORT world snapshots, isolated CTRL+C helper, asynchronous Stop
-  and manually confirmed Kill. Failed Stop retains the process. Kill-on-close protects incomplete
+  and manually confirmed Kill. Failed Stop retains the process (except the panel close strategy
+  `stop`, AD-031). Kill-on-close protects incomplete
   creation only; a successfully created server can outlive the panel (AD-017). Installation FileLock,
   a secret-free `.vDeck/server.pid` and explicit verified adoption prevent duplicate launches.
 - `vdeck-runner` — pure Java, no Spring. Provides `runner.VdeckRunner`, the executable CTRL+C
@@ -121,9 +122,14 @@ with 8 GiB per set and 8192 entries. Obsolete `.old-*` and `.tmp-*` directories 
 `snapshot-<operationId>` directories are preserved. Windows file identity uses volume serial and
 128-bit FileId through FFM. Installation roots are canonicalized; directory checks reject redirects
 below their trusted root. Invalid recovery tokens are quarantined after an empty installation process
-scan. Adoption uses `ServerAdoptException` (AD-014). No automatic force is performed.
-Shutdown awaits the same five-minute operation through SmartLifecycle, then releases
-resources without terminating a surviving process. Real Valheim save consistency and CTRL+C behavior
+scan. Adoption uses `ServerAdoptException` (AD-014). No automatic force is performed, except on panel
+close: `config.ServerShutdownCoordinator` runs in `@PreDestroy` (after the web server stopped, before the
+runtime bean is destroyed) and applies the `feature.server.service.PanelCloseStrategy` chosen by
+`panel.close.strategy` in `vDeck.properties` (AD-031): `stop` (default — graceful shutdown, then
+`StopRequest.shutdownKill` for a process left in STOP_FAILED), `graceful` (no force) or `leave` (no
+signal); an unknown value means `stop`. `StopCompletion` waits at most 6 minutes per runtime operation
+and never throws. The runtime then releases resources without terminating a surviving process.
+Real Valheim save consistency and CTRL+C behavior
 still require a Windows deployment test.
 
 Only packages holding real code exist; the rest of the `design.md` §3 tree is created when

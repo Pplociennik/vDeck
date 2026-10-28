@@ -252,6 +252,12 @@ decision.
   keep Spring test dependencies out of the parent so they do not leak into `vdeck-runtime`.
 - JUnit 5, AssertJ and Mockito are declared individually in the root POM, for the same reason
 - Spring MVC + Thymeleaf for the web layer, Spring Data JPA + SQLite (`org.xerial:sqlite-jdbc`) for persistence
+- Liquibase owns the schema (AD-028): Spring Boot applies XML changesets at panel startup and
+  Hibernate runs with `ddl-auto: none`. `db/changelog/db.changelog-master.xml` only includes one
+  `versions/<version>.xml` per project version; a released version file is never edited, and each
+  task's changesets form one block headed by a separator comment with the task number and
+  description (`clean-code.md` §13). `spring.liquibase.analytics-enabled: false` keeps Liquibase off
+  the network. `DatabaseSchemaIntegrationTest` validates the schema against the entities
 - Log4j2 is the required application logging API and backend; `spring-boot-starter-log4j2` is declared
   in `vdeck-app` and `spring-boot-starter-logging` is excluded from **every** starter that pulls it in
   (exclusions apply per declaration path, so one omission puts Logback back). Production classes use

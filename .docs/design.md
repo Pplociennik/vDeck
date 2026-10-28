@@ -429,7 +429,8 @@ Encja stanowiąca model feature'a znajduje się w jego podpakiecie `domain`, tak
 `feature.authentication.domain.PanelUser`. Wspólny pakiet `persistence` zawiera jedynie konfigurację
 JPA i SQLite.
 
-Schemat bazy jest tworzony i aktualizowany przez Hibernate:
+Schemat bazy tworzy i zmienia wyłącznie Liquibase (AD-028), uruchamiany automatycznie przez Spring
+Boot przy starcie panelu, przed inicjalizacją JPA. Hibernate nie zarządza schematem:
 
 ```yaml
 spring:
@@ -439,9 +440,15 @@ spring:
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    analytics-enabled: false
 ```
 
+Changesety są w XML. `db.changelog-master.xml` dołącza w kolejności wydań po jednym pliku
+`versions/<wersja>.xml` na wersję projektu; plik wydanej wersji jest niezmienny, a układ changesetów
+opisuje `rules/clean-code.md` §13. Liquibase nie wysyła telemetrii (`analytics-enabled: false`).
 Flyway nie jest używany. Dla SQLite wykorzystywany jest dialekt z
 `org.hibernate.orm:hibernate-community-dialects`.
 

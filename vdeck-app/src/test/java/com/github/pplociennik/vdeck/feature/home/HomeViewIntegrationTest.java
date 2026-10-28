@@ -176,6 +176,5 @@ class HomeViewIntegrationTest {
     static void registerApplicationProperties( DynamicPropertyRegistry registry ) {
         registry.add( "vdeck.server-directory", directory::toString );
         registry.add( "spring.datasource.url", () -> "jdbc:sqlite:" + directory.resolve( "home-view-test.db" ) );
-        registry.add( "spring.jpa.hibernate.ddl-auto", () -> "create-drop" );
     }
 }

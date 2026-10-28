@@ -775,7 +775,32 @@ selektorach strukturalnych i nie mieszamy generowania dużych fragmentów HTML z
 Wspólne zachowanie używane przez wiele widoków wydzielamy do reużywalnego modułu. Kod właściwy tylko
 dla jednej strony pozostaje w module tej strony.
 
-## 13. Refaktoryzacja i zakres zmiany
+## 13. Changesety Liquibase
+
+Schemat bazy panelu zmieniają wyłącznie changesety Liquibase w XML. Każda wersja projektu ma jeden
+plik `vdeck-app/src/main/resources/db/changelog/versions/<wersja>.xml` (bez sufiksu `-SNAPSHOT`, np.
+`0.0.1.xml`), a `db/changelog/db.changelog-master.xml` zawiera wyłącznie `include` tych plików w
+kolejności wydań. Pierwszy changeset nowej wersji tworzy jej plik i dopisuje go na końcu mastera.
+Po wydaniu wersji jej pliku nie zmieniamy — korekta trafia do pliku następnej wersji, bo Liquibase
+odrzuca start bazy, której zapisana suma kontrolna nie zgadza się z changesetem.
+
+Changesety wprowadzone w ramach jednego zadania tworzą w pliku wersji jeden blok, wydzielony
+poziomymi liniami komentarza z numerem i opisem zadania, w tym samym stylu co sekcje klas Java:
+
+```xml
+<!-- ============================================================================================ -->
+<!-- VDEC-24: Liquibase replaces automatic Hibernate schema update                                 -->
+<!-- ============================================================================================ -->
+
+<changeSet id="VDEC-24-create-panel-users" author="vdeck">
+    ...
+</changeSet>
+```
+
+Identyfikator changesetu zaczyna się od numeru zadania i krótko opisuje zmianę. Nowe bloki dopisujemy
+na końcu pliku wersji. Komentarze w changelogach piszemy po angielsku.
+
+## 14. Refaktoryzacja i zakres zmiany
 
 Kod pozostawiamy co najmniej tak czytelny, jak przed zmianą. Lokalna refaktoryzacja bezpośrednio
 potrzebna do bezpiecznej implementacji feature’a jest częścią pracy. Nie łączymy jednak zmiany
@@ -785,7 +810,7 @@ Przed wydzieleniem abstrakcji należy wskazać konkretną duplikację, zmiennoś
 usuwa. Wybór między biblioteką a własną implementacją opisuje §3 „Gotowe biblioteki zamiast własnych
 implementacji”.
 
-## 14. Kontrola przed zakończeniem zmiany
+## 15. Kontrola przed zakończeniem zmiany
 
 Przed uznaniem zmiany za kompletną należy sprawdzić:
 
@@ -826,5 +851,7 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
 - czy wspólne elementy widoków, style i zachowania zostały wydzielone bez tworzenia abstrakcji
   używanych tylko raz;
 - czy każda funkcja JavaScript ma kompletny angielski JSDoc;
+- czy changesety Liquibase leżą w pliku bieżącej wersji, tworzą jeden blok z komentarzem numeru i
+  opisu zadania, a pliki wydanych wersji pozostały niezmienione;
 - czy usunięto martwy kod, nieaktualne komentarze i zbędne zależności;
 - czy dokumentacja i testy spełniają odpowiednio `documentation.md` oraz `unit-tests.md`.

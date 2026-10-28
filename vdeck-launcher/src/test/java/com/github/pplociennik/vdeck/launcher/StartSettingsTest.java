@@ -148,22 +148,6 @@ class StartSettingsTest {
     }
 
     /**
-     * Verifies that an IPv6 literal is bracketed in the panel URL.
-     */
-    @Test
-    void shouldBracketIpv6_whenBuildingUrlHost() {
-        // GIVEN
-        underTest = new StartSettings( "::1", 8085, true );
-
-        // WHEN
-        String host = underTest.urlHost();
-
-        // THEN
-        assertThat( host ).isEqualTo( "[::1]" );
-        assertThat( new StartSettings( "127.0.0.1", 1, true ).urlHost() ).isEqualTo( "127.0.0.1" );
-    }
-
-    /**
      * Verifies that the distribution template holds exactly the keys and defaults of the launcher, so an
      * update never adds or removes a key the launcher does not know (AD-025).
      */

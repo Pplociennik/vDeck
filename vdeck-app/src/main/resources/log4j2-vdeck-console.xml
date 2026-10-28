@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Merged into Spring Boot's default Log4j2 configuration (logging.log4j2.config.override): Polish messages
+     of the vdeck.console logger reach the console as plain text, like in the launcher and updater. -->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="VdeckConsole" target="SYSTEM_OUT">
+            <PatternLayout pattern="%m%n" charset="${sys:stdout.encoding:-UTF-8}"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="vdeck.console" level="info" additivity="false">
+            <AppenderRef ref="VdeckConsole"/>
+        </Logger>
+    </Loggers>
+</Configuration>

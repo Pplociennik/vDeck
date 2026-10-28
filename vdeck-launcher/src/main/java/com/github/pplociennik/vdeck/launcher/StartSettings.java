@@ -129,16 +129,6 @@ record StartSettings( @Nonnull String address, int port, boolean updateEnabled )
         return settings;
     }
 
-    /**
-     * Returns the address as it appears in a URL, with brackets around an IPv6 literal.
-     *
-     * @return host part of the panel URL
-     */
-    @Nonnull
-    String urlHost() {
-        return address.contains( ":" ) ? "[" + address + "]" : address;
-    }
-
     private static String value( Properties values, String key ) {
         return values.getProperty( key, DEFAULTS.get( key ) ).strip();
     }

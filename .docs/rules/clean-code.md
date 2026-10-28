@@ -32,6 +32,18 @@ reprezentować faktyczny kontrakt.
 Wybieramy najprostsze rozwiązanie, które poprawnie realizuje obecny kontrakt. Preferujemy jawny,
 liniowy przepływ nad wielopoziomową hierarchią, refleksją, metaprogramowaniem lub ukrytą magią.
 
+Zanim powstanie nowy mechanizm (klasa, wątek, odpytywanie, protokół, konfiguracja), sprawdzamy, czy
+problem nie znika po przeniesieniu kodu we właściwe miejsce albo po użyciu tego, co framework już
+daje (zdarzenie, filtr, listener, właściwość). Zawsze wybieramy wariant z najmniejszą liczbą
+nowych elementów i ruchomych części; bardziej złożony wymaga konkretnego powodu, którego prostszy
+nie spełnia.
+
+Przykład: adres panelu pojawiał się w konsoli przed logami startu Springa, bo wypisywał go launcher
+zaraz po uruchomieniu procesu panelu. Złożonym rozwiązaniem byłoby, żeby launcher odpytywał port
+panelu w pętli z limitem czasu i dopiero wtedy wypisywał adres. Proste rozwiązanie: panel sam
+wypisuje adres w listenerze `ApplicationReadyEvent` (`config.PanelAddressAnnouncer`), a launcher
+przestaje go wypisywać — bez nowego mechanizmu, tylko we właściwym miejscu.
+
 ### DRY
 
 Nie powielamy wiedzy biznesowej, reguł, stałych ani algorytmów. Dwa podobne fragmenty składni nie

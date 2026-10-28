@@ -276,8 +276,6 @@ final class VdeckLauncher {
             return 1;
         }
 
-        console.show( LauncherMessage.PANEL_ADDRESS, settings.urlHost(), settings.port() );
-        console.show( LauncherMessage.KEEP_WINDOW_OPEN );
         int exitCode = awaitPanel( accepted.successor() );
 
         log.info( "Panel exited with code {}", exitCode );

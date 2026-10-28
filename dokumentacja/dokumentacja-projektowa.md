@@ -292,7 +292,11 @@ i tożsamościami obu procesów, zwalnia tylko `vdeck.lock` i czeka do 10 s na p
 sprawdza rolę, własną tożsamość i tożsamość rzeczywistego rodzica, przejmuje blokadę i zapisuje
 potwierdzenie. Bez potwierdzenia poprzednik kończy własnego następcę i odzyskuje blokadę albo
 zatrzymuje się bez zmian. Panel przejmuje blokadę przed Springiem w `InstallationLockService`;
-launcher trzyma bramkę aż do zakończenia panelu i zwraca jego kod wyjścia.
+launcher trzyma bramkę aż do zakończenia panelu i zwraca jego kod wyjścia. Adres panelu
+(`ConsoleMessage.PANEL_ADDRESS`) i prośbę o pozostawienie okna (`KEEP_WINDOW_OPEN`) wypisuje sam panel
+po `ApplicationReadyEvent` (`config.PanelAddressAnnouncer`), więc są ostatnimi liniami startu.
+`log4j2-vdeck-console.xml`, dołączony do domyślnej konfiguracji Spring Boota przez
+`logging.log4j2.config.override`, kieruje logger `vdeck.console` na konsolę jako czysty tekst.
 
 ![Diagram przepływu: start vDeck przez launcher i automatyczna aktualizacja](diagramy/wspolne/img/przeplyw-start-i-aktualizacja.svg)
 

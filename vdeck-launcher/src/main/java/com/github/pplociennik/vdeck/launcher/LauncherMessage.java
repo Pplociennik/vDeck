@@ -111,16 +111,6 @@ enum LauncherMessage implements ConsoleMessageIf {
     PANEL_START_FAILED( "launcher.panelStartFailed" ),
 
     /**
-     * Address of the running panel; arguments: host and port.
-     */
-    PANEL_ADDRESS( "launcher.panelAddress" ),
-
-    /**
-     * Asks to keep the console window open while the panel runs.
-     */
-    KEEP_WINDOW_OPEN( "launcher.keepWindowOpen" ),
-
-    /**
      * The panel exited with an error; argument: exit code.
      */
     PANEL_EXITED( "launcher.panelExited" );

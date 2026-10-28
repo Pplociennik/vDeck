@@ -368,6 +368,21 @@ z polskim formatem liczb. Plik obraca się raz po 10 MiB, a
 `RunLogRetention` usuwa dni starsze niż 30, dopiero po zdobyciu blokad. Gdy pliku nie da się
 utworzyć, uruchomienie loguje tylko na konsolę.
 
+**Logi uruchomień panelu (AD-032).** `VdeckApplication.main()` po `ServerExecutableCheck` wywołuje
+`shared.log.PanelRunLog`, który przez `RunLogFile` tworzy
+`.vDeck/logs/panel/<rrrr-MM-dd>/<rrrr-MM-dd_HH-mm-ss>[-n].log` w katalogu instalacji wyznaczonym przez
+`shared.InstallationDirectory`. Ustawia `vdeck.log.file` i `logging.log4j2.config.override` z
+dodatkowym `log4j2-vdeck-file.xml`, więc Spring Boot dołącza do korzenia loggerów `RollingFile`
+(10 MiB, jedna kopia) z tymi samymi wpisami co konsola. Właściwość systemowa zastępuje listę z
+`application.yaml`, dlatego powtarza jej override konsoli; zgodność pilnuje `PanelRunLogTest`. Bez pliku
+— w testach albo przy błędzie zapisu — panel loguje tylko na konsolę. Wpisy sprzed konfiguracji
+logowania przez Springa (np. przejęcie blokady od launchera) trafiają jedynie na konsolę.
+`config.PanelLogRetention` po `ApplicationReadyEvent`, gdy panel trzyma blokadę instalacji, czyta
+`panel.log.retention.enabled` (domyślnie `true`) i `panel.log.retention.days` (domyślnie `30`) przez
+`shared.LogRetention` — tę samą regułę co logi gry: `false` albo `0` dni zachowuje wszystkie logi, `N`
+zachowuje dzisiejszy dzień i `N` dni przed nim — i usuwa starsze katalogi dni przez
+`RunLogRetention.deleteBefore`. Bieżący log jest datowany dzisiaj, więc nigdy nie jest usuwany.
+
 ![Diagram klas: moduły launchera, updatera i wspólny kontrakt instalacji](diagramy/wspolne/img/klasy-aktualizacja.svg)
 
 Źródło diagramu: [`diagramy/wspolne/klasy-aktualizacja.mmd`](diagramy/wspolne/klasy-aktualizacja.mmd)
@@ -504,11 +519,14 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 |---|---|---|---|
 | `game.log.directory` | Katalog dziennych podkatalogów logów gry, względny wobec instalacji | tak | `.vDeck/log` |
 | `game.log.retention.enabled` | Czy przed startem usuwać stare logi gry; `false` zachowuje wszystkie logi, wartość inna niż `true`/`false` używa domyślnej | tak | `true` |
-| `game.log.retention.days` | Nieujemna liczba dni retencji logów gry przy włączonej retencji; wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
+| `game.log.retention.days` | Nieujemna liczba dni przed dzisiejszym, z których logi gry są zachowywane przy włączonej retencji; `0` zachowuje wszystkie, wartość ujemna lub nienumeryczna używa domyślnej | tak | `14` |
 | `server.start.script` | Skrypt producenta czytany po `SteamAppId`, nigdy wykonywany przez panel | tak | `start_headless_server.bat` |
 | `snapshot.directory` | Nazwa jednego podkatalogu `.vDeck` na snapshoty świata (AD-018); separator, `.` lub `..` przerywa start serwera | tak | `shutdown-snapshots` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
 | `panel.open.browser` | Czy panel uruchomiony skryptem startowym otwiera swój adres w domyślnej przeglądarce; `true` albo `false`, inna wartość używa domyślnej (patrz [1.7](#17-launcher-i-automatyczna-aktualizacja)) | tak | `true` |
+| `panel.log.retention.enabled` | Czy po starcie panelu usuwać stare logi jego uruchomień (`.vDeck/logs/panel`); `false` zachowuje wszystkie, inna wartość niż `true`/`false` używa domyślnej (patrz [1.7](#17-launcher-i-automatyczna-aktualizacja)) | tak | `true` |
+| `panel.log.retention.days` | Nieujemna liczba dni przed dzisiejszym, z których logi panelu są zachowywane; `0` zachowuje wszystkie, wartość ujemna lub nienumeryczna używa domyślnej | tak | `30` |
+| `panel.close.strategy` | Los serwera przy zamknięciu panelu (AD-031): `stop` — łagodny Stop, a gdy proces przeżyje, wymuszenie; `graceful` — tylko łagodny Stop; `leave` — serwer działa dalej; inna wartość używa domyślnej (patrz [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie)) | tak | `stop` |
 
 Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obowiązkowe. Wartość
 flagi podaje konstruktor enuma, obok klucza i wartości domyślnej. Ustawienie obowiązkowe ma zawsze
@@ -1244,8 +1262,9 @@ Plik tworzy serwer przez `-logFile`; panel nie przekierowuje konsoli. Przed star
 `game.log.retention.enabled` ma wartość `true` (domyślnie), usuwa katalogi dzienne starsze niż
 bieżąca data minus `game.log.retention.days` (domyślnie 14); dzień graniczny i katalogi o nazwach
 innych niż daty zostają. Przy `false` wszystkie logi są zachowywane, a liczba dni nie jest czytana.
-Błąd retencji jest ostrzeżeniem i nie blokuje startu. Zero zachowuje bieżący dzień; wartość ujemna
-lub nienumeryczna daje domyślne 14 dni. Katalog bieżącego dnia jest tworzony tylko wtedy, gdy jeszcze
+Błąd retencji jest ostrzeżeniem i nie blokuje startu. Zero zachowuje wszystkie logi (AD-032); wartość
+ujemna lub nienumeryczna daje domyślne 14 dni. Tę regułę interpretuje `shared.LogRetention`, wspólne
+z logami panelu. Katalog bieżącego dnia jest tworzony tylko wtedy, gdy jeszcze
 nie istnieje. Datę wyznacza wstrzykiwany `Clock`, produkcyjnie w lokalnej strefie czasowej.
 Usuwanie starych katalogów realizuje pakietowa klasa `ServerLogRetention`, a akcje na katalogach —
 nazwę i rozpoznanie katalogu dnia, utworzenie brakującego katalogu i rekurencyjne usunięcie —
@@ -1266,8 +1285,8 @@ dostarczeniem zdarzeń oraz potwierdzeń startu bez oczekiwania na upływ czasu.
 
 Zgodnie z AD-017 `KILL_ON_JOB_CLOSE` chroni tylko nieukończone tworzenie procesu.
 Launcher wyłącza flagę przed udanym przekazaniem własności runtime. Nieudany Stop pozostawia
-żywy serwer, również po zamknięciu lub awarii panelu. `close()` zamyka zasoby bez kończenia procesu;
-asynchroniczny `ServerShutdownLifecycle` wcześniej próbuje wykonać zwykły Stop. Mechanizm
+żywy serwer, również po awarii panelu. `close()` zamyka zasoby bez kończenia procesu; wcześniej
+`ServerShutdownCoordinator` stosuje strategię zamknięcia panelu (AD-031, [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie)). Mechanizm
 odzyskiwania i token zapobiegają uruchomieniu drugiej instancji; szczegóły w [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie).
 
 `WindowsProcessLauncher` otrzymuje granicę wywołań `Win32`, funkcję wyszukiwania `ProcessHandle`
@@ -1363,12 +1382,39 @@ dodatkowego checkboxa ani wymogu wcześniejszego błędu kopii. Po wymuszeniu pa
 na wyjście. Każda operacja ma deadline 5 min, obejmujący kopię. Anulowanie, przerwanie workera,
 brak pewnej tożsamości lub czasu nadal zabrania wymuszenia; zgoda nie przechodzi na kolejne żądania.
 Sukces API sygnału nie potwierdza wyjścia ani zapisu; STOPPED wymaga obserwacji wyjścia.
-Shutdown dołącza do aktywnej operacji albo zleca Stop bez zgody na wymuszenie. Faza Springa ma 6 min.
-RCON nie jest brany pod uwagę.
+Shutdown dołącza do aktywnej operacji albo zleca Stop bez zgody na wymuszenie. Po shutdown runtime
+przyjmuje wyłącznie żądania shutdown: ręczny Kill jest odrzucany, a `StopRequest.shutdownKill`
+wysyła tylko strategia zamknięcia `stop`. RCON nie jest brany pod uwagę.
 
 ![Zatrzymanie serwera](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg)
 
 Źródło: [przeplyw-zatrzymanie-serwera.mmd](diagramy/server/przeplyw-zatrzymanie-serwera.mmd).
+
+#### Strategia zamknięcia panelu
+
+Los zarządzanego serwera przy zamknięciu panelu wybiera `panel.close.strategy` w `vDeck.properties`
+(AD-031). `config.ServerShutdownCoordinator` w metodzie `@PreDestroy` — po zatrzymaniu serwera WWW,
+a przed zniszczeniem beana runtime — czyta ustawienie przez `PropertyReader.readOptional` i
+`PanelCloseMode.fromValue`, wybiera jedyną `PanelCloseStrategy` danego trybu (kontrakt w
+`feature.server.service`, implementacje w `service.impl`) i blokuje do jej zakończenia. Brak
+strategii dla trybu albo dwie strategie jednego trybu przerywają start kontekstu.
+
+| Wartość | Strategia | Zachowanie |
+|---|---|---|
+| `stop` (domyślna) | `StopPanelCloseStrategy` | `ServerRuntime.shutdown()`; gdy się nie powiedzie, a stan to STOP_FAILED, `StopRequest.shutdownKill` — próba snapshotu, weryfikacja tożsamości, `destroyForcibly` i obserwacja wyjścia. |
+| `graceful` | `GracefulPanelCloseStrategy` | Wyłącznie `shutdown()`; nieudany Stop zachowuje żywy proces i token. |
+| `leave` | `LeavePanelCloseStrategy` | Brak sygnału; serwer działa dalej, a `close()` runtime porzuca aktywny Stop bez kończenia procesu. |
+
+Nieznana wartość albo ustawienia nieczytelne po nieudanym starcie dają `stop` z WARN. Każdą
+operację runtime ogranicza jej deadline 5 min, a `StopCompletion` czeka na nią najwyżej 6 min.
+Odmowa, błąd, przekroczenie czasu i przerwanie oczekiwania są logowane i nie przerywają zamykania;
+wyjątek strategii loguje koordynator. Przy stanie innym niż STOP_FAILED (np. STOPPING po upływie
+oczekiwania) strategia `stop` nie wymusza zakończenia. Żywy proces pozostawiony przez `graceful`,
+`leave` albo nieudany Kill zachowuje token i wymaga jawnej adopcji w następnym panelu.
+
+![Diagram przepływu: strategia serwera przy zamknięciu panelu](diagramy/server/img/przeplyw-zamkniecie-panelu.svg)
+
+Źródło diagramu: [`diagramy/server/przeplyw-zamkniecie-panelu.mmd`](diagramy/server/przeplyw-zamkniecie-panelu.mmd)
 
 Snapshot używa świata i saveDirectory przechwyconych przy starcie, niezależnie od późniejszej
 edycji profilu. AD-018 wyznacza `<instalacja>/.vDeck/<snapshot.directory>` przez osobny
@@ -1679,7 +1725,10 @@ Znane ograniczenia stanu bieżącego:
   strona błędu Spring Boota, bez treści wyjątku;
 - strona główna pokazuje wyspę, komunikaty operacji i ewentualną adopcję; status wyspy odświeża polling;
 - Restart i przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji, dlatego są stale wyłączone;
-- serwer może przeżyć zamknięcie panelu; nieudany Stop nigdy nie przechodzi automatycznie do Kill;
+- serwer może przeżyć zamknięcie panelu przy strategii `graceful` albo `leave`; nieudany ręczny Stop
+  nigdy nie przechodzi automatycznie do Kill — robi to wyłącznie strategia zamknięcia `stop`;
+- zamknięcie okna konsoli może zakończyć panel, zanim strategia zamknięcia skończy pracę;
+  przewidywalne zamknięcie daje CTRL+C w konsoli;
 - menu boczne ma gałąź „Serwer” z czterema panelami oraz pozycje „Ustawienia gry” i „Konsola”;
 - konsola odświeża się przez odpytywanie co sekundę, więc nowe linie pojawiają się z opóźnieniem do
   około sekundy, a każda otwarta karta konsoli wysyła jedno żądanie na sekundę;
@@ -1738,6 +1787,7 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Feature server i runtime | klasy | [`img/klasy-komponenty.svg`](diagramy/server/img/klasy-komponenty.svg) | [`diagramy/server/klasy-komponenty.mmd`](diagramy/server/klasy-komponenty.mmd) | [5.7](#57-uruchamianie-serwera) |
 | Techniczny helper CTRL+C | przepływ | [`img/przeplyw-helper-ctrl-c.svg`](diagramy/server/img/przeplyw-helper-ctrl-c.svg) | [`diagramy/server/przeplyw-helper-ctrl-c.mmd`](diagramy/server/przeplyw-helper-ctrl-c.mmd) | [5.9](#59-techniczny-helper-ctrlc) |
 | Zatrzymanie serwera | przepływ | [SVG](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg) | [MMD](diagramy/server/przeplyw-zatrzymanie-serwera.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
+| Strategia zamknięcia panelu | przepływ | [SVG](diagramy/server/img/przeplyw-zamkniecie-panelu.svg) | [MMD](diagramy/server/przeplyw-zamkniecie-panelu.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Snapshot świata | przepływ | [SVG](diagramy/backup/img/przeplyw-snapshot.svg) | [MMD](diagramy/backup/przeplyw-snapshot.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odzyskiwanie procesu | przepływ | [SVG](diagramy/server/img/przeplyw-odzyskiwanie.svg) | [MMD](diagramy/server/przeplyw-odzyskiwanie.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odpytywanie logu w konsoli | sekwencja | [`img/przeplyw-konsola.svg`](diagramy/logs/img/przeplyw-konsola.svg) | [`diagramy/logs/przeplyw-konsola.mmd`](diagramy/logs/przeplyw-konsola.mmd) | [5.11](#511-konsola) |

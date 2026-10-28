@@ -1,10 +1,9 @@
 package com.github.pplociennik.vdeck.feature.server.service.impl;
 
 import static com.github.pplociennik.vdeck.shared.PropertyReader.read;
-import static com.github.pplociennik.vdeck.shared.PropertyReader.readBoolean;
-import static com.github.pplociennik.vdeck.shared.PropertyReader.readInt;
 
 import com.github.pplociennik.vdeck.feature.server.service.ServerLogService;
+import com.github.pplociennik.vdeck.shared.LogRetention;
 import com.github.pplociennik.vdeck.shared.VdeckProperty;
 import com.github.pplociennik.vdeck.shared.service.PathService;
 import com.github.pplociennik.vdeck.shared.service.SystemPropertiesService;
@@ -98,41 +97,18 @@ class ServerLogServiceImpl implements ServerLogService {
     }
 
     /**
-     * Removes day directories older than the configured window, unless retention is switched off. On a
-     * first launch the log directory does not exist yet, so there is nothing to clean up and the settings
-     * are not read.
+     * Removes day directories older than the configured window, unless retention is switched off or set to
+     * {@code 0} days, which keeps every log. On a first launch the log directory does not exist yet, so
+     * there is nothing to clean up and the settings are not read.
      */
     private void applyRetention( @Nonnull Path baseDirectory, @Nonnull LocalDate today ) {
         if ( !Files.isDirectory( baseDirectory ) ) {
             return;
         }
-        if ( !isRetentionEnabled() ) {
-            log.debug( "Game log retention is disabled, keeping every log in {}", baseDirectory );
-            return;
-        }
 
-        LocalDate oldestKept = today.minusDays( retentionDays() );
-        ServerLogRetention.removeDaysBefore( baseDirectory, oldestKept );
-    }
-
-    private boolean isRetentionEnabled() {
-        return readBoolean( systemPropertiesService, VdeckProperty.FILE_NAME,
-                VdeckProperty.GAME_LOG_RETENTION_ENABLED, VdeckProperty.GAME_LOG_RETENTION_ENABLED.getDefaultValue() );
-    }
-
-    /**
-     * Returns the configured retention window in days. A negative window would remove today's logs, so it
-     * is replaced by the default, as is a value that is not a number.
-     */
-    private int retentionDays() {
-        String defaultDays = VdeckProperty.GAME_LOG_RETENTION_DAYS.getDefaultValue();
-        int retentionDays = readInt( systemPropertiesService, VdeckProperty.FILE_NAME,
-                VdeckProperty.GAME_LOG_RETENTION_DAYS, defaultDays );
-        if ( retentionDays < 0 ) {
-            log.warn( "Negative game log retention, using the default retention window" );
-            return Integer.parseInt( defaultDays );
-        }
-        return retentionDays;
+        LogRetention.oldestKeptDay( systemPropertiesService, VdeckProperty.GAME_LOG_RETENTION_ENABLED,
+                        VdeckProperty.GAME_LOG_RETENTION_DAYS, today )
+                .ifPresent( oldestKept -> ServerLogRetention.removeDaysBefore( baseDirectory, oldestKept ) );
     }
 
     /**

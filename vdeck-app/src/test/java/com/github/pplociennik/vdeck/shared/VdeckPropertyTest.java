@@ -129,6 +129,45 @@ class VdeckPropertyTest {
     }
 
     /**
+     * Verifies that the panel close strategy defaults to stopping the server and is always present in the
+     * file (AD-031).
+     */
+    @Test
+    void shouldExposeStopDefault_whenPanelCloseStrategyIsDeclared() {
+        // GIVEN
+        VdeckProperty property = VdeckProperty.PANEL_CLOSE_STRATEGY;
+
+        // WHEN
+        String name = property.getName();
+
+        // THEN
+        assertThat( name ).isEqualTo( "panel.close.strategy" );
+        assertThat( property.getDefaultValue() ).isEqualTo( "stop" );
+        assertThat( property.isMandatory() ).isTrue();
+    }
+
+    /**
+     * Verifies that panel run log retention is on by default and keeps 30 days, like the game log pair
+     * (AD-032).
+     */
+    @Test
+    void shouldExposeRetentionDefaults_whenPanelLogRetentionIsDeclared() {
+        // GIVEN
+        VdeckProperty enabled = VdeckProperty.PANEL_LOG_RETENTION_ENABLED;
+        VdeckProperty days = VdeckProperty.PANEL_LOG_RETENTION_DAYS;
+
+        // WHEN
+        String enabledName = enabled.getName();
+        String daysName = days.getName();
+
+        // THEN
+        assertThat( enabledName ).isEqualTo( "panel.log.retention.enabled" );
+        assertThat( enabled.getDefaultValue() ).isEqualTo( "true" );
+        assertThat( daysName ).isEqualTo( "panel.log.retention.days" );
+        assertThat( days.getDefaultValue() ).isEqualTo( "30" );
+    }
+
+    /**
      * Verifies that no two settings share a key, which would make one of them unreachable.
      */
     @Test

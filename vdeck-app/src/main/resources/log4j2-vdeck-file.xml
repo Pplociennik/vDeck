@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Merged into Spring Boot's default Log4j2 configuration only when PanelRunLog has created this run's file
+     (vdeck.log.file) and added this override to logging.log4j2.config.override: every entry of the root logger
+     also goes to that file. Tests and runs without a file never load it and log to the console only. -->
+<Configuration status="WARN">
+    <Appenders>
+        <!-- A run larger than 10 MiB rolls over once, so one run never keeps more than two files. -->
+        <RollingFile name="PanelRunLog" fileName="${sys:vdeck.log.file}" filePattern="${sys:vdeck.log.file}.%i">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%t] %c{1} - %m%n" charset="UTF-8"/>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy max="1"/>
+        </RollingFile>
+    </Appenders>
+    <Loggers>
+        <Root>
+            <AppenderRef ref="PanelRunLog"/>
+        </Root>
+    </Loggers>
+</Configuration>

@@ -23,8 +23,9 @@ import java.util.Optional;
  * is the only place in the application holding its lifecycle state. Consumers inject
  * {@link ServerRuntime}; nobody injects the state machine or the launcher.
  *
- * <p>ServerShutdownLifecycle first awaits asynchronous graceful shutdown. Bean destruction then
- * releases resources without killing a surviving server; the durable token supports explicit recovery.
+ * <p>ServerShutdownCoordinator first applies the configured panel close strategy (AD-031). Runtime bean
+ * destruction then releases resources without killing a surviving server; the durable token supports
+ * explicit recovery.
  */
 @Configuration( proxyBeanMethods = false )
 class ServerRuntimeConfiguration {

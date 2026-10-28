@@ -65,6 +65,19 @@ class StopRequestTest {
         assertThat( underTest.isShutdown() ).isTrue();
     }
 
+    /** Confirms the shutdown Kill of the panel close strategy carries force permission as a shutdown request. */
+    @Test
+    void shouldGrantForcePermission_whenShutdownKillIsSelected() {
+        // GIVEN
+        String launch = "launch";
+        // WHEN
+        underTest = StopRequest.shutdownKill( launch );
+        // THEN
+        assertThat( underTest.isForceConfirmed() ).isTrue();
+        assertThat( underTest.isShutdown() ).isTrue();
+        assertThat( underTest.getLaunchId() ).isEqualTo( launch );
+    }
+
     /**
      * Rejects a missing identifier in each authorization shape.
      *
@@ -72,7 +85,7 @@ class StopRequestTest {
      *         selected authorization shape
      */
     @ParameterizedTest( name = "[{index}] null identifier for {0}" )
-    @ValueSource( strings = { "graceful", "kill", "shutdown" } )
+    @ValueSource( strings = { "graceful", "kill", "shutdown", "shutdown-kill" } )
     void shouldRejectIdentifier_whenItIsNull( String variant ) {
         // GIVEN
         // No selected launch.
@@ -89,7 +102,7 @@ class StopRequestTest {
      *         selected authorization shape
      */
     @ParameterizedTest( name = "[{index}] blank identifier for {0}" )
-    @ValueSource( strings = { "graceful", "kill", "shutdown" } )
+    @ValueSource( strings = { "graceful", "kill", "shutdown", "shutdown-kill" } )
     void shouldRejectIdentifier_whenItIsBlank( String variant ) {
         // GIVEN
         String blank = " ";
@@ -120,6 +133,7 @@ class StopRequestTest {
         return switch ( variant ) {
             case "kill" -> StopRequest.confirmedKill( id );
             case "shutdown" -> StopRequest.shutdown( id );
+            case "shutdown-kill" -> StopRequest.shutdownKill( id );
             default -> StopRequest.graceful( id );
         };
     }

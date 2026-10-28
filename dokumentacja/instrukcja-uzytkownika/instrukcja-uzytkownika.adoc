@@ -534,7 +534,9 @@ CAUTION: Kill może spowodować utratę postępu od ostatniego zapisu świata, a
 [#odzyskiwanie]
 === Serwer działający po zamknięciu panelu
 
-Zamknięcie panelu nie wyłącza działającego serwera — gracze mogą dalej grać. Po ponownym
+Serwer może działać dalej po zamknięciu panelu, gdy `panel.close.strategy` ma wartość `leave`,
+gdy przy wartości `graceful` zatrzymanie się nie udało albo gdy panel zakończył pracę nieoczekiwanie
+(<<zamykanie-panelu>>). Gracze mogą wtedy dalej grać. Po ponownym
 uruchomieniu panel wykrywa taki serwer i pokazuje stan *Odzyskiwanie*. Nowy start jest wtedy
 zablokowany, żeby nie uruchomić drugiej kopii serwera na tym samym świecie.
 
@@ -567,8 +569,33 @@ NOTE: Konsola służy tylko do czytania. Nie można w niej wpisywać poleceń dl
 
 . Najlepiej najpierw zatrzymaj serwer (<<zatrzymywanie>>).
 . Przejdź do okna konsoli panelu i naciśnij kbd:[Ctrl+C].
-. Poczekaj, aż okno zakończy pracę. Jeżeli w tym czasie trwa zatrzymywanie serwera, zamykanie
-  może potrwać kilka minut.
+. Poczekaj, aż okno zakończy pracę. Jeżeli serwer jeszcze działa, panel zajmuje się nim zgodnie
+  z ustawieniem z tabeli niżej, więc zamykanie może potrwać kilka minut.
+
+Co panel robi z działającym serwerem przy zamknięciu, ustawiasz w pliku
+`.vDeck\configDeck.properties` wpisem `panel.close.strategy` (<<pliki>>):
+
+[cols="1,3",options="header"]
+|===
+| Wartość | Co się dzieje z serwerem
+
+| `stop` (domyślnie)
+| Panel zatrzymuje serwer tak jak przycisk btn:[Stop]. Jeżeli serwer mimo to nie zakończy pracy,
+panel robi kopię świata i wymusza zakończenie jak btn:[Kill] — postęp gry od ostatniego zapisu
+może przepaść.
+
+| `graceful`
+| Panel zatrzymuje serwer tak jak przycisk btn:[Stop]. Jeżeli to się nie uda, serwer działa dalej
+(<<odzyskiwanie>>).
+
+| `leave`
+| Panel nie zatrzymuje serwera — gracze mogą dalej grać (<<odzyskiwanie>>).
+|===
+
+Inna wartość działa jak `stop`. Zmianę wprowadzaj przy zamkniętym panelu.
+
+WARNING: Zamykaj panel przez kbd:[Ctrl+C], a nie krzyżykiem okna. Po zamknięciu okna krzyżykiem
+Windows kończy panel po kilku sekundach, zanim zdąży zatrzymać serwer.
 
 [#zmiana-hasla]
 == Zmiana hasła panelu
@@ -764,7 +791,8 @@ zostaw domyślny adres `127.0.0.1`.
 
 | `.vDeck\config\vDeck.properties`
 | Ustawienia samego panelu, m.in. `panel.open.browser` (`true` albo `false`): czy po starcie
-przeglądarka ma sama otworzyć panel.
+przeglądarka ma sama otworzyć panel, oraz `panel.close.strategy` (`stop`, `graceful` albo
+`leave`): co panel robi z serwerem przy zamknięciu (<<zamykanie-panelu>>).
 
 | `.vDeck\config\valheim-server.properties`
 | Ustawienia serwera z ekranów *Serwer* i *Ustawienia gry*, w tym hasło serwera.
@@ -776,10 +804,15 @@ przeglądarka ma sama otworzyć panel.
 | Domyślny katalog światów (zmienisz go na panelu *Serwer* → *Świat i zapis*).
 
 | `.vDeck\log`
-| Logi serwera gry, osobny plik dla każdego uruchomienia.
+| Logi serwera gry, osobny plik dla każdego uruchomienia. Domyślnie przechowywane 14 dni
+(<<retencja-logow>>).
 
 | `.vDeck\shutdown-snapshots`
 | Kopie świata robione przez panel przy zatrzymaniu.
+
+| `.vDeck\logs\panel`
+| Wszystko, co panel wypisał w oknie konsoli, osobny plik dla każdego uruchomienia panelu.
+Domyślnie przechowywane 30 dni (<<retencja-logow>>).
 
 | `.vDeck\logs\launcher`, `.vDeck\logs\updater`
 | Przebieg każdego uruchomienia vDeck i każdej aktualizacji, przechowywany 30 dni.
@@ -793,6 +826,35 @@ katalogu serwera.
 
 CAUTION: Pliki `.properties` edytuj ręcznie tylko przy zamkniętym panelu. Wygodniej i bezpieczniej
 jest zmieniać ustawienia w panelu, który sprawdza poprawność wartości.
+
+[#retencja-logow]
+=== Jak długo przechowywane są logi
+
+Stare logi serwera gry i panelu są usuwane automatycznie: logi gry przed każdym startem serwera,
+logi panelu po jego uruchomieniu. Ustawiasz to w pliku `.vDeck\config\vDeck.properties`:
+
+[cols="2,1,3",options="header"]
+|===
+| Wpis | Domyślnie | Znaczenie
+
+| `game.log.retention.enabled`
+| `true`
+| `false` wyłącza usuwanie logów serwera gry.
+
+| `game.log.retention.days`
+| `14`
+| Z ilu dni przed dzisiejszym zachować logi serwera gry. `0` zachowuje wszystkie.
+
+| `panel.log.retention.enabled`
+| `true`
+| `false` wyłącza usuwanie logów panelu.
+
+| `panel.log.retention.days`
+| `30`
+| Z ilu dni przed dzisiejszym zachować logi panelu. `0` zachowuje wszystkie.
+|===
+
+Dzisiejsze logi nigdy nie są usuwane. Wartość ujemna albo niebędąca liczbą działa jak domyślna.
 
 [#kopie]
 === Kopie świata
@@ -948,8 +1010,9 @@ Nie pamiętam hasła do panelu::
   i kopie pozostaną nietknięte.
 
 Szczegóły błędów::
-  Panel zapisuje szczegóły problemów w oknie konsoli, a uruchamianie i aktualizacje — w plikach
-  `.vDeck\logs\launcher` i `.vDeck\logs\updater`. Dołącz je, zgłaszając problem.
+  Panel zapisuje szczegóły problemów w oknie konsoli i w plikach `.vDeck\logs\panel`, a uruchamianie
+  i aktualizacje — w plikach `.vDeck\logs\launcher` i `.vDeck\logs\updater`. Dołącz je, zgłaszając
+  problem.
 
 [appendix]
 == Dołączone oprogramowanie

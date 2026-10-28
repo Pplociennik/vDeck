@@ -14,7 +14,7 @@ import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Creates the log file of one launcher or updater run:
+ * Creates the log file of one launcher, updater or panel run:
  * {@code .vDeck/logs/<component>/<yyyy-MM-dd>/<yyyy-MM-dd_HH-mm-ss>[-n].log} (AD-024).
  *
  * <p>This class is used by bootstrap code before Log4j2 is configured, so it deliberately has no logger
@@ -29,7 +29,7 @@ public final class RunLogFile {
     public static final String LOGS_DIRECTORY = "logs";
 
     /**
-     * System property read by the Log4j2 configuration of the launcher and updater.
+     * System property read by the Log4j2 configuration of the launcher, updater and panel.
      */
     public static final String LOG_FILE_PROPERTY = "vdeck.log.file";
 
@@ -49,7 +49,7 @@ public final class RunLogFile {
      * @param installation
      *         absolute installation root
      * @param component
-     *         {@code launcher} or {@code updater}
+     *         {@code launcher}, {@code updater} or {@code panel}
      * @param now
      *         local start time of the run
      * @return created file, or an empty optional when no file could be created safely

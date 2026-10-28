@@ -15,9 +15,9 @@ import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Removes launcher or updater run logs older than {@link #RETENTION_DAYS} days. Runs only after the
- * caller holds the installation locks, so it never races another run's cleanup. A failure is logged
- * and never blocks the start.
+ * Removes run logs of the launcher and updater older than {@link #RETENTION_DAYS} days, or of the panel
+ * before a configured day. Runs only after the caller holds the installation lock, so it never races
+ * another run's cleanup. A failure is logged and never blocks the start.
  */
 @Log4j2
 public final class RunLogRetention {
@@ -45,15 +45,35 @@ public final class RunLogRetention {
      *         if an argument is null
      */
     public static int deleteExpired( @Nonnull Path installation, @Nonnull String component, @Nonnull LocalDate today ) {
+        requireNonNull( today, "today must not be null" );
+        return deleteBefore( installation, component, today.minusDays( RETENTION_DAYS - 1L ) );
+    }
+
+    /**
+     * Deletes day directories named {@code yyyy-MM-dd} that are dated before the given day, for a component
+     * whose retention window is configured by the caller, such as the panel. Directories with other names
+     * and links are left untouched.
+     *
+     * @param installation
+     *         canonical installation root
+     * @param component
+     *         run log component, for example {@code panel}
+     * @param oldestKept
+     *         oldest day whose run logs are kept
+     * @return number of deleted day directories
+     * @throws NullPointerException
+     *         if an argument is null
+     */
+    public static int deleteBefore( @Nonnull Path installation, @Nonnull String component,
+                                    @Nonnull LocalDate oldestKept ) {
         requireNonNull( installation, "installation must not be null" );
         requireNonNull( component, "component must not be null" );
-        requireNonNull( today, "today must not be null" );
+        requireNonNull( oldestKept, "oldestKept must not be null" );
         Path directory = installation.resolve( UpdateLayout.PANEL_DIRECTORY ).resolve( RunLogFile.LOGS_DIRECTORY )
                 .resolve( component );
         if ( !Files.isDirectory( directory, NOFOLLOW_LINKS ) ) {
             return 0;
         }
-        LocalDate oldestKept = today.minusDays( RETENTION_DAYS - 1L );
         int deleted = 0;
         try {
             FileWorldSnapshotStore.checkDirectory( installation, directory );

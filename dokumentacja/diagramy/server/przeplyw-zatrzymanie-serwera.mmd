@@ -1,11 +1,11 @@
 %% Diagram przepływu: łagodny Stop i potwierdzony Kill
 flowchart TD
-    request[Stop / potwierdzony Kill / shutdown] --> admit{Aktualny launchId,<br/>stan i brak konfliktu?}
+    request[Stop / potwierdzony Kill /<br/>shutdown / shutdownKill] --> admit{Aktualny launchId,<br/>stan i brak konfliktu?}
     admit -- nie --> reject[Wyjątek procesu i komunikat]
     admit -- tak --> stopping[STOPPING; deadline 5 min<br/>HTTP wraca po przyjęciu]
     stopping --> snapshot[Worker: próba snapshotu PRE_STOP]
-    snapshot -- gotowy --> mode{Potwierdzony Kill?}
-    snapshot -- błąd kopii --> backup{Potwierdzony Kill<br/>i operacja nadal ważna?}
+    snapshot -- gotowy --> mode{Kill: potwierdzony<br/>albo shutdownKill?}
+    snapshot -- błąd kopii --> backup{Kill i operacja<br/>nadal ważna?}
     backup -- nie --> failed[STOP_FAILED<br/>Zachowaj żywy proces i token]
     backup -- tak --> warning[WARN: błąd backupu<br/>Kontynuuj wymuszenie]
     warning --> forceIdentity
@@ -27,4 +27,4 @@ flowchart TD
     exit2 -- tak --> stopped
     exit2 -- nie --> failed
     stopping -. deadline w dowolnym etapie .-> failed
-    failed --> close[Shutdown: callback i zwolnienie zasobów<br/>Serwer może przeżyć panel]
+    failed --> close[Przy zamknięciu panelu dalszy los<br/>wybiera panel.close.strategy]

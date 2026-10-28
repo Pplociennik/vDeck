@@ -84,7 +84,9 @@ try {
     await mark( page, [
         { selector: '[data-side-menu-branch]', label: '1' },
         { selector: '.side-menu-entry[href$="/game-settings"]', label: '2' },
-        { selector: '.side-menu-entry[href$="/console"]', label: '3' }
+        { selector: '.side-menu-entry[href$="/console"]', label: '3' },
+        { selector: '.side-menu-close', label: '4' },
+        { selector: '.side-menu-footer', label: '5' }
     ] );
     await captureAround( page, '.side-menu-panel', 'menu-boczne', 16 );
     await clearMarks( page );

@@ -225,16 +225,17 @@ Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Sekcja *Konfiguracja
 ekranów ustawień, a sekcja *Procesy* — do konsoli serwera.
 
 .Menu boczne
-image::menu-boczne.jpg[Menu boczne z rozwiniętą pozycją Serwer oraz pozycjami Ustawienia gry i Konsola,pdfwidth=40%]
+image::menu-boczne.jpg[Menu boczne z rozwiniętą pozycją Serwer, pozycjami Ustawienia gry i Konsola, przyciskiem Zamknij vDeck i wersją panelu,pdfwidth=40%]
 
 [horizontal]
 1:: *Serwer* — rozwija listę czterech paneli ustawień serwera: *Ogólne*, *Dostęp*, *Świat i zapis*
 oraz *Kopie automatyczne* (<<ekran-serwer>>). Ponowne kliknięcie zwija listę.
 2:: *Ustawienia gry* — poziom trudności i zasady świata.
 3:: *Konsola* — log działającego serwera (<<konsola>>).
+4:: *Zamknij vDeck* — zamyka panel po potwierdzeniu (<<zamykanie-panelu>>).
+5:: Numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
 
-Pozycja otwartego ekranu jest wyróżniona złotą ramką. Na samym dole menu, obok przycisku menu,
-widać numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
+Pozycja otwartego ekranu jest wyróżniona złotą ramką.
 
 Na każdym ekranie poza stroną główną obok przycisku menu jest mały przycisk z domkiem — wraca
 na stronę główną.
@@ -569,9 +570,17 @@ NOTE: Konsola służy tylko do czytania. Nie można w niej wpisywać poleceń dl
 === Zamykanie panelu
 
 . Najlepiej najpierw zatrzymaj serwer (<<zatrzymywanie>>).
-. Przejdź do okna konsoli panelu i naciśnij kbd:[Ctrl+C].
-. Poczekaj, aż okno zakończy pracę. Jeżeli serwer jeszcze działa, panel zajmuje się nim zgodnie
-  z ustawieniem z tabeli niżej, więc zamykanie może potrwać kilka minut.
+. Otwórz menu boczne i naciśnij btn:[Zamknij vDeck] na samym dole menu.
+. Na ekranie *Zamknięcie panelu vDeck* naciśnij btn:[Zamknij panel]. btn:[Anuluj] wraca na stronę
+  główną bez zamykania.
+. Pojawi się komunikat *Panel vDeck się zamyka*. Okno konsoli panelu zamknie się samo, gdy panel
+  skończy pracę. Jeżeli serwer jeszcze działa, panel zajmuje się nim zgodnie z ustawieniem z tabeli
+  niżej, więc zamykanie może potrwać kilka minut. Kartę przeglądarki możesz zamknąć od razu.
+
+Panel zamkniesz też bez przeglądarki: przejdź do okna konsoli panelu i naciśnij kbd:[Ctrl+C].
+Panel postępuje wtedy z serwerem tak samo.
+
+Aby ponownie otworzyć panel, uruchom `start-vDeck.bat`.
 
 Co panel robi z działającym serwerem przy zamknięciu, ustawiasz w pliku
 `.vDeck\configDeck.properties` wpisem `panel.close.strategy` (<<pliki>>):

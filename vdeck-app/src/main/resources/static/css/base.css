@@ -968,6 +968,52 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
     padding-left: calc(var(--side-menu-notch-extent) + var(--space-xs));
 }
 
+/*
+ * "Zamknij vDeck" action directly above the footer. It spans the same width and stays as compact as the
+ * touch floor allows, but its accent rim and text make it read as a control rather than a footnote.
+ */
+.side-menu-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    min-block-size: var(--control-touch-size);
+    padding: var(--space-xs) var(--space-sm);
+    -webkit-tap-highlight-color: transparent;
+    border: 0.0625rem solid var(--side-menu-close-border);
+    border-radius: var(--field-radius);
+    font-size: var(--side-menu-close-font-size);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    color: var(--side-menu-close-color);
+    background-color: var(--side-menu-entry-surface);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .side-menu-close:hover {
+        border-color: var(--side-menu-close-color);
+        background-color: var(--color-control-surface-hover);
+    }
+}
+
+.side-menu-close:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.side-menu-close:active {
+    border-color: var(--side-menu-close-color);
+    background-color: var(--color-control-surface-active);
+}
+
+.side-menu-close__icon {
+    inline-size: var(--side-menu-close-icon-size);
+    block-size: var(--side-menu-close-icon-size);
+}
+
 /* Footer with the panel version: a faint centred line of text below a separator. */
 .side-menu-footer {
     padding-block-start: var(--space-xs);
@@ -1189,7 +1235,8 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
     .side-menu-children,
     .side-menu-entry--branch[aria-expanded="true"] + .side-menu-children,
     .side-menu-entry,
-    .side-menu-entry__chevron {
+    .side-menu-entry__chevron,
+    .side-menu-close {
         transition: none;
     }
 

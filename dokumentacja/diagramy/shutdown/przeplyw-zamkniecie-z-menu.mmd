@@ -1,0 +1,28 @@
+%% Diagram przepływu: zamknięcie panelu przyciskiem „Zamknij vDeck” z menu bocznego
+sequenceDiagram
+    actor Admin as Administrator
+    participant JS as panel-shutdown.js
+    participant C as PanelShutdownController
+    participant S as PanelShutdownServiceImpl
+    participant T as wątek vdeck-panel-shutdown
+    participant Ctx as Kontekst Springa
+    participant L as Launcher
+
+    Admin->>C: GET /panel/shutdown (przycisk „Zamknij vDeck”)
+    C-->>Admin: ekran potwierdzenia (closing = false)
+    Admin->>JS: „Zamknij panel”
+    JS->>C: POST /panel/shutdown (fetch, token CSRF)
+    C->>S: requestShutdown()
+    alt pierwsze żądanie
+        S->>T: execute(panelExit)
+    else zamykanie już trwa
+        S-->>S: żądanie pominięte
+    end
+    C-->>JS: 200, ten sam ekran (closing = true)
+    JS-->>Admin: komunikat „Panel vDeck się zamyka” z bieżącej strony
+    T->>Ctx: SpringApplication.exit
+    Ctx->>Ctx: łagodne zatrzymanie serwera WWW (kończy trwające żądania)
+    Ctx->>Ctx: ServerShutdownCoordinator @PreDestroy — strategia panel.close.strategy (do kilku minut)
+    Ctx-->>T: kod wyjścia
+    T->>L: System.exit(kod) — koniec procesu panelu
+    L-->>L: zwalnia blokadę i zwraca kod skryptowi start-vDeck.bat

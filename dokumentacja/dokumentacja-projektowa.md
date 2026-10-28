@@ -828,9 +828,9 @@ obsługuje.
 Reguły obowiązujące przy budowie interfejsu opisuje [`.docs/ui.md`](../.docs/ui.md); ta sekcja opisuje
 wyłącznie stan zaimplementowany. Interfejs jest budowany z szablonów Thymeleaf i arkuszy CSS oraz
 natywnych modułów ES bez procesu budowania frontendu i bez zależności od CDN — panel wyświetla się
-w całości z zasobów wbudowanych w aplikację. Moduły są dwa: `side-menu.js` steruje menu bocznym,
-a `game-settings.js` pokazuje i ukrywa sekcję „Zaawansowane” ekranu „Ustawienia gry”, zapamiętując
-wybór. Formularze wszystkich paneli ustawień zapisują się bez JavaScriptu.
+w całości z zasobów wbudowanych w aplikację. Wśród modułów `side-menu.js` steruje menu bocznym,
+`game-settings.js` pokazuje i ukrywa sekcję „Zaawansowane” ekranu „Ustawienia gry”, zapamiętując
+wybór, a `panel-shutdown.js` wysyła potwierdzone zamknięcie panelu w tle. Formularze wszystkich paneli ustawień zapisują się bez JavaScriptu.
 
 ### 5.1 Zasoby statyczne i arkusze stylów
 
@@ -845,7 +845,8 @@ vdeck-app/src/main/resources/
 │   ├── img/                     ← page-, config-, panel-, island- i side-menu-background.jpg
 │   └── js/
 │       ├── side-menu.js         ← zachowanie menu bocznego
-│       └── game-settings.js     ← sekcja „Zaawansowane” ekranu „Ustawienia gry”
+│       ├── game-settings.js     ← sekcja „Zaawansowane” ekranu „Ustawienia gry”
+│       └── panel-shutdown.js    ← wysłanie zamknięcia panelu i komunikat zamykania
 ├── messages.properties          ← polski zestaw tekstów interfejsu
 ├── release-notes/<X.Y.Z>.md     ← lista zmian każdej wersji (AD-029)
 └── templates/
@@ -857,6 +858,7 @@ vdeck-app/src/main/resources/
     ├── launch/server-settings.html ← wspólny widok czterech paneli gałęzi „Serwer”
     ├── launch/server-settings-panels.html ← pola każdego panelu gałęzi „Serwer” jako fragmenty
     ├── launch/game-settings.html   ← ekran „Ustawienia gry”
+    ├── shutdown/panel-shutdown.html ← potwierdzenie i komunikat zamknięcia panelu
     ├── authentication/change-password.html
     └── authentication/initial-password-change.html
 ```
@@ -973,6 +975,10 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
   osadzone pod wyspą akcji, z menu bocznym — opisane w [5.6](#56-serwer-i-ustawienia-gry).
 - **Konsola** (`logs/console.html`, adres `/console`) to szeroka karta pod wyspą akcji, z menu
   bocznym, wypełniona przewijanym oknem logu serwera — opisana w [5.11](#511-konsola).
+- **Zamknięcie panelu** (`shutdown/panel-shutdown.html`, adres `/panel/shutdown`) to wyśrodkowana
+  karta bez wyspy i bez menu bocznego: nagłówek z ikoną `icon-power`, opis skutków i przyciski
+  „Zamknij panel” oraz „Anuluj”, a po potwierdzeniu komunikat „Panel vDeck się zamyka” — opisana w
+  [Zamknięcie panelu z menu bocznego](#zamknięcie-panelu-z-menu-bocznego).
 - **Logowanie** korzysta ze strony generowanej przez Spring Security — nie jest ani stylowane, ani
   tłumaczone, więc pozostaje w języku angielskim.
 
@@ -1024,8 +1030,11 @@ Widoczne zachowanie:
   gdy pozycje się nie mieszczą, przewija się sama lista sekcji wewnątrz menu.
 - Pod sekcjami, obok wycięcia na przycisk, leży pas dolny `.side-menu-bottom` o szerokości od
   wycięcia do prawej krawędzi menu. Jest co najmniej tak wysoki jak wycięcie (token
-  `--side-menu-notch-extent`), więc przewijana lista zawsze kończy się nad przyciskiem. Na samym dole
-  pasa leży stopka `.side-menu-footer`: drobny, przygaszony, wyśrodkowany tekst „vDeck <wersja>”
+  `--side-menu-notch-extent`), więc przewijana lista zawsze kończy się nad przyciskiem. W pasie leży
+  najpierw akcja „Zamknij vDeck” (`.side-menu-close`, ikona `icon-power`): odnośnik do ekranu
+  potwierdzenia `/panel/shutdown` (patrz [Zamknięcie panelu z menu bocznego](#zamknięcie-panelu-z-menu-bocznego)),
+  na całą szerokość pasa, z wysokością obszaru dotykowego 2,75 rem, drobnym tekstem i ramką w kolorze
+  akcentu, więc czyta się jako przycisk, a nie przypis. Na samym dole pasa leży stopka `.side-menu-footer`: drobny, przygaszony, wyśrodkowany tekst „vDeck <wersja>”
   oddzielony od góry poziomą linią. Wersję dostarcza wszystkim widokom `shared.web.PanelVersionAdvice`
   jako atrybut modelu `panelVersion` — dokładnie tak, jak zapisał ją build w `BuildProperties`, więc
   wersja rozwojowa zachowuje sufiks `-SNAPSHOT`. Bez informacji o buildzie (uruchomienie z IDE bez
@@ -1424,6 +1433,36 @@ oczekiwania) strategia `stop` nie wymusza zakończenia. Żywy proces pozostawion
 
 Źródło diagramu: [`diagramy/server/przeplyw-zamkniecie-panelu.mmd`](diagramy/server/przeplyw-zamkniecie-panelu.mmd)
 
+#### Zamknięcie panelu z menu bocznego
+
+Poza CTRL+C w oknie konsoli panel zamyka się akcją „Zamknij vDeck” z dołu menu bocznego. Obie drogi
+kończą się tym samym zamknięciem kontekstu Springa, więc strategia z `panel.close.strategy` działa tak
+samo. Za akcję odpowiada feature `feature.shutdown`:
+
+| Komponent | Rola |
+|---|---|
+| `PanelShutdownController` | `GET /panel/shutdown` pokazuje ekran potwierdzenia (`closing = false`) i niczego nie zamyka; `POST /panel/shutdown` (CSRF, rola administratora) wywołuje `requestShutdown()` i odpowiada tym samym szablonem `shutdown/panel-shutdown` z komunikatem zamykania (`closing = true`), bez przekierowania |
+| `service.PanelShutdownService` / `service.impl.PanelShutdownServiceImpl` | Przekazuje akcję wyjścia wykonawcy dokładnie raz (`AtomicBoolean`); kolejne żądania są pomijane |
+| `config.PanelShutdownConfiguration` | Składa wyjście: osobny wątek platformowy `vdeck-panel-shutdown`, jawnie nie-demon, wywołuje `SpringApplication.exit`, a potem `System.exit` z otrzymanym kodem |
+| `templates/shutdown/panel-shutdown.html`, `static/js/panel-shutdown.js` | Ekran bez wyspy i menu, z oboma stanami w jednym widoku; skrypt wysyła `POST` przez `fetch` i odsłania komunikat zamykania już obecny na stronie |
+
+Wyjście biegnie poza wątkiem żądania, więc żądanie dostaje odpowiedź: serwer WWW zatrzymuje się
+łagodnie i kończy żądania już obsługiwane. Wątek nie może być demonem, bo wątki Tomcata nimi są — po
+zatrzymaniu serwera WWW nic innego nie utrzymałoby JVM w trakcie strategii, która może trwać kilka
+minut. `System.exit` po zamknięciu kontekstu kończy proces także wtedy, gdy jakaś biblioteka zostawiła
+wątek nie-demona. Launcher zwalnia wtedy blokadę instalacji i zwraca kod wyjścia panelu skryptowi.
+
+Ekran nie osadza wyspy, bo `server-status.js` odpytywałby zamykający się panel. Komunikat zamykania
+nie jest ładowany jako nowa strona, bo zaraz po żądaniu panel przestaje serwować arkusz stylów
+i tekstury. Bez JavaScriptu formularz wysyła się zwykle, a odpowiedź serwera pokazuje ten sam
+komunikat. Gdy `fetch` zostanie przekierowany (np. na logowanie po wygaśnięciu sesji), skrypt
+przechodzi pod adres przekierowania. Gdy odpowiedź nie jest poprawna albo żądanie się nie powiedzie,
+skrypt wysyła formularz zwykłą drogą.
+
+![Diagram przepływu: zamknięcie panelu przyciskiem „Zamknij vDeck” z menu bocznego](diagramy/shutdown/img/przeplyw-zamkniecie-z-menu.svg)
+
+Źródło diagramu: [`diagramy/shutdown/przeplyw-zamkniecie-z-menu.mmd`](diagramy/shutdown/przeplyw-zamkniecie-z-menu.mmd)
+
 Snapshot używa świata i saveDirectory przechwyconych przy starcie, niezależnie od późniejszej
 edycji profilu. AD-018 wyznacza `<instalacja>/.vDeck/<snapshot.directory>` przez osobny
 `BackupPathService`; katalog jest zapisywany w tokenie `server.pid`, więc adopcja używa tego
@@ -1796,6 +1835,7 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Techniczny helper CTRL+C | przepływ | [`img/przeplyw-helper-ctrl-c.svg`](diagramy/server/img/przeplyw-helper-ctrl-c.svg) | [`diagramy/server/przeplyw-helper-ctrl-c.mmd`](diagramy/server/przeplyw-helper-ctrl-c.mmd) | [5.9](#59-techniczny-helper-ctrlc) |
 | Zatrzymanie serwera | przepływ | [SVG](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg) | [MMD](diagramy/server/przeplyw-zatrzymanie-serwera.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Strategia zamknięcia panelu | przepływ | [SVG](diagramy/server/img/przeplyw-zamkniecie-panelu.svg) | [MMD](diagramy/server/przeplyw-zamkniecie-panelu.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
+| Zamknięcie panelu z menu bocznego | sekwencja | [`img/przeplyw-zamkniecie-z-menu.svg`](diagramy/shutdown/img/przeplyw-zamkniecie-z-menu.svg) | [`diagramy/shutdown/przeplyw-zamkniecie-z-menu.mmd`](diagramy/shutdown/przeplyw-zamkniecie-z-menu.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Snapshot świata | przepływ | [SVG](diagramy/backup/img/przeplyw-snapshot.svg) | [MMD](diagramy/backup/przeplyw-snapshot.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odzyskiwanie procesu | przepływ | [SVG](diagramy/server/img/przeplyw-odzyskiwanie.svg) | [MMD](diagramy/server/przeplyw-odzyskiwanie.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odpytywanie logu w konsoli | sekwencja | [`img/przeplyw-konsola.svg`](diagramy/logs/img/przeplyw-konsola.svg) | [`diagramy/logs/przeplyw-konsola.mmd`](diagramy/logs/przeplyw-konsola.mmd) | [5.11](#511-konsola) |

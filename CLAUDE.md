@@ -72,7 +72,13 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   the highest row of `release_notes_acknowledgements` and not newer than the installed version
   (`BuildProperties` from the `build-info` goal, `-SNAPSHOT` stripped; without it the feature is off),
   and `POST /release-notes/acknowledge` („Zamknij") stores the installed version. `DataInitializer`
-  acknowledges it on a fresh database, so a new installation shows nothing. Views with navigation embed the side menu
+  acknowledges it on a fresh database, so a new installation shows nothing. The `shutdown` feature serves
+  the side menu's "Zamknij vDeck" action: `GET /panel/shutdown` confirms, `POST /panel/shutdown` lets
+  `PanelShutdownService` run `SpringApplication.exit` then `System.exit` on a non-daemon thread built by
+  `config.PanelShutdownConfiguration` (so the close strategy of AD-031 applies); `panel-shutdown.js` posts in the
+  background because the stopping panel can no longer serve a new page. The side menu's bottom strip beside the
+  toggle cut-out holds that action and a footer with the build version (`shared.web.PanelVersionAdvice`).
+  Integration tests must mock `PanelShutdownService`, or a POST ends the test JVM. Views with navigation embed the side menu
   (`templates/common/side-menu.html` + `static/js/side-menu.js`) and, as a separate fragment, the round
   home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` controls the advanced settings section.
 - `.dist` (`vdeck-dist`) — packaging-only module depending on app and runner. Builds

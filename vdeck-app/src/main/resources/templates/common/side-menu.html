@@ -21,8 +21,9 @@
     server settings, with ids serverSettings.server, serverSettings.access, serverSettings.world and
     serverSettings.innerServerBackups.
 
-    Below the scrolling sections, beside the cut-out corner, a footer shows the panel version from the
-    panelVersion model attribute; it is left out when the version is unknown.
+    Below the scrolling sections, beside the cut-out corner, the "Zamknij vDeck" action opens the panel
+    shutdown confirmation, and below it a footer shows the panel version from the panelVersion model
+    attribute; the footer is left out when the version is unknown.
 -->
 <div class="side-menu" th:fragment="sideMenu" data-side-menu>
     <button class="side-menu-toggle round-button" type="button" aria-expanded="false" aria-controls="side-menu-panel"
@@ -77,6 +78,12 @@
 
             <!-- Strip beside the cut-out corner, always at least as tall as the cut-out. -->
             <div class="side-menu-bottom">
+                <a class="side-menu-close" th:href="@{/panel/shutdown}">
+                    <svg class="icon side-menu-close__icon" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                    </svg>
+                    <span th:text="#{sideMenu.action.close}"></span>
+                </a>
                 <footer class="side-menu-footer" th:if="${panelVersion != null}">
                     <p class="side-menu-footer__version" th:text="#{sideMenu.footer.version(${panelVersion})}"></p>
                 </footer>

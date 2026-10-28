@@ -7,7 +7,8 @@
 <body>
 <!--
     Reusable action island of the panel: a single header strip grouping server control, backup and
-    panel management actions, together with the diamond showing the server's state. Embedded by every
+    panel management actions, together with the tab above it showing the server's name and the
+    diamond below it showing the server's state. Embedded by every
     view that needs the panel actions; the file is a Thymeleaf fragment and is never rendered as a
     standalone page.
 
@@ -16,11 +17,16 @@
 -->
 <header class="island-header" th:fragment="island" data-server-island th:attr="data-status-url=@{/server/status}">
     <!--
-        The island and the status diamond are one component. The diamond is a sibling rather than a
-        child because the island clips its own overflow, and the wrapper reserves the height the
-        diamond hangs below it.
+        The island, the name tab and the status diamond are one component. The tabs are siblings
+        rather than children because the island clips its own overflow, and the wrapper reserves the
+        height each tab sticks out above or below it.
     -->
     <div class="island-stack">
+        <!-- Name trapezoid: the server name from the launch profile, rising from behind the island's
+             upper edge. The title shows the whole name when a long one is cut. -->
+        <span class="island-name" th:title="${serverName}">
+            <span class="island-name__label" th:text="${serverName}">vDeck</span>
+        </span>
         <div class="island surface surface--island">
             <div class="island-section island-section--server-control" role="group"
                  th:attr="aria-label=#{island.group.serverControl}">

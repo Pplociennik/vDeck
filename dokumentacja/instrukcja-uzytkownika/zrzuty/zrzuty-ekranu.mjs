@@ -63,7 +63,8 @@ try {
     // Numbers follow the island buttons from left to right; the manual explains them in the same order.
     await mark( page, [
         ...[ 1, 2, 3, 4, 5, 6, 7, 8 ].map( number => ( { selector: '.island .action-button', nth: number - 1, label: String( number ), badgeOnly: true } ) ),
-        { selector: '.island-status', label: '9', badgeOnly: true }
+        { selector: '.island-status', label: '9', badgeOnly: true },
+        { selector: '.island-name', label: '10', badgeOnly: true }
     ] );
     await captureAround( page, '.island-stack', 'wyspa-akcji', 24 );
     await clearMarks( page );

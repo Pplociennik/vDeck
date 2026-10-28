@@ -180,16 +180,16 @@ body::before {
 }
 
 /*
- * Wrapper holding the island together with the status diamond hanging below it. The two form one
- * component, but the diamond cannot be a child of the island, whose overflow: hidden would clip it.
- * The wrapper's bottom padding reserves exactly the height the diamond sticks out, so the badge never
- * overlaps whatever the view puts underneath.
+ * Wrapper holding the island together with the name tab rising above it and the status diamond
+ * hanging below it. They form one component, but the tabs cannot be children of the island, whose
+ * overflow: hidden would clip them. The wrapper's padding reserves exactly the height each tab sticks
+ * out, so neither overlaps its surroundings.
  */
 .island-stack {
     position: relative;
     display: flex;
     max-inline-size: 100%;
-    padding-block-end: var(--island-status-protrusion);
+    padding-block: var(--island-status-protrusion);
 }
 
 /*
@@ -239,6 +239,45 @@ body::before {
             calc(100% - var(--island-status-taper)) 100%,
             var(--island-status-taper) 100%,
             calc(var(--island-status-taper) - 3%) 82%);
+}
+
+/*
+ * Server name tab: the status badge mirrored - a trapezoid narrowing towards the top, rising from
+ * behind the island's upper edge - but much wider. The taper is fixed in rem rather than a percentage,
+ * so the wide tab keeps the slant of the narrow badge.
+ */
+.island-name {
+    position: absolute;
+    z-index: 0;
+    inset-inline-start: 50%;
+    inset-block-start: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--island-name-inline-size);
+    block-size: var(--island-status-block-size);
+    /* Keeps the label inside the part that shows above the island, clear of the slanted sides. */
+    padding-block-end: calc(var(--island-status-block-size) - var(--island-status-protrusion));
+    padding-inline: calc(var(--island-name-taper) + var(--space-xs));
+    translate: -50% 0;
+    background-color: var(--island-status-surface);
+    color: var(--island-status-color);
+    clip-path: polygon(
+            var(--island-name-taper) 0,
+            calc(100% - var(--island-name-taper)) 0,
+            calc(100% - var(--island-name-taper) + var(--island-name-chamfer)) 18%,
+            100% 100%,
+            0 100%,
+            calc(var(--island-name-taper) - var(--island-name-chamfer)) 18%);
+}
+
+/* A name too long for the tab is cut with an ellipsis; the tab's title carries the whole name. */
+.island-name__label {
+    overflow: hidden;
+    font-size: var(--island-status-font-size);
+    line-height: 1.2;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 /* Indicator dot; its colour is the state, which the label states in words beside it. */

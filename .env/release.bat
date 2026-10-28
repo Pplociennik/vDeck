@@ -18,31 +18,22 @@ echo Odczytywanie biezacej wersji projektu...
 set "CURRENT="
 for /f "delims=" %%v in ('call "%MVNW%" -q help:evaluate -Dexpression^=project.version -DforceStdout') do set "CURRENT=%%v"
 if not defined CURRENT (echo Nie udalo sie odczytac biezacej wersji projektu. & goto :fail)
-set "SUGGESTED_RELEASE=%CURRENT:-SNAPSHOT=%"
-
-for /f "tokens=1-3 delims=." %%a in ("%SUGGESTED_RELEASE%") do (
-    set "MAJOR=%%a"
-    set "MINOR=%%b"
-    set /a "PATCH=%%c + 1"
-)
-set "SUGGESTED_NEXT=%MAJOR%.%MINOR%.%PATCH%"
 
 echo.
 echo Biezaca galaz:  %BRANCH%
 echo Biezaca wersja: %CURRENT%
 echo.
 
-set "RELEASE=%SUGGESTED_RELEASE%"
-set /p "RELEASE=Numer wydawanej wersji [%SUGGESTED_RELEASE%]: "
-if not defined RELEASE set "RELEASE=%SUGGESTED_RELEASE%"
-call :validate "%RELEASE%" || goto :fail
+:ask_release
+set "RELEASE="
+set /p "RELEASE=Podaj numer wydawanej wersji (X.Y.Z): "
+call :validate "%RELEASE%" || goto :ask_release
 
-set "NEXT=%SUGGESTED_NEXT%"
-set /p "NEXT=Numer nastepnej wersji, bez -SNAPSHOT [%SUGGESTED_NEXT%]: "
-if not defined NEXT set "NEXT=%SUGGESTED_NEXT%"
-set "NEXT=%NEXT:-SNAPSHOT=%"
-call :validate "%NEXT%" || goto :fail
-if "%NEXT%"=="%RELEASE%" (echo Nastepna wersja musi sie roznic od wydawanej. & goto :fail)
+:ask_next
+set "NEXT="
+set /p "NEXT=Podaj numer nastepnej wersji (X.Y.Z, bez -SNAPSHOT): "
+call :validate "%NEXT%" || goto :ask_next
+if "%NEXT%"=="%RELEASE%" (echo Nastepna wersja musi sie roznic od wydawanej. & goto :ask_next)
 
 set "REMOTE=origin"
 set /p "REMOTE=Zdalne repozytorium [origin]: "

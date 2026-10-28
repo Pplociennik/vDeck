@@ -891,14 +891,12 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 /*
  * Textured body of the menu. Its corners are only slightly rounded, and a circle centred on the
  * toggle - the toggle depth in from the bottom-left corner - is masked out, leaving an even gap
- * around the button.
+ * around the button. The body stacks the scrolling sections over the bottom strip, which stays in place.
  */
 .side-menu-surface {
+    display: flex;
+    flex-direction: column;
     block-size: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--side-menu-scrollbar-color);
     border-radius: var(--side-menu-radius);
     box-shadow: var(--surface-inner-shadow);
     -webkit-mask-image: radial-gradient(
@@ -939,15 +937,50 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 }
 
 /*
- * Sections grouping the entries, kept further apart than the entries inside them. The bottom padding
- * keeps the last entry clear of the cut-out corner and the toggle inside it.
+ * Sections grouping the entries, kept further apart than the entries inside them. They take the height
+ * left above the bottom strip and scroll inside it when the entries do not fit.
  */
 .side-menu-sections {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: var(--space-md);
+    min-block-size: 0;
     padding: var(--space-sm);
-    padding-block-end: calc(var(--side-menu-notch-radius) + var(--side-menu-toggle-depth) + var(--space-xs));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--side-menu-scrollbar-color);
+}
+
+/*
+ * Bottom strip of the menu, filling the width beside the cut-out corner. It is never shorter than the
+ * cut-out, so the sections above always end clear of the toggle, and its content sits at the bottom edge.
+ */
+.side-menu-bottom {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+    min-block-size: var(--side-menu-notch-extent);
+    padding: 0 var(--space-sm) var(--space-xs);
+    padding-left: calc(var(--side-menu-notch-extent) + var(--space-xs));
+}
+
+/* Footer with the panel version: a faint centred line of text below a separator. */
+.side-menu-footer {
+    padding-block-start: var(--space-xs);
+    border-block-start: var(--side-menu-section-line-width) solid var(--side-menu-section-line-color);
+    text-align: center;
+}
+
+.side-menu-footer__version {
+    margin: 0;
+    font-size: var(--side-menu-footer-font-size);
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    opacity: var(--side-menu-footer-opacity);
 }
 
 /* A section has no frame of its own; only its title, centred on a horizontal line, sets it apart. */

@@ -358,7 +358,8 @@ vdeck/                                           ← parent i agregator Maven
         │       ├── lock/
         │       │   └── InstallationLockService  ← przejęcie blokady od launchera przed Springiem
         │       ├── web/
-        │       │   └── DefaultExceptionHandler  ← domyślna obsługa wyjątków (AD-014)
+        │       │   ├── DefaultExceptionHandler  ← domyślna obsługa wyjątków (AD-014)
+        │       │   └── PanelVersionAdvice       ← wersja panelu w stopce menu bocznego
         │       └── service/
         │           ├── PathService
         │           ├── SystemPropertiesService

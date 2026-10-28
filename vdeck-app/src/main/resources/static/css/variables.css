@@ -128,6 +128,8 @@
     --side-menu-toggle-gap: 0.5rem;
     --side-menu-corner-inset: calc(var(--side-menu-toggle-size) / 2 - var(--side-menu-toggle-depth));
     --side-menu-notch-radius: calc(var(--side-menu-toggle-size) / 2 + var(--side-menu-toggle-gap));
+    /* How far the cut-out reaches from the menu's bottom-left corner, both upwards and to the right */
+    --side-menu-notch-extent: calc(var(--side-menu-toggle-depth) + var(--side-menu-notch-radius));
     --side-menu-notch-ring-width: 0.1875rem;
     --side-menu-scrollbar-color: var(--scrollbar-color);
     --side-menu-section-line-color: rgba(195, 185, 166, 0.35);
@@ -135,6 +137,9 @@
     --side-menu-section-title-opacity: 0.3;
     --side-menu-shadow: drop-shadow(0 0.5rem 0.875rem rgba(0, 0, 0, 0.55));
     --side-menu-entry-surface: rgba(8, 7, 6, 0.72);
+    /* Footer with the panel version: small and faint, so it reads as a footnote rather than an entry */
+    --side-menu-footer-font-size: 0.75rem;
+    --side-menu-footer-opacity: 0.6;
 
     /*
      * Home button. It is half the size of the side menu toggle and touches the toggle from the outside,

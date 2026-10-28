@@ -1021,7 +1021,15 @@ Widoczne zachowanie:
   z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron. Jedyną gałęzią jest
   obecnie „Serwer”; po otwarciu menu jest zwinięta także na jej własnych panelach.
 - Rozmiar menu jest ograniczony do widoku, więc strona nie przewija się także na telefonie w poziomie;
-  gdy pozycje się nie mieszczą, przewija się lista wewnątrz menu.
+  gdy pozycje się nie mieszczą, przewija się sama lista sekcji wewnątrz menu.
+- Pod sekcjami, obok wycięcia na przycisk, leży pas dolny `.side-menu-bottom` o szerokości od
+  wycięcia do prawej krawędzi menu. Jest co najmniej tak wysoki jak wycięcie (token
+  `--side-menu-notch-extent`), więc przewijana lista zawsze kończy się nad przyciskiem. Na samym dole
+  pasa leży stopka `.side-menu-footer`: drobny, przygaszony, wyśrodkowany tekst „vDeck <wersja>”
+  oddzielony od góry poziomą linią. Wersję dostarcza wszystkim widokom `shared.web.PanelVersionAdvice`
+  jako atrybut modelu `panelVersion` — dokładnie tak, jak zapisał ją build w `BuildProperties`, więc
+  wersja rozwojowa zachowuje sufiks `-SNAPSHOT`. Bez informacji o buildzie (uruchomienie z IDE bez
+  builda Mavena) atrybut ma wartość `null`, a stopka nie jest renderowana.
 
 ![Diagram przepływu: otwieranie i zamykanie menu bocznego oraz rozwijanie gałęzi drzewa](diagramy/wspolne/img/przeplyw-menu-boczne.svg)
 

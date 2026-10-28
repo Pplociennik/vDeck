@@ -233,7 +233,8 @@ oraz *Kopie automatyczne* (<<ekran-serwer>>). Ponowne kliknięcie zwija listę.
 2:: *Ustawienia gry* — poziom trudności i zasady świata.
 3:: *Konsola* — log działającego serwera (<<konsola>>).
 
-Pozycja otwartego ekranu jest wyróżniona złotą ramką.
+Pozycja otwartego ekranu jest wyróżniona złotą ramką. Na samym dole menu, obok przycisku menu,
+widać numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
 
 Na każdym ekranie poza stroną główną obok przycisku menu jest mały przycisk z domkiem — wraca
 na stronę główną.

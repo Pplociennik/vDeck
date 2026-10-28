@@ -157,6 +157,15 @@ try {
     await captureElement( page, '.view-card', 'zmiana-hasla' );
     await page.setViewportSize( { width: 1280, height: 800 } );
 
+    // Only the confirmation is shot: confirming would close the panel the rest of the script needs. The card
+    // fills the panel frame, so the shot ends below its buttons.
+    await page.goto( `${baseUrl}/panel/shutdown` );
+    const shutdownCard = await page.locator( '.view-card' ).boundingBox();
+    const shutdownFooter = await page.locator( '[data-panel-shutdown-form]' ).boundingBox();
+    await page.screenshot( { path: imagePath( 'zamkniecie-panelu', 'jpg' ), type: 'jpeg', quality: 85,
+        clip: { x: shutdownCard.x, y: shutdownCard.y, width: shutdownCard.width,
+            height: shutdownFooter.y + shutdownFooter.height + 24 - shutdownCard.y } } );
+
     await page.goto( `${baseUrl}/` );
     await page.click( 'form[action$="/server/start"] button' );
     await page.waitForSelector( '.form-alert' );

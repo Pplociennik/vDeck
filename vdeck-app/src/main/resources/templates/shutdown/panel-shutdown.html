@@ -34,7 +34,13 @@
 
             <section th:hidden="${!closing}" data-panel-shutdown-closing role="status" tabindex="-1"
                      aria-labelledby="panel-shutdown-closing-title">
-                <h1 class="view-title" id="panel-shutdown-closing-title" th:text="#{panelShutdown.closing.title}"></h1>
+                <div class="view-header">
+                    <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                    </svg>
+                    <h1 class="view-title" id="panel-shutdown-closing-title"
+                        th:text="#{panelShutdown.closing.title}"></h1>
+                </div>
                 <p class="view-lead" th:text="#{panelShutdown.closing.lead}"></p>
             </section>
         </div>

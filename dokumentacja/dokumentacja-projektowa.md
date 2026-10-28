@@ -1566,8 +1566,13 @@ schematu. Błąd changesetu albo niezgodność sumy kontrolnej wydanego changese
 
 Changelog leży w `vdeck-app/src/main/resources/db/changelog`. `db.changelog-master.xml` dołącza w
 kolejności wydań po jednym pliku XML na wersję projektu (`versions/<wersja>.xml`); changesety
-jednego zadania tworzą w nim blok oznaczony numerem i opisem zadania (`clean-code.md` §13). Wersja
-0.0.1 zawiera changesety `VDEC-24-create-panel-users` i `VDEC-27-create-release-notes-acknowledgements`. `DatabaseSchemaIntegrationTest` uruchamia
+jednego zadania tworzą w nim blok oznaczony numerem i opisem zadania (`clean-code.md` §13), a
+identyfikatorem nowego changesetu jest chwila jego utworzenia w formacie `yyyy-MM-dd HH:mm:ss`. Każdy
+changeset ma `preConditions` z `onFail="MARK_RAN"` (np. `not tableExists` przed `createTable`), więc
+tabela istniejąca już w bazie nie przerywa startu wyjątkiem, a changeset zostaje zapisany jako
+wykonany. Wersja
+0.0.1 zawiera changeset `VDEC-24-create-panel-users`, a wersja 0.1.0 changeset
+`VDEC-27-create-release-notes-acknowledgements`. `DatabaseSchemaIntegrationTest` uruchamia
 panel z `ddl-auto: validate`, więc changeset niezgodny z encją wykrywa build.
 
 Utrwalane są dwie encje. `PanelUser` leży w tabeli `panel_users`; repozytorium `UserRepository`

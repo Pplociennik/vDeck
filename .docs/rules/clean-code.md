@@ -792,13 +792,37 @@ poziomymi liniami komentarza z numerem i opisem zadania, w tym samym stylu co se
 <!-- VDEC-24: Liquibase replaces automatic Hibernate schema update                                 -->
 <!-- ============================================================================================ -->
 
-<changeSet id="VDEC-24-create-panel-users" author="vdeck">
+<changeSet id="2026-10-28 21:55:00" author="vdeck">
     ...
 </changeSet>
 ```
 
-Identyfikator changesetu zaczyna się od numeru zadania i krótko opisuje zmianę. Nowe bloki dopisujemy
-na końcu pliku wersji. Komentarze w changelogach piszemy po angielsku.
+Identyfikatorem nowego changesetu jest data i godzina jego utworzenia w formacie
+`yyyy-MM-dd HH:mm:ss` (np. `2026-10-28 21:55:00`); kolejne changesety tego samego zadania mają
+kolejne, różne chwile. Numer i opis zadania niesie komentarz bloku. Istniejących changesetów z
+identyfikatorem w starym formacie (`VDEC-24-create-panel-users`) nie zmieniamy, bo Liquibase
+rozpoznaje changeset po identyfikatorze i wykonałby go ponownie. Nowe bloki dopisujemy na końcu pliku
+wersji. Komentarze w changelogach piszemy po angielsku.
+
+Każdy changeset zaczyna się od `preConditions` z `onFail="MARK_RAN"`, które sprawdzają, że jego
+zmiana nie została już zastosowana (np. `not tableExists` przed `createTable`, `not columnExists`
+przed `addColumn`, `indexExists` przed `dropIndex`). Baza, w której obiekt już istnieje — utworzona
+przez starszą wersję, ręcznie albo przez przerwany start — nie przerywa wtedy startu wyjątkiem, a
+changeset zostaje zapisany jako wykonany. `preConditions` nie wchodzą do sumy kontrolnej changesetu,
+dlatego wyjątkowo wolno je dodać także do changesetu wydanej wersji.
+
+```xml
+<changeSet id="2026-10-28 21:55:00" author="vdeck">
+    <preConditions onFail="MARK_RAN">
+        <not>
+            <tableExists tableName="panel_users"/>
+        </not>
+    </preConditions>
+    <createTable tableName="panel_users">
+        ...
+    </createTable>
+</changeSet>
+```
 
 ## 14. Refaktoryzacja i zakres zmiany
 
@@ -852,6 +876,7 @@ Przed uznaniem zmiany za kompletną należy sprawdzić:
   używanych tylko raz;
 - czy każda funkcja JavaScript ma kompletny angielski JSDoc;
 - czy changesety Liquibase leżą w pliku bieżącej wersji, tworzą jeden blok z komentarzem numeru i
-  opisu zadania, a pliki wydanych wersji pozostały niezmienione;
+  opisu zadania, każdy nowy ma identyfikator `yyyy-MM-dd HH:mm:ss`, każdy ma `preConditions` z `onFail="MARK_RAN"`, a pliki wydanych wersji pozostały
+  niezmienione poza dodanymi `preConditions`;
 - czy usunięto martwy kod, nieaktualne komentarze i zbędne zależności;
 - czy dokumentacja i testy spełniają odpowiednio `documentation.md` oraz `unit-tests.md`.

@@ -471,7 +471,8 @@ spring:
 
 Changesety są w XML. `db.changelog-master.xml` dołącza w kolejności wydań po jednym pliku
 `versions/<wersja>.xml` na wersję projektu; plik wydanej wersji jest niezmienny, a układ changesetów
-opisuje `rules/clean-code.md` §13. Liquibase nie wysyła telemetrii (`analytics-enabled: false`).
+opisuje `rules/clean-code.md` §13. Każdy changeset ma `preConditions` z `onFail="MARK_RAN"`, więc
+obiekt istniejący już w bazie nie przerywa startu. Liquibase nie wysyła telemetrii (`analytics-enabled: false`).
 Flyway nie jest używany. Dla SQLite wykorzystywany jest dialekt z
 `org.hibernate.orm:hibernate-community-dialects`.
 

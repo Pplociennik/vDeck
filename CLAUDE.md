@@ -270,7 +270,8 @@ decision.
   Hibernate runs with `ddl-auto: none`. `db/changelog/db.changelog-master.xml` only includes one
   `versions/<version>.xml` per project version; a released version file is never edited, and each
   task's changesets form one block headed by a separator comment with the task number and
-  description (`clean-code.md` §13). Every changeset starts with `preConditions onFail="MARK_RAN"`
+  description (`clean-code.md` §13). A new changeset's id is its creation time as
+  `yyyy-MM-dd HH:mm:ss`; existing ids (`VDEC-24-create-panel-users`) stay unchanged. Every changeset starts with `preConditions onFail="MARK_RAN"`
   checking that its change is not applied yet (e.g. `not tableExists`), so an existing object never
   aborts startup; preconditions are outside the checksum, so adding them to a released file is the
   one allowed edit. `spring.liquibase.analytics-enabled: false` keeps Liquibase off

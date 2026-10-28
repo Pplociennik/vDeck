@@ -103,7 +103,7 @@
 </div>
 
 <!-- "Kopie automatyczne": how many world backups the server keeps and how often it makes them. -->
-<div class="settings-fields" th:fragment="backups" th:with="form=${serverBackupsForm}">
+<div class="settings-fields" th:fragment="innerServerBackups" th:with="form=${serverBackupsForm}">
     <div class="form-field">
         <label class="form-label" for="backup-count" th:text="#{launchProfile.field.backupCount}"></label>
         <input class="form-input" id="backup-count" name="backupCount" type="number" inputmode="numeric"

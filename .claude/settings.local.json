@@ -71,7 +71,8 @@
       "Bash(./mvnw -q -f .dist/pom.xml asciidoctor:process-asciidoc@user-manual-pdf)",
       "Bash(./mvnw test *)",
       "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD|Reactor Summary|SUCCESS \\\\[|FAILURE \\\\[\")",
-      "Bash(./mvnw -q clean package -DskipTests)"
+      "Bash(./mvnw -q clean package -DskipTests)",
+      "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD|FAIL\")"
     ]
   }
 }

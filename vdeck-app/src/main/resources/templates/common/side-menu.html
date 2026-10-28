@@ -19,7 +19,7 @@
     ~{common/side-menu :: sideMenu(activeEntry='gameSettings')}, so the entry is marked as the current
     page; other views embed the fragment without it. The "Serwer" branch holds one entry per panel of the
     server settings, with ids serverSettings.server, serverSettings.access, serverSettings.world and
-    serverSettings.backups.
+    serverSettings.innerServerBackups.
 -->
 <div class="side-menu" th:fragment="sideMenu" data-side-menu>
     <button class="side-menu-toggle round-button" type="button" aria-expanded="false" aria-controls="side-menu-panel"
@@ -51,7 +51,7 @@
                                         <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings.world', null, '/server-settings/world', 'serverSettings.world')}"></a>
                                     </li>
                                     <li class="side-menu-item">
-                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings.backups', null, '/server-settings/backups', 'serverSettings.backups')}"></a>
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings.innerServerBackups', null, '/server-settings/inner-server-backups', 'serverSettings.innerServerBackups')}"></a>
                                     </li>
                                 </ul>
                             </div>

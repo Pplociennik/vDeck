@@ -10,9 +10,9 @@
 <body>
 <!--
     One panel of the "Serwer" branch of the side menu. The controller names the panel - server, access,
-    world or backups - and the view shows that panel's fields from launch/server-settings-panels, each
-    field explained together with the values it accepts. Min, max and pattern attributes are conveniences;
-    the server side validates every value again.
+    world or innerServerBackups - and the view shows that panel's fields from
+    launch/server-settings-panels, each field explained together with the values it accepts. Min, max and
+    pattern attributes are conveniences; the server side validates every value again.
 -->
 <div th:replace="~{common/island :: island}"></div>
 
@@ -31,7 +31,7 @@
             <p class="form-alert settings-message" role="alert"
                th:if="${launchProfileErrorKey}" th:text="#{${launchProfileErrorKey}}"></p>
 
-            <form class="form-stack settings-form" method="post" th:action="@{/server-settings/{panel}(panel=${panel})}">
+            <form class="form-stack settings-form" method="post" th:action="@{${panelPath}}">
                 <div th:replace="~{launch/server-settings-panels :: __${panel}__}"></div>
 
                 <div class="settings-footer">

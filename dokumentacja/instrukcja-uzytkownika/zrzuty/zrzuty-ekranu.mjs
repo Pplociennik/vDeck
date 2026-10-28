@@ -118,7 +118,7 @@ try {
         [ 'server', 'serwer-sekcja-serwer' ],
         [ 'access', 'serwer-sekcja-dostep' ],
         [ 'world', 'serwer-sekcja-swiat' ],
-        [ 'backups', 'serwer-sekcja-kopie' ]
+        [ 'inner-server-backups', 'serwer-sekcja-kopie' ]
     ];
     for ( const [ panel, name ] of serverPanels ) {
         await page.goto( `${baseUrl}/server-settings/${panel}` );

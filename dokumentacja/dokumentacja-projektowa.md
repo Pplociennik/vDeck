@@ -950,7 +950,7 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
   przez `aria-describedby`. Pola mają rozmiar tekstu 1 rem, aby przeglądarki mobilne nie przybliżały
   widoku po ustawieniu fokusu.
 - Cztery panele gałęzi **Serwer** (`launch/server-settings.html`, adresy `/server-settings/server`,
-  `/server-settings/access`, `/server-settings/world` i `/server-settings/backups`) i **Ustawienia gry**
+  `/server-settings/access`, `/server-settings/world` i `/server-settings/inner-server-backups`) i **Ustawienia gry**
   (`launch/game-settings.html`, adres `/game-settings`) to szerokie karty z domyślną teksturą panelu,
   osadzone pod wyspą akcji, z menu bocznym — opisane w [5.6](#56-serwer-i-ustawienia-gry).
 - **Konsola** (`logs/console.html`, adres `/console`) to szeroka karta pod wyspą akcji, z menu
@@ -994,7 +994,7 @@ Widoczne zachowanie:
   `side-menu-children-server-settings`) z czterema pozycjami drugiego poziomu bez ikon: „Ogólne”
   (`/server-settings/server`, identyfikator `serverSettings.server`), „Dostęp”
   (`/server-settings/access`, `serverSettings.access`), „Świat i zapis” (`/server-settings/world`,
-  `serverSettings.world`) i „Kopie automatyczne” (`/server-settings/backups`, `serverSettings.backups`),
+  `serverSettings.world`) i „Kopie automatyczne” (`/server-settings/inner-server-backups`, `serverSettings.innerServerBackups`),
   a pod nią „Ustawienia gry” (odnośnik do `/game-settings`, identyfikator `gameSettings`). Sekcja
   „Procesy” zawiera „Konsola” (odnośnik do `/console`, identyfikator `console`).
   Na swoim ekranie pozycja ma `aria-current="page"` oraz obramowanie i tekst w kolorze akcentu.
@@ -1058,18 +1058,21 @@ Widoczne zachowanie wspólne dla wszystkich paneli:
   panelu), patrz [2.3](#23-obsługa-wyjątków).
 
 **Panele gałęzi „Serwer”** dzielą jeden widok `launch/server-settings.html`. Kontroler przekazuje
-w atrybucie `panel` nazwę panelu (`server`, `access`, `world` albo `backups`), od której zależą tytuł
-strony i opis (`serverSettings.<panel>.title`, `serverSettings.<panel>.lead`), nagłówek
-(`launchProfile.section.<panel>`), adres formularza (`/server-settings/<panel>`), fragment z polami z
-`launch/server-settings-panels.html` oraz bieżąca pozycja menu (`serverSettings.<panel>`). Każdy panel
-ma jedną siatkę pól bez tytułu sekcji — jego nazwą jest nagłówek karty.
+w atrybucie `panel` nazwę panelu w lowerCamelCase (`server`, `access`, `world` albo
+`innerServerBackups`), od której zależą tytuł strony i opis (`serverSettings.<panel>.title`,
+`serverSettings.<panel>.lead`), nagłówek (`launchProfile.section.<panel>`), fragment z polami z
+`launch/server-settings-panels.html` oraz bieżąca pozycja menu (`serverSettings.<panel>`). Adres
+formularza przekazuje osobno w atrybucie `panelPath`, bo adresy panelu są pisane małymi literami z
+łącznikami: nazwa `innerServerBackups` odpowiada adresowi `/server-settings/inner-server-backups`.
+Nazwa „inner server backups” odróżnia kopie robione przez sam serwer Valheim od kopii panelu. Każdy
+panel ma jedną siatkę pól bez tytułu sekcji — jego nazwą jest nagłówek karty.
 
 | Panel | Adres | Formularz | Pola |
 |---|---|---|---|
 | „Ogólne” | `/server-settings/server` | `ServerIdentityForm` (`serverIdentityForm`) | nazwa, port, serwer publiczny, crossplay, identyfikator instancji |
 | „Dostęp” | `/server-settings/access` | `ServerAccessForm` (`serverAccessForm`) | hasło serwera, „Usuń hasło” |
 | „Świat i zapis” | `/server-settings/world` | `WorldSaveForm` (`worldSaveForm`) | nazwa świata, katalog zapisu, interwał zapisu, informacja o `-logFile` |
-| „Kopie automatyczne” | `/server-settings/backups` | `ServerBackupsForm` (`serverBackupsForm`) | liczba kopii, interwał pierwszej i kolejnych kopii |
+| „Kopie automatyczne” | `/server-settings/inner-server-backups` | `ServerBackupsForm` (`serverBackupsForm`) | liczba kopii, interwał pierwszej i kolejnych kopii |
 
 - Hasła serwera nie da się odczytać: panel „Dostęp” pokazuje tylko „Hasło jest ustawione” albo „Hasło nie jest
   ustawione”. Puste pole zachowuje zapisane hasło, a pole wyboru „Usuń hasło” (widoczne, gdy hasło
@@ -1153,7 +1156,7 @@ Komponenty:
 
 | Element | Rola |
 |---|---|
-| `ServerSettingsController` | `GET` i `POST /server-settings/{server,access,world,backups}`; publikuje nazwę panelu `panel` i formularz panelu (przekazany po odrzuceniu albo z zapisanego profilu), panelowi „Dostęp” także informację `passwordSet`; po sukcesie przekierowuje na ten sam panel z `?saved` |
+| `ServerSettingsController` | `GET` i `POST /server-settings/{server,access,world,inner-server-backups}`; publikuje nazwę panelu `panel`, adres formularza `panelPath` i formularz panelu (przekazany po odrzuceniu albo z zapisanego profilu), panelowi „Dostęp” także informację `passwordSet`; po sukcesie przekierowuje na ten sam panel z `?saved` |
 | `GameSettingsController` | `GET` i `POST /game-settings`; publikuje formularz (przekazany po odrzuceniu albo z zapisanego profilu), listy opcji i widoczność sekcji `advancedShown`, po sukcesie przekierowuje z `?saved`; `POST /game-settings/advanced` zapamiętuje widoczność i odpowiada `204`, a nieudany zapis obsługuje `DefaultExceptionHandler` odpowiedzią `500` |
 | `LaunchProfileExceptionHandler` | `@ControllerAdvice` obu kontrolerów: loguje odrzucenie (`INFO`) albo niepowodzenie (`ERROR` ze stack trace) i przekierowuje na wysłany panel z komunikatem i formularzem jako atrybutami flash |
 | `LaunchProfileMessage` | Zamknięty zbiór kluczy komunikatów: `INVALID_INPUT`, `INVALID_SAVE_DIRECTORY`, `PASSWORD_PART_OF_NAME`, `SAVE_FAILED` |

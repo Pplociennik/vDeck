@@ -8,7 +8,7 @@ sequenceDiagram
     participant F as SystemPropertiesService<br/>(valheim-server.properties)
     participant H as LaunchProfileExceptionHandler
 
-    A->>C: POST /server-settings/{server,access,world,backups}<br/>albo /game-settings (formularz + CSRF)
+    A->>C: POST /server-settings/{server,access,world,inner-server-backups}<br/>albo /game-settings (formularz + CSRF)
     C->>C: walidacja adnotacji formularza
     alt błąd formatu lub zakresu
         C-)H: LaunchProfileUpdateException(INVALID_INPUT, formularz)

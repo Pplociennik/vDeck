@@ -77,6 +77,7 @@ class ServerSettingsControllerTest {
         // THEN
         assertThat( result ).isEqualTo( VIEW );
         assertThat( model.get( "panel" ) ).isEqualTo( "server" );
+        assertThat( model.get( "panelPath" ) ).isEqualTo( "/server-settings/server" );
         assertThat( model.get( "serverIdentityForm" ) ).isEqualTo( ServerIdentityForm.from( storedProfile() ) );
     }
 
@@ -116,6 +117,7 @@ class ServerSettingsControllerTest {
         // THEN
         assertThat( result ).isEqualTo( VIEW );
         assertThat( model.get( "panel" ) ).isEqualTo( "access" );
+        assertThat( model.get( "panelPath" ) ).isEqualTo( "/server-settings/access" );
         assertThat( model.get( "serverAccessForm" ) ).isEqualTo( ServerAccessForm.empty() );
         assertThat( model.get( "passwordSet" ) ).isEqualTo( true );
     }
@@ -136,6 +138,7 @@ class ServerSettingsControllerTest {
         // THEN
         assertThat( result ).isEqualTo( VIEW );
         assertThat( model.get( "panel" ) ).isEqualTo( "world" );
+        assertThat( model.get( "panelPath" ) ).isEqualTo( "/server-settings/world" );
         assertThat( model.get( "worldSaveForm" ) ).isEqualTo( WorldSaveForm.from( storedProfile() ) );
     }
 
@@ -154,7 +157,8 @@ class ServerSettingsControllerTest {
 
         // THEN
         assertThat( result ).isEqualTo( VIEW );
-        assertThat( model.get( "panel" ) ).isEqualTo( "backups" );
+        assertThat( model.get( "panel" ) ).isEqualTo( "innerServerBackups" );
+        assertThat( model.get( "panelPath" ) ).isEqualTo( "/server-settings/inner-server-backups" );
         assertThat( model.get( "serverBackupsForm" ) ).isEqualTo( ServerBackupsForm.from( storedProfile() ) );
     }
 
@@ -262,7 +266,7 @@ class ServerSettingsControllerTest {
         String result = underTest.updateServerBackups( form, new BeanPropertyBindingResult( form, "form" ) );
 
         // THEN
-        assertThat( result ).isEqualTo( "redirect:/server-settings/backups?saved" );
+        assertThat( result ).isEqualTo( "redirect:/server-settings/inner-server-backups?saved" );
         verify( launchProfileService ).updateServerBackups( form );
     }
 

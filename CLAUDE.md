@@ -51,7 +51,7 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   whose panels edit the Valheim launch profile stored in `valheim-server.properties`: the four
   panels of the side menu's expandable "Serwer" branch (AD-030) — `/server-settings/server`
   ("Ogólne"), `/server-settings/access` ("Dostęp"), `/server-settings/world` ("Świat i zapis") and
-  `/server-settings/backups` ("Kopie automatyczne"), one `ServerSettingsController`, one form record
+  `/server-settings/inner-server-backups` ("Kopie automatyczne"), one `ServerSettingsController`, one form record
   each implementing the sealed `dto.LaunchProfileForm`, one shared view `launch/server-settings.html`
   with per-panel fragments in `launch/server-settings-panels.html` — and `/game-settings`
   ("Ustawienia gry", with a hidden-by-default "Zaawansowane" section whose visibility is remembered in

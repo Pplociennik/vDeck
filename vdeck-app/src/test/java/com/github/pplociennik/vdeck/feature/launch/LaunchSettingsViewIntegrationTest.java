@@ -70,8 +70,8 @@ class LaunchSettingsViewIntegrationTest {
      * posts to its own address, and shows the side menu with all four panels and its own entry marked as
      * the current page.
      *
-     * @param panel
-     *         panel name in the address
+     * @param path
+     *         address of the panel, lowercase and hyphenated
      * @param ownField
      *         name of a field the panel shows
      * @param otherField
@@ -79,13 +79,15 @@ class LaunchSettingsViewIntegrationTest {
      * @throws Exception
      *         if MockMvc cannot execute the request
      */
-    @ParameterizedTest( name = "[{index}] panel={0}" )
-    @CsvSource( { "server, serverName, worldName", "access, password, backupCount",
-            "world, saveDirectory, port", "backups, backupLong, serverName" } )
-    void shouldRenderOnlyPanelFields_whenAdministratorOpensServerPanel( String panel, String ownField,
+    @ParameterizedTest( name = "[{index}] path={0}" )
+    @CsvSource( { "/server-settings/server, serverName, worldName",
+            "/server-settings/access, password, backupCount",
+            "/server-settings/world, saveDirectory, port",
+            "/server-settings/inner-server-backups, backupLong, serverName" } )
+    void shouldRenderOnlyPanelFields_whenAdministratorOpensServerPanel( String path, String ownField,
                                                                         String otherField ) throws Exception {
         // GIVEN
-        String path = "/server-settings/" + panel;
+        // an authenticated administrator
 
         // WHEN
         var result = underTest.perform( get( path ).with( administrator() ) );
@@ -106,7 +108,7 @@ class LaunchSettingsViewIntegrationTest {
                 .andExpect( content().string( containsString( "href=\"/server-settings/server\"" ) ) )
                 .andExpect( content().string( containsString( "href=\"/server-settings/access\"" ) ) )
                 .andExpect( content().string( containsString( "href=\"/server-settings/world\"" ) ) )
-                .andExpect( content().string( containsString( "href=\"/server-settings/backups\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings/inner-server-backups\"" ) ) )
                 .andExpect( content().string( containsString( "href=\"/game-settings\"" ) ) );
     }
 
@@ -180,7 +182,7 @@ class LaunchSettingsViewIntegrationTest {
     @Test
     void shouldStoreBackupSettings_whenBackupsSubmissionIsValid() throws Exception {
         // GIVEN
-        MockHttpServletRequestBuilder request = post( "/server-settings/backups" ).with( administrator() )
+        MockHttpServletRequestBuilder request = post( "/server-settings/inner-server-backups" ).with( administrator() )
                 .with( csrf() )
                 .param( "backupCount", "6" )
                 .param( "backupShort", "3600" )
@@ -191,7 +193,7 @@ class LaunchSettingsViewIntegrationTest {
 
         // THEN
         result.andExpect( status().is3xxRedirection() )
-                .andExpect( redirectedUrl( "/server-settings/backups?saved" ) );
+                .andExpect( redirectedUrl( "/server-settings/inner-server-backups?saved" ) );
         assertThat( readConfigurationFile( "valheim-server.properties" ) )
                 .containsEntry( "server.backup.count", "6" )
                 .containsEntry( "server.backup.short", "3600" )

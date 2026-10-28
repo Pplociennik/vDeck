@@ -507,7 +507,10 @@ instalacji jako `.vDeck/<snapshot.directory>`; jego resolver sprawdza `.vDeck` i
 Przed `SpringApplication.run()` wykonywany jest preflight. Sprawdza obecność zwykłego pliku
 `valheim_server.exe`, możliwość zapisu locka, tokenu PID, bazy i logów oraz poprawność wszystkich
 skonfigurowanych ścieżek po ich normalizacji. Błąd kończy start przed utworzeniem kontekstu Springa
-i pozostawia czytelny komunikat w konsoli.
+i pozostawia czytelny komunikat w konsoli. Zaimplementowane jest sprawdzenie `valheim_server.exe`
+(`ServerExecutableCheck`, pierwszy krok `VdeckApplication.main()`, przed przejęciem blokady od
+launchera, kod wyjścia 1). Jest domyślnie włączone, a wyłącza je właściwość systemowa
+`-Dvdeck.server-file-check=false`, przeznaczona dla uruchomień deweloperskich i zrzutów ekranu.
 
 Katalog danych Valheim jest zawsze wskazywany jawnie przez opcję `-savedir`. Dzięki temu panel nie
 zależy od domyślnych ścieżek profilu użytkownika i jednoznacznie wie, gdzie znajdują się światy oraz

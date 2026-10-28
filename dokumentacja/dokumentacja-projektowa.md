@@ -130,7 +130,9 @@ Paczka służy pierwszej instalacji; kolejne wersje instaluje automatyczna aktua
 zachowuje ustawienia, bazę i światy.
 
 Uruchomienie z IDE lub przez `spring-boot:run` **wymaga** wskazania katalogu instalacyjnego, ponieważ
-bez niego `ApplicationHome` wskazuje na `vdeck-app/target/classes`:
+bez niego `ApplicationHome` wskazuje na `vdeck-app/target/classes`. Panel nie startuje, jeżeli w tym
+katalogu nie ma `valheim_server.exe` (sekcja [2.2](#22-start-aplikacji)); w sandboxie bez serwera gry
+należy dodać `-Dvdeck.server-file-check=false`:
 
 ```powershell
 .\mvnw.cmd install -DskipTests
@@ -397,7 +399,16 @@ Start panelu jest procesem wieloetapowym: rozwiązanie katalogu instalacyjnego, 
 bazy, przygotowanie plików ustawień i utworzenie konta domyślnego. Błąd rozwiązywania katalogu
 bazowego przerywa start, zamiast pozwolić aplikacji działać z niepoprawną konfiguracją.
 
-`VdeckApplication.main()` oddaje start `shared.lock.InstallationLockService`, jedynemu miejscu obsługi
+Pierwszym krokiem `VdeckApplication.main()` jest `feature.server.ServerExecutableCheck`. Sprawdza, czy
+w katalogu instalacyjnym (`vdeck.server-directory`, a bez niego `ApplicationHome`) leży zwykły plik
+`valheim_server.exe`. Jeżeli go nie ma, wypisuje komunikat `console.serverExecutableMissing` z
+katalogiem i kończy proces kodem 1, zanim panel przejmie blokadę od launchera, więc launcher dopisuje
+„Nie udało się uruchomić panelu vDeck.” i czeka na Enter. Logowanie nie jest jeszcze skonfigurowane,
+dlatego komunikat trafia bezpośrednio na `System.out`. Sprawdzenie jest domyślnie włączone; wyłącza je
+właściwość systemowa `-Dvdeck.server-file-check=false` (inna wartość go nie wyłącza), np. w IDE albo
+przy zrzutach ekranu instrukcji przez `JAVA_TOOL_OPTIONS`, które dziedziczy także proces panelu.
+
+Następnie `VdeckApplication.main()` oddaje start `shared.lock.InstallationLockService`, jedynemu miejscu obsługi
 blokady panelu. Przy uruchomieniu przez launcher (`-Dvdeck.handoff=<id>`) serwis najpierw przejmuje
 blokadę instalacji i rejestruje ją jako bean `installationLock`, którego właścicielem zostaje
 `ManagedLaunchStore`; potem uruchamia wyłącznie Springa i zwalnia blokadę, gdy start się nie powiedzie. `config.ConsoleControlConfiguration`

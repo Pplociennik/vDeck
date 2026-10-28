@@ -20,6 +20,11 @@ public enum ConsoleMessage implements ConsoleMessageIf {
     INSTALLATION_DIRECTORY_UNKNOWN( "console.installationDirectoryUnknown" ),
 
     /**
+     * {@code valheim_server.exe} is missing, so the panel does not start; argument: installation directory.
+     */
+    SERVER_EXECUTABLE_MISSING( "console.serverExecutableMissing" ),
+
+    /**
      * Address of the started panel; arguments: host and port.
      */
     PANEL_ADDRESS( "console.panelAddress" ),

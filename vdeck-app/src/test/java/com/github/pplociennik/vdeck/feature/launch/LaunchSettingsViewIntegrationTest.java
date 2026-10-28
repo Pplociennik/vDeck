@@ -51,7 +51,7 @@ class LaunchSettingsViewIntegrationTest {
 
     private static final String SERVER_PASSWORD = "Tr0ll-Hunter";
 
-    private static final String HIDDEN_ATTRIBUTE = "hidden=\"hidden\"";
+    private static final String HIDDEN_ADVANCED_SECTION = "data-advanced-section hidden=\"hidden\"";
 
     @TempDir
     private static Path directory;
@@ -112,6 +112,7 @@ class LaunchSettingsViewIntegrationTest {
                 .andExpect( content().string( not( containsString( "launchProfile." ) ) ) )
                 .andExpect( content().string( not( containsString( "gameSettings." ) ) ) )
                 .andExpect( content().string( containsString( "<option value=\"hammer\"" ) ) )
+                .andExpect( content().string( containsString( "class=\"preset-guide__list\"" ) ) )
                 .andExpect( content().string( containsString( "name=\"deathPenaltyModifier\"" ) ) )
                 .andExpect( content().string( containsString( "name=\"noMap\"" ) ) )
                 .andExpect( content().string( containsString( "data-advanced-toggle" ) ) )
@@ -246,12 +247,12 @@ class LaunchSettingsViewIntegrationTest {
         result.andExpect( status().isNoContent() );
         assertThat( readConfigurationFile( "vDeck.properties" ) ).containsEntry( "panel.game.settings.advanced", "true" );
         underTest.perform( get( "/game-settings" ).with( administrator() ) )
-                .andExpect( content().string( not( containsString( HIDDEN_ATTRIBUTE ) ) ) );
+                .andExpect( content().string( not( containsString( HIDDEN_ADVANCED_SECTION ) ) ) );
 
         underTest.perform( advancedToggle( "false" ) ).andExpect( status().isNoContent() );
         assertThat( readConfigurationFile( "vDeck.properties" ) ).containsEntry( "panel.game.settings.advanced", "false" );
         underTest.perform( get( "/game-settings" ).with( administrator() ) )
-                .andExpect( content().string( containsString( HIDDEN_ATTRIBUTE ) ) );
+                .andExpect( content().string( containsString( HIDDEN_ADVANCED_SECTION ) ) );
     }
 
     /**

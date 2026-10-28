@@ -19,32 +19,34 @@ public enum WorldPreset {
     NORMAL( "normal" ),
 
     /**
-     * Relaxed game focused on exploration and building.
+     * Relaxed game focused on exploration and building: very easy combat, casual death penalty, more
+     * resources, no raids, unrestricted portals, passive enemies and player-based raids.
      */
     CASUAL( "casual" ),
 
     /**
-     * Easier combat and a milder death penalty.
+     * Easier combat and fewer raids.
      */
     EASY( "easy" ),
 
     /**
-     * Stronger enemies and a harsher death penalty.
+     * Stronger enemies and more raids.
      */
     HARD( "hard" ),
 
     /**
-     * The hardest combination of modifiers, including the loss of items on death.
+     * The hardest combination: very hard combat, hardcore death penalty, more raids, restricted portals
+     * and no map.
      */
     HARDCORE( "hardcore" ),
 
     /**
-     * Stricter portals and no map, for a more immersive journey.
+     * No portals, no map and spreading fire, for a more immersive journey.
      */
     IMMERSIVE( "immersive" ),
 
     /**
-     * Building without costs and with passive enemies.
+     * Building without costs, with passive enemies and no raids.
      */
     HAMMER( "hammer" );
 

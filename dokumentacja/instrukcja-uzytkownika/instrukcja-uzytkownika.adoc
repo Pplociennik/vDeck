@@ -377,8 +377,39 @@ image::ekran-ustawienia-gry.jpg[Ekran Ustawienia gry]
 .Wybór gotowego zestawu ustawień
 image::gra-sekcja-zestaw.jpg[Lista Zestaw ustawień świata,pdfwidth=65%]
 
-Najprościej wybrać gotowy zestaw z listy *Zestaw ustawień świata*: Normalny, Swobodny, Łatwy,
-Trudny, Hardcore, Immersyjny albo Budowanie. Wartość *Brak* oznacza ustawienia domyślne gry.
+Najprościej wybrać gotowy zestaw z listy *Zestaw ustawień świata*. Nad listą panel opisuje wszystkie
+zestawy — co każdy z nich zmienia względem ustawień domyślnych gry. Te same opisy zawiera tabela.
+
+[cols="1,3",options="header"]
+|===
+| Zestaw | Co zmienia
+
+| Brak
+| Nic — obowiązują ustawienia domyślne gry i to, co wybierzesz w sekcji *Zaawansowane*.
+
+| Normalny
+| Nic — standardowa rozgrywka, wszystkie ustawienia mają wartości domyślne gry.
+
+| Swobodny
+| Walka bardzo łatwa, łagodna kara za śmierć, więcej zasobów, brak najazdów, portale przenoszą
+wszystkie przedmioty. Przeciwnicy nie atakują pierwsi, a najazdy zależą od postępów gracza.
+
+| Łatwy
+| Walka łatwa i mniej najazdów.
+
+| Trudny
+| Walka trudna i więcej najazdów.
+
+| Hardcore
+| Walka bardzo trudna, kara za śmierć hardcore, więcej najazdów, portale z ograniczeniami
+i brak mapy.
+
+| Immersyjny
+| Brak portali i mapy, a ogień może rozprzestrzeniać się po całym świecie.
+
+| Budowanie
+| Budowanie nie zużywa surowców, przeciwnicy nie atakują pierwsi i nie ma najazdów.
+|===
 
 === Konfiguracja zaawansowana
 
@@ -806,7 +837,7 @@ nowości, zmiany w działaniu i poprawki, każda z krótkim opisem.
 
 [#fig-co-nowego]
 .Karta „Co nowego w vDeck” na stronie głównej
-image::co-nowego.jpg[Karta Co nowego w vDeck z wersją 0.0.1 i przyciskiem Zamknij,pdfwidth=80%]
+image::co-nowego.jpg[Karta Co nowego w vDeck z numerem wersji, listą zmian i przyciskiem Zamknij,pdfwidth=80%]
 
 * Jeśli vDeck przeskoczył kilka wersji, na przykład gdy przez dłuższy czas nie był uruchamiany,
   karta pokazuje zmiany każdej z nich, od najnowszej. Każda wersja ma swój nagłówek z numerem.

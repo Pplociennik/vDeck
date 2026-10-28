@@ -13,3 +13,46 @@
 .game-settings-card .settings-footer {
     margin-block-start: auto;
 }
+
+/*
+ * Description of every preset above the list: an inset note with one entry per preset. The name sits
+ * above its description on narrow screens and beside it where a name column fits.
+ */
+.preset-guide {
+    padding: var(--space-sm) var(--space-md);
+    border-inline-start: 0.1875rem solid var(--color-accent);
+    border-radius: var(--field-radius);
+    background-color: var(--color-inset-surface);
+    font-size: var(--font-size-label);
+    line-height: 1.45;
+}
+
+.preset-guide__lead {
+    margin: 0 0 var(--space-xs);
+    color: var(--color-text-muted);
+}
+
+.preset-guide__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    margin: 0;
+}
+
+.preset-guide__entry dt {
+    color: var(--color-accent);
+    font-weight: 600;
+}
+
+.preset-guide__entry dd {
+    margin: 0;
+    color: var(--color-text);
+}
+
+@media (min-width: 40rem) {
+    .preset-guide__entry {
+        display: grid;
+        grid-template-columns: 12rem 1fr;
+        gap: var(--space-sm);
+    }
+}

@@ -20,7 +20,8 @@ PIERWSZE URUCHOMIENIE
    start-vDeck.bat ma leżeć obok valheim_server.exe.
    Zachowaj podkatalogi lib (pliki programu), jre oraz .vDeck, w tym .vDeck\config.
 2. Uruchom start-vDeck.bat. Skrypt korzysta wyłącznie z dołączonej Javy.
-3. Poczekaj na uruchomienie panelu i otwórz http://127.0.0.1:8085.
+3. Poczekaj na uruchomienie panelu. Przeglądarka sama otworzy http://127.0.0.1:8085;
+   jeżeli się nie otworzy, wpisz ten adres ręcznie.
 4. Zaloguj się: użytkownik admin, hasło początkowe admin.
    Panel od razu wymaga ustawienia własnego hasła.
 5. Uzupełnij ekran „Serwer” i „Ustawienia gry”. Hasło serwera gry jest niezależne

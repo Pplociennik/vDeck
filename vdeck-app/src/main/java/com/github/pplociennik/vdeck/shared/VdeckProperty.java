@@ -48,7 +48,13 @@ public enum VdeckProperty implements SystemPropertyIf {
      * Whether the "Ustawienia gry" screen shows its advanced section; {@code true} or {@code false}.
      * Remembered so the section keeps the visibility the administrator last chose.
      */
-    GAME_SETTINGS_ADVANCED( "panel.game.settings.advanced", "false", true );
+    GAME_SETTINGS_ADVANCED( "panel.game.settings.advanced", "false", true ),
+
+    /**
+     * Whether the panel opens its address in the default browser once it has started from the start
+     * script; {@code true} or {@code false}. Any other value counts as the default.
+     */
+    PANEL_OPEN_BROWSER( "panel.open.browser", "true", true );
 
     /**
      * Name of the properties file owning every setting declared by this enum.

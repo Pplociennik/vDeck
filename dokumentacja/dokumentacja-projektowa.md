@@ -295,6 +295,17 @@ zatrzymuje się bez zmian. Panel przejmuje blokadę przed Springiem w `Installat
 launcher trzyma bramkę aż do zakończenia panelu i zwraca jego kod wyjścia. Adres panelu
 (`ConsoleMessage.PANEL_ADDRESS`) i prośbę o pozostawienie okna (`KEEP_WINDOW_OPEN`) wypisuje sam panel
 po `ApplicationReadyEvent` (`config.PanelAddressAnnouncer`), więc są ostatnimi liniami startu.
+Launcher przekazuje panelowi `-Dvdeck.open-browser=true` (`UpdateLayout.PANEL_OPEN_BROWSER_PROPERTY`),
+więc osobny listener `config.PanelBrowserOpener` otwiera adres w domyślnej przeglądarce przez
+`config.SystemBrowser`, o ile użytkownik nie wyłączył tego ustawieniem `panel.open.browser=false`
+w `vDeck.properties` (`VdeckProperty.PANEL_OPEN_BROWSER`, domyślnie `true`). `SystemBrowser` uruchamia
+`%SystemRoot%\System32\rundll32.exe url.dll,FileProtocolHandler <adres>` z adresem jako osobnym
+argumentem, bez powłoki; `java.awt.Desktop` jest niedostępny, bo Spring Boot działa w trybie headless.
+`PanelBrowserOpener` działa przed `PanelAddressAnnouncer` (`@Order`), żeby jego wpisy w logu nie
+przesunęły adresu z ostatniej linii konsoli. Błąd otwarcia daje tylko `WARN`: adres zostaje w konsoli,
+a panel działa dalej. Uruchomienie z IDE i testy nie ustawiają właściwości i nie otwierają
+przeglądarki. Oba listenery biorą adres z `config.PanelAddress`; adresu nasłuchu `0.0.0.0` albo `::` nie
+da się otworzyć, więc wypisywany i otwierany jest wtedy `localhost`.
 `log4j2-vdeck-console.xml`, dołączony do domyślnej konfiguracji Spring Boota przez
 `logging.log4j2.config.override`, kieruje logger `vdeck.console` na konsolę jako czysty tekst.
 
@@ -474,6 +485,7 @@ Dla pliku `vDeck.properties` jest to `VdeckProperty`:
 | `server.start.script` | Skrypt producenta czytany po `SteamAppId`, nigdy wykonywany przez panel | tak | `start_headless_server.bat` |
 | `snapshot.directory` | Nazwa jednego podkatalogu `.vDeck` na snapshoty świata (AD-018); separator, `.` lub `..` przerywa start serwera | tak | `shutdown-snapshots` |
 | `panel.game.settings.advanced` | Czy ekran „Ustawienia gry” pokazuje sekcję „Zaawansowane”; `true` albo `false` (patrz [5.6](#56-serwer-i-ustawienia-gry)) | tak | `false` |
+| `panel.open.browser` | Czy panel uruchomiony skryptem startowym otwiera swój adres w domyślnej przeglądarce; `true` albo `false`, inna wartość używa domyślnej (patrz [1.7](#17-launcher-i-automatyczna-aktualizacja)) | tak | `true` |
 
 Każde ustawienie deklaruje przez `SystemPropertyIf.isMandatory()`, czy jest obowiązkowe. Wartość
 flagi podaje konstruktor enuma, obok klucza i wartości domyślnej. Ustawienie obowiązkowe ma zawsze

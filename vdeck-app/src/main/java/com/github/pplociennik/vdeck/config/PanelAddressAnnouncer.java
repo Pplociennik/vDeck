@@ -18,8 +18,6 @@ import static java.util.Objects.requireNonNull;
 @Component
 class PanelAddressAnnouncer {
 
-    private static final String DEFAULT_HOST = "localhost";
-
     private final Environment environment;
 
     private final UserConsole console;
@@ -53,11 +51,9 @@ class PanelAddressAnnouncer {
      */
     @EventListener( ApplicationReadyEvent.class )
     void announce() {
-        String address = environment.getProperty( "server.address", DEFAULT_HOST );
-        String host = address.contains( ":" ) ? "[" + address + "]" : address;
-        int port = environment.getRequiredProperty( "server.port", Integer.class );
+        PanelAddress address = PanelAddress.from( environment );
 
-        console.show( ConsoleMessage.PANEL_ADDRESS, host, port );
+        console.show( ConsoleMessage.PANEL_ADDRESS, address.host(), address.port() );
         console.show( ConsoleMessage.KEEP_WINDOW_OPEN );
     }
 }

@@ -62,10 +62,10 @@ class PanelAddressAnnouncerTest {
     }
 
     /**
-     * Verifies that an IPv6 literal is bracketed in the URL.
+     * Verifies that the console shows the URL host of {@link PanelAddress}, here the bracketed IPv6 literal.
      */
     @Test
-    void shouldBracketIpv6_whenAddressIsIpv6() {
+    void shouldShowUrlHost_whenAddressIsIpv6() {
         // GIVEN
         environment.setProperty( "server.address", "::1" );
 
@@ -74,20 +74,5 @@ class PanelAddressAnnouncerTest {
 
         // THEN
         then( console ).should().show( ConsoleMessage.PANEL_ADDRESS, "[::1]", 8085 );
-    }
-
-    /**
-     * Verifies that a panel without an explicit address, as started from an IDE, shows localhost.
-     */
-    @Test
-    void shouldShowLocalhost_whenAddressIsNotSet() {
-        // GIVEN
-        // No additional setup.
-
-        // WHEN
-        underTest.announce();
-
-        // THEN
-        then( console ).should().show( ConsoleMessage.PANEL_ADDRESS, "localhost", 8085 );
     }
 }

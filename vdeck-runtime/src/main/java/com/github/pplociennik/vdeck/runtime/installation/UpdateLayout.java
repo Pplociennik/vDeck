@@ -81,6 +81,12 @@ public record UpdateLayout( @Nonnull Path installation ) {
     public static final String PANEL_HANDOFF_PROPERTY = "vdeck.handoff";
 
     /**
+     * System property set to {@code true} by the launcher so the panel opens its address in the default
+     * browser once it is ready; IDE runs and tests leave it unset and open nothing.
+     */
+    public static final String PANEL_OPEN_BROWSER_PROPERTY = "vdeck.open-browser";
+
+    /**
      * Validates the root.
      *
      * @throws NullPointerException

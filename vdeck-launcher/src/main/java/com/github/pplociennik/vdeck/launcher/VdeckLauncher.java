@@ -319,6 +319,7 @@ final class VdeckLauncher {
         command.add( "--enable-native-access=ALL-UNNAMED" );
         command.add( "-D" + UpdateLayout.SERVER_DIRECTORY_PROPERTY + "=" + layout.installation() );
         command.add( "-D" + UpdateLayout.PANEL_HANDOFF_PROPERTY + "=" + operationId );
+        command.add( "-D" + UpdateLayout.PANEL_OPEN_BROWSER_PROPERTY + "=true" );
         command.add( "-jar" );
         command.add( layout.resolve( UpdateLayout.PANEL_JAR ).toString() );
         command.add( "--server.address=" + settings.address() );

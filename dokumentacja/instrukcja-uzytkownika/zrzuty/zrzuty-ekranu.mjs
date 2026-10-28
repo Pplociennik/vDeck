@@ -2,6 +2,9 @@
 //
 // The panel must run from a freshly extracted distribution package (initial password "admin",
 // default profile) in a directory without valheim_server.exe, so Start shows its validation error.
+// The panel refuses to start there unless its startup check is disabled, so start the package with
+//   set JAVA_TOOL_OPTIONS=-Dvdeck.server-file-check=false
+//   start-vDeck.bat
 // The script changes the administrator password, edits the launch profile with sample values and
 // toggles the advanced game settings, so never point it at a real installation.
 //

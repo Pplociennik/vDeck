@@ -841,9 +841,11 @@ Przeglądarka nie może połączyć się z panelem::
   wpisujesz adres z napisu `Panel vDeck: ...`. Jeśli port 8085 jest zajęty, zmień `panel.port`
   (<<adres-i-port>>).
 
-„W katalogu instalacji nie ma pliku valheim_server.exe.”::
-  Paczka vDeck została wypakowana w innym miejscu niż serwer gry. Przenieś jej zawartość obok
-  `valheim_server.exe`.
+„W katalogu ... nie ma pliku valheim_server.exe. Wypakuj vDeck do katalogu Valheim Dedicated Server.” albo „W katalogu instalacji nie ma pliku valheim_server.exe.”::
+  Paczka vDeck została wypakowana w innym miejscu niż serwer gry. Pierwszy komunikat pojawia się
+  w oknie konsoli zaraz po uruchomieniu `start-vDeck.bat` i panel wtedy się nie uruchamia; drugi
+  pokazuje panel po kliknięciu *Uruchom serwer*, gdy plik zniknął w trakcie pracy. Przenieś
+  zawartość paczki obok `valheim_server.exe` i uruchom vDeck ponownie.
 
 „Port serwera albo port o jeden wyższy jest zajęty przez inny program.”::
   Działa już inny serwer Valheim albo inny program używa tych portów. Zamknij go albo zmień

@@ -176,6 +176,11 @@ normalized, and after resolution must stay inside the installation directory.
 Without it `ApplicationHome.getDir()` resolves to `vdeck-app/target/classes`, so the settings file
 would be written into a directory devtools watches, causing a restart loop.
 
+`VdeckApplication.main()` first runs `feature.server.ServerExecutableCheck`: without a regular
+`valheim_server.exe` in the installation directory it prints a console message and exits with 1
+before the launcher handoff and Spring. It is on by default; `-Dvdeck.server-file-check=false`
+disables it, e.g. for a sandbox without the game server (or `JAVA_TOOL_OPTIONS` for the package).
+
 Native Windows calls require `--enable-native-access=ALL-UNNAMED` when running with `java -jar`
 or from an IDE. Surefire and `spring-boot:run` set it in their POM configuration; when overriding
 `spring-boot.run.jvmArguments`, include this flag along with the installation-directory override.

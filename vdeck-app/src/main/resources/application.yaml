@@ -12,6 +12,10 @@ spring:
       ddl-auto: update
   messages:
     use-code-as-default-message: true
+logging:
+  log4j2:
+    config:
+      override: classpath:log4j2-vdeck-console.xml
 server:
   servlet:
     session:

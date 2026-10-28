@@ -57,7 +57,7 @@ class I18nTest {
     void shouldFormatNumbersInPolish_whenArgumentsAreGiven() {
         // GIVEN
         ConsoleMessageIf progress = () -> "launcher.downloadProgress";
-        ConsoleMessageIf address = () -> "launcher.panelAddress";
+        ConsoleMessageIf address = () -> "console.panelAddress";
 
         // WHEN
         String progressText = I18n.text( progress, 1.5, 3.0, 50L, 0.5 );

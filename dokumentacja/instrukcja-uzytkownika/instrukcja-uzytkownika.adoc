@@ -125,9 +125,9 @@ nie uruchomi albo nie będzie umiał zatrzymać serwera.
 === Uruchomienie panelu
 
 . Kliknij dwukrotnie `start-vDeck.bat`. Otworzy się czarne okno konsoli. vDeck może najpierw
-  sprawdzić, czy jest nowsza wersja (<<aktualizacja>>), a potem wyświetli napis
+  sprawdzić, czy jest nowsza wersja (<<aktualizacja>>), a potem uruchomi panel.
+. Poczekaj kilka sekund, aż panel wystartuje. Gdy będzie gotowy, na końcu okna pojawi się napis
   `Panel vDeck: http://127.0.0.1:8085`.
-. Poczekaj kilka sekund, aż panel wystartuje.
 . Otwórz w przeglądarce adres `http://127.0.0.1:8085`.
 
 IMPORTANT: Okno konsoli to działający panel. Nie zamykaj go, dopóki korzystasz z vDeck.

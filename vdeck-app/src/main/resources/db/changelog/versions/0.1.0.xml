@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <!-- ============================================================================================ -->
+    <!-- VDEC-27: Change lists shown once after an update                                             -->
+    <!-- ============================================================================================ -->
+
+    <changeSet id="VDEC-27-create-release-notes-acknowledgements" author="vdeck">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="release_notes_acknowledgements"/>
+            </not>
+        </preConditions>
+        <createTable tableName="release_notes_acknowledgements">
+            <column name="version" type="VARCHAR(32)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>

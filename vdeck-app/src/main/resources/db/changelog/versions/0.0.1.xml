@@ -9,6 +9,11 @@
     <!-- ============================================================================================ -->
 
     <changeSet id="VDEC-24-create-panel-users" author="vdeck">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <tableExists tableName="panel_users"/>
+            </not>
+        </preConditions>
         <createTable tableName="panel_users">
             <column name="username" type="VARCHAR(64)">
                 <constraints primaryKey="true" nullable="false"/>
@@ -21,18 +26,6 @@
             </column>
             <column name="password_change_required" type="BOOLEAN">
                 <constraints nullable="false"/>
-            </column>
-        </createTable>
-    </changeSet>
-
-    <!-- ============================================================================================ -->
-    <!-- VDEC-27: Change lists shown once after an update                                             -->
-    <!-- ============================================================================================ -->
-
-    <changeSet id="VDEC-27-create-release-notes-acknowledgements" author="vdeck">
-        <createTable tableName="release_notes_acknowledgements">
-            <column name="version" type="VARCHAR(32)">
-                <constraints primaryKey="true" nullable="false"/>
             </column>
         </createTable>
     </changeSet>

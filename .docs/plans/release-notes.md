@@ -141,7 +141,7 @@ już istnieje, więc wpisu brak i panel się pokaże.
   `ReleaseNotesFilesTest`, testy serwisu i kontrolera.
 - Zmieniane:
   - `HomeController.java`, `templates/home/index.html`, `static/css/home.css`, `messages.properties`;
-  - `config/DataInitializer.java`, `db/changelog/versions/0.0.1.xml`, `vdeck-app/pom.xml` (build-info);
+  - `config/DataInitializer.java`, `db/changelog/versions/0.1.0.xml`, `vdeck-app/pom.xml` (build-info);
   - `vdeck-launcher/.../ReleaseVersion.java` → `vdeck-runtime/.../installation/ReleaseVersion.java`
     (oraz importy w `GitHubReleaseClient`, `LauncherMain`);
   - `.github/workflows/build.yml`, `.env/release.bat`.

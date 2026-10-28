@@ -270,7 +270,10 @@ decision.
   Hibernate runs with `ddl-auto: none`. `db/changelog/db.changelog-master.xml` only includes one
   `versions/<version>.xml` per project version; a released version file is never edited, and each
   task's changesets form one block headed by a separator comment with the task number and
-  description (`clean-code.md` §13). `spring.liquibase.analytics-enabled: false` keeps Liquibase off
+  description (`clean-code.md` §13). Every changeset starts with `preConditions onFail="MARK_RAN"`
+  checking that its change is not applied yet (e.g. `not tableExists`), so an existing object never
+  aborts startup; preconditions are outside the checksum, so adding them to a released file is the
+  one allowed edit. `spring.liquibase.analytics-enabled: false` keeps Liquibase off
   the network. `DatabaseSchemaIntegrationTest` validates the schema against the entities
 - Log4j2 is the required application logging API and backend; `spring-boot-starter-log4j2` is declared
   in `vdeck-app` and `spring-boot-starter-logging` is excluded from **every** starter that pulls it in

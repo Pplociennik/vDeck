@@ -1061,7 +1061,10 @@ jedna pod drugą.
 - Opcja `-logFile` nie jest edytowalna: ekran wyjaśnia, że panel wyznacza ją z `game.log.directory`.
 
 **Ustawienia gry** (`/game-settings`) ma na górze wyłącznie sekcję „Zestaw ustawień” z listą presetu
-świata. Modyfikatory i klucze świata leżą niżej, w sekcji „Zaawansowane”:
+świata. Nad listą stałe zestawienie opisuje wszystkie wartości (także „Brak”): co każdy preset zmienia
+względem wartości domyślnych gry (klucze `launchProfile.presetDescription.*`). Zestawienie jest
+statyczne i nie zależy od wybranej wartości. Modyfikatory i klucze świata leżą niżej, w sekcji
+„Zaawansowane”:
 
 - Stopka z przyciskiem zapisu znajduje się na dole karty również przy ukrytych ustawieniach
   zaawansowanych. Jeśli formularz nie mieści się w karcie, stopka znajduje się za polami i jest

@@ -10,8 +10,8 @@
 </head>
 <body>
 <!--
-    "Ustawienia gry" part of the launch profile: the world preset at the top and, in the "Zaawansowane"
-    section, the world modifiers and world keys. The advanced section starts hidden unless the
+    "Ustawienia gry" part of the launch profile: the world preset, preceded by a description of every
+    preset, at the top and, in the "Zaawansowane" section, the world modifiers and world keys. The advanced section starts hidden unless the
     administrator chose to show it; the checkbox above it toggles the section, and game-settings.js
     remembers the choice at once. Hiding the section only hides it - its fields are still submitted and
     their stored values still apply.
@@ -38,6 +38,20 @@
 
                 <fieldset class="form-section">
                     <legend class="form-section__title" th:text="#{gameSettings.section.preset}"></legend>
+                    <!-- What every list value changes, all in one place above the list. -->
+                    <div class="preset-guide">
+                        <p class="preset-guide__lead" th:text="#{gameSettings.presetGuide.lead}"></p>
+                        <dl class="preset-guide__list">
+                            <div class="preset-guide__entry">
+                                <dt th:text="#{launchProfile.option.noPreset}"></dt>
+                                <dd th:text="#{launchProfile.presetDescription.none}"></dd>
+                            </div>
+                            <div class="preset-guide__entry" th:each="preset : ${worldPresets}">
+                                <dt th:text="#{${'launchProfile.preset.' + preset.cliValue}}"></dt>
+                                <dd th:text="#{${'launchProfile.presetDescription.' + preset.cliValue}}"></dd>
+                            </div>
+                        </dl>
+                    </div>
                     <div class="form-field">
                         <label class="form-label" for="preset" th:text="#{launchProfile.field.preset}"></label>
                         <select class="form-input form-select" id="preset" name="preset" aria-describedby="preset-hint">

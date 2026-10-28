@@ -187,6 +187,8 @@ image::ekran-glowny.jpg[Ekran główny z wyspą akcji, stanem serwera i przycisk
 2:: *Stan serwera* — kropka w kolorze stanu i jego nazwa.
 3:: *Menu* — otwiera menu boczne z ekranami ustawień i konsolą.
 
+Po aktualizacji vDeck strona główna pokazuje pod wyspą listę zmian w nowej wersji, dopóki jej nie zamkniesz (<<co-nowego>>).
+
 === Wyspa akcji
 
 Wyspa akcji to pasek przycisków u góry każdego ekranu. Po najechaniu kursorem na przycisk
@@ -767,6 +769,7 @@ image::aktualizacja.png[Schemat automatycznej aktualizacji vDeck,pdfwidth=60%]
   `Pobrano vDeck ...`, `Instalowanie aktualizacji vDeck ...` i `Zaktualizowano vDeck do wersji ...`.
   Na wolnym łączu pobieranie może potrwać dłużej; dopóki postęp rośnie, vDeck czeka.
 . Panel uruchomi się już w nowej wersji. Nie zamykaj okna w czasie aktualizacji.
+. Po zalogowaniu strona główna pokaże listę zmian w nowej wersji (<<co-nowego>>).
 
 [cols="1,2",options="header"]
 |===
@@ -793,6 +796,26 @@ sprawdzanie aktualizacji zostało pominięte.`
 Poprzednia wersja programu i Twoje pliki ustawień sprzed aktualizacji zostają w katalogu
 `.vDeck\update\backup` do następnej aktualizacji. Kopia nie obejmuje zmian bazy `vdeck.db`
 wykonanych już przez nową wersję.
+
+[#co-nowego]
+=== Co nowego po aktualizacji
+
+Po aktualizacji strona główna pokazuje pod wyspą akcji kartę *Co nowego w vDeck*
+(<<fig-co-nowego>>). Znajdziesz w niej numer wersji, do której zaktualizowano vDeck, i listę zmian:
+nowości, zmiany w działaniu i poprawki, każda z krótkim opisem.
+
+[#fig-co-nowego]
+.Karta „Co nowego w vDeck” na stronie głównej
+image::co-nowego.jpg[Karta Co nowego w vDeck z wersją 0.0.1 i przyciskiem Zamknij,pdfwidth=80%]
+
+* Jeśli vDeck przeskoczył kilka wersji, na przykład gdy przez dłuższy czas nie był uruchamiany,
+  karta pokazuje zmiany każdej z nich, od najnowszej. Każda wersja ma swój nagłówek z numerem.
+* Karta zostaje na stronie głównej, dopóki nie klikniesz *Zamknij* — także po przejściu do innego
+  ekranu, wylogowaniu albo ponownym uruchomieniu panelu. Po kliknięciu nie pojawi się już do
+  następnej aktualizacji.
+* Po pierwszej instalacji vDeck karta się nie pojawia, bo nie ma jeszcze żadnych zmian do pokazania.
+
+Tę samą listę zmian znajdziesz w opisie każdej wersji na stronie wydań vDeck na GitHubie.
 
 [#przerwana-aktualizacja]
 === Przerwana aktualizacja

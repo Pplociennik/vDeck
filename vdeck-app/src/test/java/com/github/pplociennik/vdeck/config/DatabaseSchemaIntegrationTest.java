@@ -3,6 +3,7 @@ package com.github.pplociennik.vdeck.config;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -32,6 +33,9 @@ class DatabaseSchemaIntegrationTest {
     @Autowired
     private JdbcTemplate underTest;
 
+    @Autowired
+    private BuildProperties buildProperties;
+
     // =================================================================================================
     // TESTS
     // =================================================================================================
@@ -45,8 +49,20 @@ class DatabaseSchemaIntegrationTest {
         var appliedChangesets = underTest.queryForList( changelogQuery, String.class );
         Integer storedUsers = underTest.queryForObject( "SELECT COUNT(*) FROM panel_users", Integer.class );
         // THEN
-        assertThat( appliedChangesets ).contains( "VDEC-24-create-panel-users" );
+        assertThat( appliedChangesets ).contains( "VDEC-24-create-panel-users",
+                "VDEC-27-create-release-notes-acknowledgements" );
         assertThat( storedUsers ).isEqualTo( 1 );
+    }
+
+    /** A fresh installation stores its own version as acknowledged, so it shows no change list. */
+    @Test
+    void shouldAcknowledgeInstalledVersion_whenPanelStartsWithEmptyDatabase() {
+        // GIVEN
+        String installedVersion = buildProperties.getVersion().replace( "-SNAPSHOT", "" );
+        // WHEN
+        var acknowledged = underTest.queryForList( "SELECT version FROM release_notes_acknowledgements", String.class );
+        // THEN
+        assertThat( acknowledged ).containsExactly( installedVersion );
     }
 
     // =================================================================================================

@@ -25,4 +25,16 @@
         </createTable>
     </changeSet>
 
+    <!-- ============================================================================================ -->
+    <!-- VDEC-27: Change lists shown once after an update                                             -->
+    <!-- ============================================================================================ -->
+
+    <changeSet id="VDEC-27-create-release-notes-acknowledgements" author="vdeck">
+        <createTable tableName="release_notes_acknowledgements">
+            <column name="version" type="VARCHAR(32)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+
 </databaseChangeLog>

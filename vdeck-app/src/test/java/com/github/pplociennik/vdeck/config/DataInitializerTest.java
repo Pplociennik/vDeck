@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.config;
 
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelUser;
 import com.github.pplociennik.vdeck.feature.authentication.persistence.UserRepository;
+import com.github.pplociennik.vdeck.feature.releasenotes.service.ReleaseNotesService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,8 +18,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * Verifies that {@link DataInitializer} creates only a missing default administrator and stores an
- * encoded initial password.
+ * Verifies that {@link DataInitializer} creates only a missing default administrator, stores an encoded
+ * initial password and, on that fresh database, marks the installed version's change list as seen.
  */
 @ExtendWith( MockitoExtension.class )
 class DataInitializerTest {
@@ -33,6 +34,9 @@ class DataInitializerTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private ReleaseNotesService releaseNotesService;
+
     private DataInitializer underTest;
 
     // =================================================================================================
@@ -44,7 +48,7 @@ class DataInitializerTest {
      */
     @BeforeEach
     void setUp() {
-        underTest = new DataInitializer( userRepository, passwordEncoder );
+        underTest = new DataInitializer( userRepository, passwordEncoder, releaseNotesService );
     }
 
     // =================================================================================================
@@ -53,7 +57,7 @@ class DataInitializerTest {
 
     /**
      * Verifies that a missing administrator is persisted with an encoded password, the ADMIN role
-     * and mandatory password replacement.
+     * and mandatory password replacement, and that the fresh installation does not announce its version.
      */
     @Test
     void shouldCreateDefaultAdministrator_whenAccountDoesNotExist() throws Exception {
@@ -72,10 +76,12 @@ class DataInitializerTest {
         assertThat( savedUser.getPasswordHash() ).isEqualTo( "{bcrypt}encoded" );
         assertThat( savedUser.getRole().name() ).isEqualTo( "ADMIN" );
         assertThat( savedUser.isPasswordChangeRequired() ).isTrue();
+        verify( releaseNotesService ).acknowledgeInstalled();
     }
 
     /**
-     * Verifies that an existing administrator is preserved without encoding or saving defaults.
+     * Verifies that an existing administrator is preserved without encoding or saving defaults, and that
+     * an updated installation keeps its change list unacknowledged.
      */
     @Test
     void shouldPreserveExistingAdministrator_whenAccountExists() throws Exception {
@@ -88,6 +94,7 @@ class DataInitializerTest {
         // THEN
         verify( passwordEncoder, never() ).encode( "admin" );
         verify( userRepository, never() ).save( org.mockito.ArgumentMatchers.any() );
+        verify( releaseNotesService, never() ).acknowledgeInstalled();
     }
 
     /**
@@ -135,7 +142,7 @@ class DataInitializerTest {
         // no repository
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new DataInitializer( null, passwordEncoder ) );
+        Throwable thrown = catchThrowable( () -> new DataInitializer( null, passwordEncoder, releaseNotesService ) );
 
         // THEN
         assertThat( thrown )
@@ -152,11 +159,28 @@ class DataInitializerTest {
         // no password encoder
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> new DataInitializer( userRepository, null ) );
+        Throwable thrown = catchThrowable( () -> new DataInitializer( userRepository, null, releaseNotesService ) );
 
         // THEN
         assertThat( thrown )
                 .isInstanceOf( NullPointerException.class )
                 .hasMessageContaining( "passwordEncoder must not be null" );
+    }
+
+    /**
+     * Verifies that a null release notes service is rejected by the constructor contract.
+     */
+    @Test
+    void shouldThrowException_whenReleaseNotesServiceIsNull() {
+        // GIVEN
+        // no release notes service
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> new DataInitializer( userRepository, passwordEncoder, null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "releaseNotesService must not be null" );
     }
 }

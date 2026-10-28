@@ -161,6 +161,7 @@ vdeck/                                           ← parent i agregator Maven
 │       │   │   ├── DurableFiles
 │       │   │   ├── RunLogFile / RunLogRetention
 │       │   │   ├── ServerActivityCheck
+│       │   │   ├── ReleaseVersion               ← MAJOR.MINOR.PATCH (launcher i panel)
 │       │   │   ├── ConsoleMessageIf / ConsoleMessage ← klucze tekstów konsoli
 │       │   │   ├── I18n                         ← teksty z console-messages.properties
 │       │   │   └── UserConsole
@@ -182,7 +183,6 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── LauncherMain                         ← bootstrap bez loggera, log uruchomienia
 │       ├── VdeckLauncher                        ← orkiestracja startu
 │       ├── StartSettings                        ← vDeck-start.properties
-│       ├── ReleaseVersion
 │       ├── GitHubReleaseClient
 │       ├── ReleaseDownloader
 │       ├── PackageExtractor                     ← zip4j i kontrola wersji paczki
@@ -237,7 +237,25 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │       └── impl/
         │   │   │           └── PanelUserServiceImpl
         │   │   ├── home/                        ← strona główna panelu
-        │   │   │   └── HomeController
+        │   │   │   └── HomeController           ← dodaje niepotwierdzone listy zmian
+        │   │   ├── releasenotes/                ← panel „Co nowego w vDeck” (AD-029)
+        │   │   │   ├── ReleaseNotesController   ← POST /release-notes/acknowledge
+        │   │   │   ├── ReleaseNotesExceptionHandler
+        │   │   │   ├── ReleaseNotesMessage
+        │   │   │   ├── domain/
+        │   │   │   │   ├── ReleaseNotes / ReleaseNotesSection / ReleaseNotesEntry
+        │   │   │   │   ├── ReleaseNotesCategory ← Nowości, Zmiany, Poprawki
+        │   │   │   │   └── ReleaseNotesAcknowledgement
+        │   │   │   ├── exc/
+        │   │   │   │   └── ReleaseNotesException
+        │   │   │   ├── persistence/
+        │   │   │   │   └── ReleaseNotesAcknowledgementRepository
+        │   │   │   └── service/
+        │   │   │       ├── ReleaseNotesService
+        │   │   │       └── impl/
+        │   │   │           ├── ReleaseNotesServiceImpl
+        │   │   │           ├── ReleaseNotesReader ← classpath*:release-notes/*.md
+        │   │   │           └── ReleaseNotesParser
         │   │   ├── server/                      ← sterowanie i prezentacja stanu runtime
         │   │   │   ├── ServerController
         │   │   │   ├── ServerExceptionHandler
@@ -343,6 +361,7 @@ vdeck/                                           ← parent i agregator Maven
         ├── main/resources/
         │   ├── application.yaml
         │   ├── messages.properties              ← polski zestaw tekstów interfejsu
+        │   ├── release-notes/                   ← <X.Y.Z>.md, lista zmian wersji (AD-029)
         │   ├── templates/
         │   │   ├── common/                      ← reużywalne komponenty: island, password-rules, side-menu
         │   │   ├── home/
@@ -420,6 +439,10 @@ Implementacja zatrzymania rozszerza powyższe poddrzewa o:
 Konsola (feature `logs`, opisany w drzewie powyżej) dodaje szablon `templates/logs/console.html`,
 `static/js/console.js` i `static/css/console.css`.
 
+Panel „Co nowego w vDeck” (feature `releasenotes`, AD-029) jest osadzony w `templates/home/index.html`
+i ma style w `static/css/home.css`. Zainstalowaną wersję panel czyta z `BuildProperties`, które
+generuje cel `build-info` wtyczki `spring-boot-maven-plugin` w `vdeck-app/pom.xml`.
+
 
 ## 4. Persystencja
 
@@ -451,6 +474,10 @@ Changesety są w XML. `db.changelog-master.xml` dołącza w kolejności wydań p
 opisuje `rules/clean-code.md` §13. Liquibase nie wysyła telemetrii (`analytics-enabled: false`).
 Flyway nie jest używany. Dla SQLite wykorzystywany jest dialekt z
 `org.hibernate.orm:hibernate-community-dialects`.
+
+Tabela `release_notes_acknowledgements` (encja `ReleaseNotesAcknowledgement`, klucz `version`
+`VARCHAR(32)`) przechowuje wersje, których listę zmian administrator zamknął (AD-029). Świeża baza
+dostaje wpis zainstalowanej wersji od `DataInitializer`, razem z kontem `admin`.
 
 Granice pakietów są chronione testami architektonicznymi. Zależności od `jakarta.persistence` mogą
 występować w encjach należących do `..domain..` oraz w technicznych podpakietach `..persistence..`.
@@ -942,6 +969,7 @@ jeden znacznik pending, aby odczyty nie tworzyły nieograniczonej kolejki skanó
 | Widoki | Thymeleaf, fragmenty HTMX i natywne moduły ES bez obowiązkowego procesu budowania frontendu. |
 | Nawigacja | Menu boczne jako wspólny fragment `common/side-menu.html`: domyślnie ukryte, otwierane okrągłym przyciskiem w lewym dolnym rogu, z pozycjami pogrupowanymi w tytułowane sekcje; w obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach działające jak akordeon. Drzewo jest zapisane w znacznikach fragmentu, bez modelu w Javie. Menu nie jest osadzane na ekranie wymuszonej zmiany hasła początkowego. Obok przycisku menu, stycznie z prawej strony, leży mniejszy okrągły przycisk strony głównej — osobny fragment `common/home-button.html`, osadzany przez te same widoki. |
 | Profil uruchomieniowy | Dwa ekrany otwierane z sekcji „Konfiguracja” menu bocznego: „Serwer” (`/server-settings` — tożsamość, dostęp, świat i zapis, kopie automatyczne) oraz „Ustawienia gry” (`/game-settings` — zestaw ustawień świata na górze, a modyfikatory i klucze świata w sekcji „Zaawansowane”, domyślnie ukrytej, z zapamiętywaną widocznością). Pola odpowiadają opcjom `valheim_server.exe` z instrukcji serwera dedykowanego, są pogrupowane w sekcje i każde ma opis z dozwolonymi wartościami. Każdy ekran zapisuje atomowo wyłącznie własne ustawienia; hasło serwera nigdy nie wraca do przeglądarki. Zmiany obowiązują od następnego uruchomienia serwera. |
+| Lista zmian | Na stronie głównej panel „Co nowego w vDeck” (AD-029) pokazuje, od najnowszej, zmiany każdej wersji nowszej niż ostatnio potwierdzona i nie nowszej od zainstalowanej, z numerem każdej wersji. Bez żadnego potwierdzenia (aktualizacja z wersji sprzed tej funkcji) pokazuje tylko wersję zainstalowaną. Panel znika dopiero po „Zamknij” (`POST /release-notes/acknowledge`), które zapisuje zainstalowaną wersję. Świeża instalacja potwierdza swoją wersję przy starcie i panelu nie pokazuje. Treść pochodzi z `release-notes/<X.Y.Z>.md` w classpath: sekcje `## Nowości`, `## Zmiany`, `## Poprawki` w tej kolejności, każda pozycja to `- **Tytuł**` (do 80 znaków) i jedna wcięta linia opisu (do 200 znaków). Panel nie renderuje Markdownu, tylko wyświetla te pola przez `th:text`; uszkodzony plik jest pomijany z ostrzeżeniem w logu, a `ReleaseNotesFilesTest` zatrzymuje go w buildzie. Bez `BuildProperties` (uruchomienie z IDE) panel jest wyłączony. Ten sam plik jest opisem GitHub Release: workflow podaje go jako `--notes-file` z `--generate-notes`, a `.env/release.bat` i workflow przerywają wydanie, gdy plik nie opisuje żadnej zmiany. `release.bat` zakłada pusty plik następnej wersji z szablonu `.env/release-notes-template.md`. |
 | Konsola | Ekran `/console` z sekcji „Procesy” menu bocznego pokazuje log bieżącego uruchomienia. `console.js` co sekundę pobiera `GET /console/log?offset=N`; serwer czyta plik z `ServerStatus.getLogFile()` od podanego bajtu (najwyżej 256 KiB, do ostatniego pełnego wiersza), a bez pozycji zwraca ostatnie 256 KiB. Bez SSE i bez bufora w pamięci. |
 | Bezpieczeństwo żądań | Włączone CSRF; token jest dodawany do `hx-post` przez `htmx:configRequest`. |
 

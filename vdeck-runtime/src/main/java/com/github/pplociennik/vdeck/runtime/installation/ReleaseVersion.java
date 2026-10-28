@@ -1,4 +1,4 @@
-package com.github.pplociennik.vdeck.launcher;
+package com.github.pplociennik.vdeck.runtime.installation;
 
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
@@ -15,6 +15,9 @@ import static java.util.Objects.requireNonNull;
  * build suffixes are not release versions: a {@code -SNAPSHOT} build never checks for updates, and a
  * release is installed only when it is strictly newer, so the launcher never downgrades.
  *
+ * <p>Shared by the launcher, which compares the installed version with the latest GitHub release, and by
+ * the panel, which orders the per-version change lists shown after an update.
+ *
  * @param major
  *         major number
  * @param minor
@@ -22,10 +25,17 @@ import static java.util.Objects.requireNonNull;
  * @param patch
  *         patch number
  */
-record ReleaseVersion( int major, int minor, int patch ) implements Comparable< ReleaseVersion > {
+public record ReleaseVersion( int major, int minor, int patch ) implements Comparable< ReleaseVersion > {
 
+    /**
+     * Exact release version: three dot-separated numbers without leading zeros, at most nine digits each
+     * so every number fits an {@code int}.
+     */
     private static final Pattern FORMAT = Pattern.compile( "(0|[1-9]\\d{0,8})\\.(0|[1-9]\\d{0,8})\\.(0|[1-9]\\d{0,8})" );
 
+    /**
+     * Numeric order of major, minor and patch numbers.
+     */
     private static final Comparator< ReleaseVersion > ORDER = Comparator.comparingInt( ReleaseVersion::major )
             .thenComparingInt( ReleaseVersion::minor ).thenComparingInt( ReleaseVersion::patch );
 
@@ -35,7 +45,7 @@ record ReleaseVersion( int major, int minor, int patch ) implements Comparable< 
      * @throws IllegalArgumentException
      *         if a number is negative
      */
-    ReleaseVersion {
+    public ReleaseVersion {
         if ( major < 0 || minor < 0 || patch < 0 ) {
             throw new IllegalArgumentException( "Version numbers must not be negative" );
         }
@@ -48,7 +58,7 @@ record ReleaseVersion( int major, int minor, int patch ) implements Comparable< 
      *         text such as {@code 1.2.3}
      * @return parsed version, or an empty optional for anything else, including {@code -SNAPSHOT} builds
      */
-    static @Nonnull Optional< ReleaseVersion > parse( @Nullable String text ) {
+    public static @Nonnull Optional< ReleaseVersion > parse( @Nullable String text ) {
         if ( text == null ) {
             return Optional.empty();
         }
@@ -78,17 +88,17 @@ record ReleaseVersion( int major, int minor, int patch ) implements Comparable< 
      * Reports whether this version is strictly newer.
      *
      * @param other
-     *         installed version
+     *         version to compare with, for example the installed one
      * @return {@code true} only for a strictly higher version
      * @throws NullPointerException
      *         if the other version is null
      */
-    boolean isNewerThan( @Nonnull ReleaseVersion other ) {
+    public boolean isNewerThan( @Nonnull ReleaseVersion other ) {
         return compareTo( other ) > 0;
     }
 
     /**
-     * Returns the version text used in tags, asset names and manifests.
+     * Returns the version text used in tags, asset names, manifests and change list file names.
      *
      * @return {@code MAJOR.MINOR.PATCH}
      */

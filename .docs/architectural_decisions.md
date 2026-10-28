@@ -412,3 +412,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** Schemat `vdeck.db` zmieniają tylko changesety Liquibase w XML, stosowane przez Spring Boot przy starcie, a Hibernate ma `ddl-auto: none`.
 - **Powód:** `ddl-auto: update` nie przekształca ani nie usuwa kolumn i nie zostawia historii schematu.
 - **Konsekwencja:** Zmiana encji wymaga changesetu w pliku XML bieżącej wersji, a plików wydanych wersji nie zmieniamy.
+
+## AD-029 — Lista zmian wersji w panelu
+
+- **Status:** obowiązująca (2026-10-28)
+- **Decyzja:** Plik `release-notes/<X.Y.Z>.md` jest opisem GitHub Release i panelu „Co nowego w vDeck”, ukrywanego po „Zamknij” zapisanym w `release_notes_acknowledgements`.
+- **Powód:** `--generate-notes` dawał angielskie tytuły PR, a panel nie pokazywał zmian po aktualizacji.
+- **Konsekwencja:** Zmiana widoczna dla użytkownika dodaje pozycję do pliku bieżącej wersji, a wydanie bez opisanej zmiany jest przerwane.

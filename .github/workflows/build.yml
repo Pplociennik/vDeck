@@ -1,6 +1,6 @@
 # Builds and tests every push and pull request. A push to main whose project version is a full
 # release (no -SNAPSHOT) and has no v<version> tag yet also packages the distribution ZIP and
-# publishes it as a GitHub Release (AD-023). Installed launchers read the release marked latest and
+# publishes it as a GitHub Release (AD-023) described by the version's change list (AD-029). Installed launchers read the release marked latest and
 # accept only the asset vDeck-dist-<version>.zip with its SHA-256 digest (AD-024); the repository must
 # have immutable releases enabled.
 name: Build
@@ -76,14 +76,22 @@ jobs:
           $zip = "target/vDeck-dist-${{ steps.mode.outputs.version }}.zip"
           if ( -not ( Test-Path $zip -PathType Leaf ) ) { throw "Distribution $zip was not created." }
 
+      # The version's change list is the description users read; GitHub appends the list of merged PRs.
       - name: Publish release
         if: steps.mode.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.mode.outputs.version }}
-        run: >-
-          gh release create "v$env:VERSION" "target/vDeck-dist-$env:VERSION.zip"
-          --target $env:GITHUB_SHA --title "vDeck $env:VERSION" --generate-notes --latest
+        run: |
+          $notes = "vdeck-app/src/main/resources/release-notes/$env:VERSION.md"
+          if ( -not ( Test-Path $notes -PathType Leaf ) ) { throw "Change list $notes does not exist." }
+          if ( -not ( Select-String -Path $notes -Pattern '^- \*\*' -Quiet ) ) {
+              throw "Change list $notes describes no change."
+          }
+          gh release create "v$env:VERSION" "target/vDeck-dist-$env:VERSION.zip" `
+              --target $env:GITHUB_SHA --title "vDeck $env:VERSION" `
+              --notes-file $notes --generate-notes --latest
+          if ( $LASTEXITCODE -ne 0 ) { exit $LASTEXITCODE }
 
       - name: Upload test reports
         if: failure()

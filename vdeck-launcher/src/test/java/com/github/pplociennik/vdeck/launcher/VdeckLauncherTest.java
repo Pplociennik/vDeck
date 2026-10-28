@@ -5,6 +5,7 @@ import com.github.pplociennik.vdeck.runtime.installation.HandoffProtocol;
 import com.github.pplociennik.vdeck.runtime.installation.HandoffResult;
 import com.github.pplociennik.vdeck.runtime.installation.HandoffRole;
 import com.github.pplociennik.vdeck.runtime.installation.InstallationLock;
+import com.github.pplociennik.vdeck.runtime.installation.ReleaseVersion;
 import com.github.pplociennik.vdeck.runtime.installation.ServerActivityCheck;
 import com.github.pplociennik.vdeck.runtime.installation.SuccessorStarter;
 import com.github.pplociennik.vdeck.runtime.installation.UpdateJournalHeader;

@@ -3,6 +3,7 @@ package com.github.pplociennik.vdeck.config;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelRole;
 import com.github.pplociennik.vdeck.feature.authentication.domain.PanelUser;
 import com.github.pplociennik.vdeck.feature.authentication.persistence.UserRepository;
+import com.github.pplociennik.vdeck.feature.releasenotes.service.ReleaseNotesService;
 import jakarta.annotation.Nonnull;
 import lombok.extern.log4j.Log4j2;
 import org.springframework.boot.CommandLineRunner;
@@ -28,21 +29,31 @@ class DataInitializer implements CommandLineRunner {
 
     private final PasswordEncoder passwordEncoder;
 
+    private final ReleaseNotesService releaseNotesService;
+
     /**
-     * Creates the initializer using the panel-user store and configured password encoder.
+     * Creates the initializer using the panel-user store, configured password encoder and release notes
+     * service.
      *
      * @param userRepository
      *         repository used to find and create the default account
      * @param passwordEncoder
      *         encoder used before the initial password is persisted
+     * @param releaseNotesService
+     *         service marking the installed version's change list as seen on a fresh installation
      */
-    DataInitializer( @Nonnull UserRepository userRepository, @Nonnull PasswordEncoder passwordEncoder ) {
+    DataInitializer( @Nonnull UserRepository userRepository,
+                     @Nonnull PasswordEncoder passwordEncoder,
+                     @Nonnull ReleaseNotesService releaseNotesService ) {
         this.userRepository = requireNonNull( userRepository, "userRepository must not be null" );
         this.passwordEncoder = requireNonNull( passwordEncoder, "passwordEncoder must not be null" );
+        this.releaseNotesService = requireNonNull( releaseNotesService, "releaseNotesService must not be null" );
     }
 
     /**
      * Creates the default administrator when no account with its username exists.
+     * A missing administrator means a fresh database, so the installed version's change list is marked as
+     * seen at the same time: a fresh installation has nothing new to announce, only an update does.
      * A persistence failure is propagated so the application cannot start without usable credentials.
      *
      * @param args
@@ -61,5 +72,6 @@ class DataInitializer implements CommandLineRunner {
         PanelUser defaultAdmin = new PanelUser( DEFAULT_ADMIN_USERNAME, passwordHash, PanelRole.ADMIN, true );
         userRepository.save( defaultAdmin );
         log.info( "Created the default panel administrator; password change is required" );
+        releaseNotesService.acknowledgeInstalled();
     }
 }

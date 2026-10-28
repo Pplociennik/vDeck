@@ -3,6 +3,7 @@ package com.github.pplociennik.vdeck.launcher;
 import com.github.pplociennik.vdeck.runtime.installation.DistributionItem;
 import com.github.pplociennik.vdeck.runtime.installation.DurableFiles;
 import com.github.pplociennik.vdeck.runtime.installation.JarManifests;
+import com.github.pplociennik.vdeck.runtime.installation.ReleaseVersion;
 import com.github.pplociennik.vdeck.runtime.installation.UpdateLayout;
 import com.github.pplociennik.vdeck.runtime.snapshot.FileWorldSnapshotStore;
 import jakarta.annotation.Nonnull;

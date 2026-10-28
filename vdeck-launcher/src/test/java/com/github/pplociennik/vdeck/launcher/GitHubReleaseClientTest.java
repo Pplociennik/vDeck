@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.launcher;
 
+import com.github.pplociennik.vdeck.runtime.installation.ReleaseVersion;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

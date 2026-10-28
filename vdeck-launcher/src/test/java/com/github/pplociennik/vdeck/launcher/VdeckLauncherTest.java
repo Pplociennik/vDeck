@@ -131,6 +131,27 @@ class VdeckLauncherTest {
     }
 
     /**
+     * Verifies that a panel exiting before it takes the lock over, as after its own start check, keeps
+     * the console window open until Enter and ends the start with exit code 1.
+     */
+    @Test
+    void shouldWaitForEnter_whenPanelExitsBeforeHandoff() throws Exception {
+        // GIVEN
+        given( preparation.prepare( INSTALLED ) ).willReturn( Optional.empty() );
+        given( successors.handOff( any(), eq( HandoffRole.PANEL ), any() ) ).willAnswer( invocation -> {
+            InstallationLock lock = invocation.getArgument( 0 );
+            return new HandoffResult.Failed( Optional.of( lock ) );
+        } );
+
+        // WHEN
+        int exitCode = underTest.run( LauncherArguments.parse( START ) );
+
+        // THEN
+        assertThat( exitCode ).isEqualTo( 1 );
+        then( console ).should().showErrorAndWait( LauncherMessage.PANEL_START_FAILED );
+    }
+
+    /**
      * Verifies that disabled automatic updates never contact GitHub.
      */
     @Test

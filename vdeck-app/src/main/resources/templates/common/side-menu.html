@@ -17,7 +17,9 @@
     rendered as a standalone page. The panel starts closed and inert, and side-menu.js drives it. A view
     reached from the menu passes its entry id as activeEntry, for example
     ~{common/side-menu :: sideMenu(activeEntry='gameSettings')}, so the entry is marked as the current
-    page; other views embed the fragment without it.
+    page; other views embed the fragment without it. The "Serwer" branch holds one entry per panel of the
+    server settings, with ids serverSettings.server, serverSettings.access, serverSettings.world and
+    serverSettings.innerServerBackups.
 -->
 <div class="side-menu" th:fragment="sideMenu" data-side-menu>
     <button class="side-menu-toggle round-button" type="button" aria-expanded="false" aria-controls="side-menu-panel"
@@ -36,7 +38,23 @@
                     <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.configuration', 'side-menu-section-title-configuration')}"></h2>
                     <ul class="side-menu-list side-menu-list--level-1">
                         <li class="side-menu-item">
-                            <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings', 'icon-server', '/server-settings', 'serverSettings')}"></a>
+                            <button th:replace="~{common/side-menu :: branchToggle('sideMenu.entry.serverSettings', 'icon-server', 'side-menu-children-server-settings')}"></button>
+                            <div class="side-menu-children" id="side-menu-children-server-settings" inert>
+                                <ul class="side-menu-list side-menu-list--level-2">
+                                    <li class="side-menu-item">
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings.server', null, '/server-settings/server', 'serverSettings.server')}"></a>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings.access', null, '/server-settings/access', 'serverSettings.access')}"></a>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings.world', null, '/server-settings/world', 'serverSettings.world')}"></a>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.serverSettings.innerServerBackups', null, '/server-settings/inner-server-backups', 'serverSettings.innerServerBackups')}"></a>
+                                    </li>
+                                </ul>
+                            </div>
                         </li>
                         <li class="side-menu-item">
                             <a th:replace="~{common/side-menu :: link('sideMenu.entry.gameSettings', 'icon-sliders', '/game-settings', 'gameSettings')}"></a>

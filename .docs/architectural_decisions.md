@@ -179,11 +179,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
     Wyjątkiem jest lista rozwijana: jej opis nie wymienia możliwych wartości, bo pokazuje je sama
     lista, ani wartości domyślnej, gdy lista oznacza ją jako domyślną. Opis pola wyboru (checkbox) nie
     podaje wartości ani wartości domyślnej — mówi tylko, co oznacza zaznaczenie. Opcje list wyboru pokazują nazwę polską i wartość techniczną, np. „Trudno (hard)”.
-  - **Układ responsywny.** Na telefonie i każdym ekranie pionowym sekcje układają się w jednej kolumnie.
-    Na ekranie poziomym karta się rozszerza: od 60 rem szerokości do 76 rem, od 96 rem do 118 rem.
-    Formularz z kolumnami sekcji (`.settings-form--columns`) stawia wtedy dwie kolumny obok siebie, a
-    każda kolumna układa swoje sekcje jedna pod drugą; pola każdej sekcji rozkładają się na tyle kolumn,
-    ile się zmieści, nie węższych niż czytelne minimum.
+  - **Układ responsywny.** Na telefonie i każdym ekranie pionowym pola układają się w jednej kolumnie.
+    Na ekranie poziomym karta się rozszerza: od 60 rem szerokości do 76 rem, od 96 rem do 118 rem, a
+    pola każdej sekcji rozkładają się na tyle kolumn, ile się zmieści, nie węższych niż czytelne
+    minimum.
   - **Sekcja zaawansowana.** Ustawienia rzadko zmieniane albo wymagające znajomości gry trafiają do
     sekcji „Zaawansowane” pod ustawieniami podstawowymi. Sekcja jest domyślnie ukryta; pokazuje ją
     wyśrodkowane pole wyboru „Konfiguracja zaawansowana” nad nią. Stan pola jest zapamiętywany w
@@ -200,7 +199,7 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
   przewijanie. Ukrycie ustawień zaawansowanych skraca panel dla administratora, który ich nie
   potrzebuje, a zapamiętany wybór oszczędza mu powtarzania go przy każdej wizycie.
 - **Konsekwencja:** Nowy panel korzysta z `.panel-frame`, `.view-card` oraz klas formularza i ustawień
-  z `base.css` (`.view-card--wide`, `.settings-form`, `.settings-column`, `.settings-fields`,
+  z `base.css` (`.view-card--wide`, `.settings-form`, `.settings-fields`,
   `.settings-message`, `.settings-footer`, `.settings-advanced-toggle`) i nie wprowadza własnego
   sposobu przewijania, wysokości ani stylu sekcji. Reguły te trafiły do `base.css`, gdy wzorzec
   przejął drugi panel; nie są kopiowane do arkuszy widoków. Każda sekcja zaawansowana ma własne
@@ -419,3 +418,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** Plik `release-notes/<X.Y.Z>.md` jest opisem GitHub Release i panelu „Co nowego w vDeck”, ukrywanego po „Zamknij” zapisanym w `release_notes_acknowledgements`.
 - **Powód:** `--generate-notes` dawał angielskie tytuły PR, a panel nie pokazywał zmian po aktualizacji.
 - **Konsekwencja:** Zmiana widoczna dla użytkownika dodaje pozycję do pliku bieżącej wersji, a wydanie bez opisanej zmiany jest przerwane.
+
+## AD-030 — Panele ustawień serwera w podmenu
+
+- **Status:** obowiązująca (2026-10-28)
+- **Decyzja:** Ustawienia serwera z AD-011 edytują cztery panele gałęzi „Serwer” menu bocznego (`/server-settings/<panel>`), każdy z własnym formularzem i zapisem tylko swoich ustawień.
+- **Powód:** Jeden formularz czterech sekcji był trudny w przeglądaniu, zwłaszcza na telefonie.
+- **Konsekwencja:** Reguła hasła względem nazwy serwera sprawdza zapisaną wartość z drugiego panelu.

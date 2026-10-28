@@ -1,4 +1,4 @@
-%% Diagram sekwencji: zapis profilu uruchomieniowego z ekranów „Serwer” i „Ustawienia gry”
+%% Diagram sekwencji: zapis profilu uruchomieniowego z paneli „Serwer” i ekranu „Ustawienia gry”
 sequenceDiagram
     autonumber
     actor A as Administrator
@@ -8,42 +8,48 @@ sequenceDiagram
     participant F as SystemPropertiesService<br/>(valheim-server.properties)
     participant H as LaunchProfileExceptionHandler
 
-    A->>C: POST /server-settings albo /game-settings<br/>(formularz + CSRF)
+    A->>C: POST /server-settings/{server,access,world,inner-server-backups}<br/>albo /game-settings (formularz + CSRF)
     C->>C: walidacja adnotacji formularza
     alt błąd formatu lub zakresu
         C-)H: LaunchProfileUpdateException(INVALID_INPUT, formularz)
-        H-->>A: redirect na ten sam ekran,<br/>flash: komunikat i wartości bez hasła
+        H-->>A: redirect na ten sam panel,<br/>flash: komunikat i wartości bez hasła
     else pola poprawne
-        alt ekran „Serwer”
-            C->>S: updateServerSettings(form)
+        alt panel „Ogólne”
+            C->>S: updateServerIdentity(form)
+            S->>S: zapisane hasło nie może być<br/>fragmentem nowej nazwy
+        else panel „Dostęp”
+            C->>S: updateServerAccess(form)
+            S->>S: nowe, zachowane albo usunięte hasło<br/>nie może być fragmentem zapisanej nazwy
+        else panel „Świat i zapis”
+            C->>S: updateWorldSave(form)
             S->>P: getAbsolutePath(katalog zapisu)
             P-->>S: ścieżka w katalogu instalacji<br/>albo PathResolutionException
-            S->>F: getValue(FILE_NAME, server.password)<br/>gdy pole hasła jest puste
-            S->>S: hasło nie może być fragmentem nazwy
+        else panel „Kopie automatyczne”
+            C->>S: updateServerBackups(form)
         else ekran „Ustawienia gry”
             C->>S: updateGameSettings(form)
             S->>S: preset i modyfikatory z listy<br/>dozwolonych wartości
         end
         alt dowolna reguła odrzuca ustawienia
             S-)H: LaunchProfileUpdateException(klucz, formularz)<br/>bez przyczyny, INFO
-            H-->>A: redirect na ten sam ekran,<br/>flash: komunikat i wartości bez hasła
+            H-->>A: redirect na ten sam panel,<br/>flash: komunikat i wartości bez hasła
         else ustawienia poprawne
-            S->>F: setValues(FILE_NAME,<br/>wyłącznie ustawienia tego ekranu)
+            S->>F: setValues(FILE_NAME,<br/>wyłącznie ustawienia tego panelu)
             F->>F: plik tymczasowy, force, ATOMIC_MOVE
             alt zapis nieudany
                 F-->>S: UncheckedIOException<br/>(poprzednia pamięć bez zmian)
                 S-)H: LaunchProfileUpdateException(SAVE_FAILED)<br/>z przyczyną, ERROR ze stack trace
-                H-->>A: redirect na ten sam ekran,<br/>flash: komunikat i wartości bez hasła
+                H-->>A: redirect na ten sam panel,<br/>flash: komunikat i wartości bez hasła
             else zapis udany
                 F->>F: publikacja pełnego zestawu wartości w pamięci
-                S->>S: nowa LaunchConfiguration z zapisanych wartości<br/>i niezmienionych ustawień drugiego ekranu
+                S->>S: nowa LaunchConfiguration z zapisanych wartości<br/>i niezmienionych ustawień pozostałych paneli
                 Note over S: Bez ponownego odczytu ustawień. Zapisy są serializowane.<br/>Start odczytuje kompletną starą albo nową wersję
                 S-->>C: powrót bez wyjątku
-                C-->>A: redirect na ten sam ekran z ?saved
+                C-->>A: redirect na ten sam panel z ?saved
             end
         end
     end
     opt po przekierowaniu z komunikatem
-        A->>C: GET ekranu z atrybutami flash
+        A->>C: GET panelu z atrybutami flash
         C-->>A: formularz z przekazanych wartości<br/>zamiast zapisanego profilu
     end

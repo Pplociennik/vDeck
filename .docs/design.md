@@ -274,9 +274,9 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │           ├── ServerLogRetention   ← usuwanie starych katalogów dziennych
         │   │   │           └── ServerStartValidator
         │   │   ├── launch/                      ← profil uruchomieniowy (plik, AD-013)
-        │   │   │   ├── ServerSettingsController ← ekran „Serwer”
+        │   │   │   ├── ServerSettingsController ← cztery panele gałęzi „Serwer”
         │   │   │   ├── GameSettingsController   ← ekran „Ustawienia gry”
-        │   │   │   ├── LaunchProfileExceptionHandler ← @ControllerAdvice obu ekranów
+        │   │   │   ├── LaunchProfileExceptionHandler ← @ControllerAdvice obu kontrolerów
         │   │   │   ├── LaunchProfileMessage
         │   │   │   ├── domain/
         │   │   │   │   ├── LaunchProperty
@@ -286,7 +286,11 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │   │   ├── WorldModifier
         │   │   │   │   └── WorldKey
         │   │   │   ├── dto/
-        │   │   │   │   ├── ServerSettingsForm
+        │   │   │   │   ├── LaunchProfileForm    ← wspólny kontrakt formularzy paneli
+        │   │   │   │   ├── ServerIdentityForm
+        │   │   │   │   ├── ServerAccessForm
+        │   │   │   │   ├── WorldSaveForm
+        │   │   │   │   ├── ServerBackupsForm
         │   │   │   │   └── GameSettingsForm
         │   │   │   ├── exc/
         │   │   │   │   └── LaunchProfileUpdateException
@@ -367,7 +371,8 @@ vdeck/                                           ← parent i agregator Maven
         │   │   ├── home/
         │   │   │   └── index.html
         │   │   ├── launch/
-        │   │   │   ├── server-settings.html
+        │   │   │   ├── server-settings.html     ← wspólny widok paneli gałęzi „Serwer”
+        │   │   │   ├── server-settings-panels.html ← pola każdego panelu jako fragmenty
         │   │   │   └── game-settings.html
         │   │   └── authentication/
         │   │       ├── change-password.html
@@ -560,7 +565,7 @@ Konfiguracja vDeck jest rozdzielona według właściciela i nie miesza się w je
 |---|---|---|---|
 | `application.yaml` w jarze | Aplikacja | Infrastruktura Spring Boot: datasource, port, poziomy logowania, cykl życia kontekstu. | Tylko przez nowe wydanie. |
 | `.vDeck/config/vDeck.properties` w katalogu instalacji | Użytkownik | Ustawienia aplikacyjne panelu, docelowo edytowalne z GUI. | Ręcznie oraz z panelu. |
-| `.vDeck/config/valheim-server.properties` w katalogu instalacji | Użytkownik | Profil uruchomieniowy serwera Valheim (AD-013). | Ręcznie oraz z ekranów „Serwer” i „Ustawienia gry”. |
+| `.vDeck/config/valheim-server.properties` w katalogu instalacji | Użytkownik | Profil uruchomieniowy serwera Valheim (AD-013). | Ręcznie oraz z paneli gałęzi „Serwer” i ekranu „Ustawienia gry”. |
 
 Zgodnie z `AD-010` wszystkie pliki ustawień leżą w podkatalogu `.vDeck/config` katalogu instalacji,
 nigdy w `src/main/resources` ani bezpośrednio obok `vdeck.jar`. Ich lokalizację wyznacza wyłącznie
@@ -969,7 +974,7 @@ jeden znacznik pending, aby odczyty nie tworzyły nieograniczonej kolejki skanó
 | Sesje | Maksymalnie jedna aktywna sesja; nowsze logowanie unieważnia wcześniejszą sesję. |
 | Widoki | Thymeleaf, fragmenty HTMX i natywne moduły ES bez obowiązkowego procesu budowania frontendu. |
 | Nawigacja | Menu boczne jako wspólny fragment `common/side-menu.html`: domyślnie ukryte, otwierane okrągłym przyciskiem w lewym dolnym rogu, z pozycjami pogrupowanymi w tytułowane sekcje; w obrębie sekcji pozycje tworzą drzewo o co najwyżej trzech poziomach działające jak akordeon. Drzewo jest zapisane w znacznikach fragmentu, bez modelu w Javie. Menu nie jest osadzane na ekranie wymuszonej zmiany hasła początkowego. Obok przycisku menu, stycznie z prawej strony, leży mniejszy okrągły przycisk strony głównej — osobny fragment `common/home-button.html`, osadzany przez te same widoki. |
-| Profil uruchomieniowy | Dwa ekrany otwierane z sekcji „Konfiguracja” menu bocznego: „Serwer” (`/server-settings` — tożsamość, dostęp, świat i zapis, kopie automatyczne) oraz „Ustawienia gry” (`/game-settings` — zestaw ustawień świata na górze, a modyfikatory i klucze świata w sekcji „Zaawansowane”, domyślnie ukrytej, z zapamiętywaną widocznością). Pola odpowiadają opcjom `valheim_server.exe` z instrukcji serwera dedykowanego, są pogrupowane w sekcje i każde ma opis z dozwolonymi wartościami. Każdy ekran zapisuje atomowo wyłącznie własne ustawienia; hasło serwera nigdy nie wraca do przeglądarki. Zmiany obowiązują od następnego uruchomienia serwera. |
+| Profil uruchomieniowy | Panele otwierane z sekcji „Konfiguracja” menu bocznego (AD-030): cztery panele rozwijanej gałęzi „Serwer” — „Ogólne” (`/server-settings/server` — nazwa, port, widoczność, crossplay), „Dostęp” (`/server-settings/access` — hasło), „Świat i zapis” (`/server-settings/world`) i „Kopie automatyczne” (`/server-settings/inner-server-backups`) — oraz „Ustawienia gry” (`/game-settings` — zestaw ustawień świata na górze, a modyfikatory i klucze świata w sekcji „Zaawansowane”, domyślnie ukrytej, z zapamiętywaną widocznością). Pola odpowiadają opcjom `valheim_server.exe` z instrukcji serwera dedykowanego, są pogrupowane w sekcje i każde ma opis z dozwolonymi wartościami. Każdy panel zapisuje atomowo wyłącznie własne ustawienia; hasło serwera nigdy nie wraca do przeglądarki. Zmiany obowiązują od następnego uruchomienia serwera. |
 | Lista zmian | Na stronie głównej panel „Co nowego w vDeck” (AD-029) pokazuje, od najnowszej, zmiany każdej wersji nowszej niż ostatnio potwierdzona i nie nowszej od zainstalowanej, z numerem każdej wersji. Bez żadnego potwierdzenia (aktualizacja z wersji sprzed tej funkcji) pokazuje tylko wersję zainstalowaną. Panel znika dopiero po „Zamknij” (`POST /release-notes/acknowledge`), które zapisuje zainstalowaną wersję. Świeża instalacja potwierdza swoją wersję przy starcie i panelu nie pokazuje. Treść pochodzi z `release-notes/<X.Y.Z>.md` w classpath: sekcje `## Nowości`, `## Zmiany`, `## Poprawki` w tej kolejności, każda pozycja to `- **Tytuł**` (do 80 znaków) i jedna wcięta linia opisu (do 200 znaków). Panel nie renderuje Markdownu, tylko wyświetla te pola przez `th:text`; uszkodzony plik jest pomijany z ostrzeżeniem w logu, a `ReleaseNotesFilesTest` zatrzymuje go w buildzie. Bez `BuildProperties` (uruchomienie z IDE) panel jest wyłączony. Ten sam plik jest opisem GitHub Release: workflow podaje go jako `--notes-file` z `--generate-notes`, a `.env/release.bat` i workflow przerywają wydanie, gdy plik nie opisuje żadnej zmiany. `release.bat` zakłada pusty plik następnej wersji z szablonu `.env/release-notes-template.md`. |
 | Konsola | Ekran `/console` z sekcji „Procesy” menu bocznego pokazuje log bieżącego uruchomienia. `console.js` co sekundę pobiera `GET /console/log?offset=N`; serwer czyta plik z `ServerStatus.getLogFile()` od podanego bajtu (najwyżej 256 KiB, do ostatniego pełnego wiersza), a bez pozycji zwraca ostatnie 256 KiB. Bez SSE i bez bufora w pamięci. |
 | Bezpieczeństwo żądań | Włączone CSRF; token jest dodawany do `hx-post` przez `htmx:configRequest`. |

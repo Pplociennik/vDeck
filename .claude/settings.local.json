@@ -54,7 +54,25 @@
       "PowerShell(git merge-base --is-ancestor c716812 v0.0.1; \"liquibase-in-0.0.1: $LASTEXITCODE\"; git log --oneline -1 v0.0.1)",
       "PowerShell(.\\\\mvnw.cmd -q test -pl vdeck-app -am \"-Dtest=DatabaseSchemaIntegrationTest\" \"-Dsurefire.failIfNoSpecifiedTests=false\" 2>&1)",
       "PowerShell($s=\"$env:TEMP\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\00223ab1-2ec1-4860-8691-6deb9097f62e\\\\scratchpad\"; New-Item -ItemType Directory -Force \"$s\\\\old\\\\db\\\\changelog\\\\versions\" | Out-Null; git show HEAD:vdeck-app/src/main/resources/db/changelog/versions/0.0.1.xml | Out-File -Encoding utf8 \"$s\\\\old\\\\db\\\\changelog\\\\versions\\\\0.0.1.xml\"; .\\\\mvnw.cmd -q -pl vdeck-app dependency:build-classpath \"-Dmdep.outputFile=$s\\\\cp.txt\" | Out-Null; Get-ChildItem $s)",
-      "PowerShell($s=\"$env:TEMP\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\00223ab1-2ec1-4860-8691-6deb9097f62e\\\\scratchpad\"; $cp=Get-Content \"$s\\\\cp.txt\" -Raw; java -cp $cp \"$s\\\\Checksums.java\" \"$s\\\\old\" \"$PWD\\\\vdeck-app\\\\src\\\\main\\\\resources\" 2>&1 | Where-Object { $_ -notmatch 'WARN|INFO' })"
+      "PowerShell($s=\"$env:TEMP\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\00223ab1-2ec1-4860-8691-6deb9097f62e\\\\scratchpad\"; $cp=Get-Content \"$s\\\\cp.txt\" -Raw; java -cp $cp \"$s\\\\Checksums.java\" \"$s\\\\old\" \"$PWD\\\\vdeck-app\\\\src\\\\main\\\\resources\" 2>&1 | Where-Object { $_ -notmatch 'WARN|INFO' })",
+      "Bash(grep -c '\\\\\\\\\\\\\\\\')",
+      "Bash(perl -CSD -i.bak -pe 's/\\\\x{f3}/\\\\\\\\u00f3/g; s/\\\\x{119}/\\\\\\\\u0119/g; s/\\\\x{15a}/\\\\\\\\u015a/g' messages.properties)",
+      "Bash(./mvnw -q -pl vdeck-app -am compile)",
+      "Bash(./mvnw -q -pl vdeck-app test \"-Dtest=ServerSettingsControllerTest,LaunchProfile*Test,Server*FormTest,WorldSaveFormTest,LaunchSettingsViewIntegrationTest,HomeViewIntegrationTest,GameSettings*Test\" -Dsurefire.failIfNoSpecifiedTests=false)",
+      "Bash(grep -o 'server-settings/access.\\\\{0,120\\\\}' com.github.pplociennik.vdeck.feature.launch.LaunchSettingsViewIntegrationTest.txt)",
+      "Bash(./mvnw -q -pl vdeck-app test \"-Dtest=LaunchSettingsViewIntegrationTest\" -Dsurefire.failIfNoSpecifiedTests=false)",
+      "Bash(grep -o 'server-settings/access\".\\\\{0,40\\\\}' vdeck-app/target/surefire-reports/com.github.pplociennik.vdeck.feature.launch.LaunchSettingsViewIntegrationTest.txt)",
+      "Bash(./mvnw -q -pl vdeck-app test)",
+      "Bash(./mvnw -pl vdeck-app test)",
+      "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD\")",
+      "Skill(decision)",
+      "Skill(decision:*)",
+      "Bash(npx -y @mermaid-js/mermaid-cli -i dokumentacja/diagramy/launch/przeplyw-zapis-profilu.mmd -o dokumentacja/diagramy/launch/img/przeplyw-zapis-profilu.svg -b white -c dokumentacja/diagramy/mermaid-config.json)",
+      "Bash(./mvnw -q -f .dist/pom.xml asciidoctor:process-asciidoc@user-manual-pdf)",
+      "Bash(./mvnw test *)",
+      "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD|Reactor Summary|SUCCESS \\\\[|FAILURE \\\\[\")",
+      "Bash(./mvnw -q clean package -DskipTests)",
+      "Bash(grep -E \"Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+, Skipped: [0-9]+$|BUILD|FAIL\")"
     ]
   }
 }

@@ -2,6 +2,8 @@ package com.github.pplociennik.vdeck.feature.launch;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -34,9 +36,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 /**
- * Verifies the two launch profile screens, "Serwer" and "Ustawienia gry", end to end: rendering by the
- * real Thymeleaf engine with the message source, storing each screen's settings in
- * {@code .vDeck/config/valheim-server.properties} without touching the other screen's settings,
+ * Verifies the launch profile panels - the four panels of the "Serwer" branch and "Ustawienia gry" - end
+ * to end: rendering by the real Thymeleaf engine with the message source, storing each panel's settings in
+ * {@code .vDeck/config/valheim-server.properties} without touching the other panels' settings,
  * rejecting an invalid submission without writing, keeping the stored server password out of every page,
  * and remembering the visibility of the advanced game settings in {@code vDeck.properties}.
  */
@@ -64,31 +66,50 @@ class LaunchSettingsViewIntegrationTest {
     // =================================================================================================
 
     /**
-     * Verifies that the "Serwer" screen renders its four sections with resolved texts, none of the game
-     * settings, and the side menu with its entry marked as the current page.
+     * Verifies that every panel of the "Serwer" branch renders only its own fields with resolved texts,
+     * posts to its own address, and shows the side menu with all four panels and its own entry marked as
+     * the current page.
      *
+     * @param path
+     *         address of the panel, lowercase and hyphenated
+     * @param ownField
+     *         name of a field the panel shows
+     * @param otherField
+     *         name of a field belonging to another panel
      * @throws Exception
      *         if MockMvc cannot execute the request
      */
-    @Test
-    void shouldRenderServerSettingsScreen_whenAdministratorOpensIt() throws Exception {
+    @ParameterizedTest( name = "[{index}] path={0}" )
+    @CsvSource( { "/server-settings/server, serverName, worldName",
+            "/server-settings/access, password, backupCount",
+            "/server-settings/world, saveDirectory, port",
+            "/server-settings/inner-server-backups, backupLong, serverName" } )
+    void shouldRenderOnlyPanelFields_whenAdministratorOpensServerPanel( String path, String ownField,
+                                                                        String otherField ) throws Exception {
         // GIVEN
         // an authenticated administrator
 
         // WHEN
-        var result = underTest.perform( get( "/server-settings" ).with( administrator() ) );
+        var result = underTest.perform( get( path ).with( administrator() ) );
 
         // THEN
+        String page = result.andReturn().getResponse().getContentAsString( StandardCharsets.UTF_8 );
+        assertThat( page ).containsPattern( "href=\"" + path + "\"\\s+aria-current=\"page\"" );
         result.andExpect( status().isOk() )
                 .andExpect( view().name( "launch/server-settings" ) )
                 .andExpect( content().string( not( containsString( "launchProfile." ) ) ) )
                 .andExpect( content().string( not( containsString( "serverSettings." ) ) ) )
-                .andExpect( content().string( containsString( "name=\"serverName\"" ) ) )
-                .andExpect( content().string( containsString( "name=\"backupLong\"" ) ) )
+                .andExpect( content().string( not( containsString( "sideMenu." ) ) ) )
+                .andExpect( content().string( containsString( "name=\"" + ownField + "\"" ) ) )
+                .andExpect( content().string( not( containsString( "name=\"" + otherField + "\"" ) ) ) )
                 .andExpect( content().string( not( containsString( "name=\"preset\"" ) ) ) )
-                .andExpect( content().string( containsString( "href=\"/server-settings\"" ) ) )
-                .andExpect( content().string( containsString( "href=\"/game-settings\"" ) ) )
-                .andExpect( content().string( containsString( "aria-current=\"page\"" ) ) );
+                .andExpect( content().string( containsString( "action=\"" + path + "\"" ) ) )
+                .andExpect( content().string( containsString( "aria-controls=\"side-menu-children-server-settings\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings/server\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings/access\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings/world\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings/inner-server-backups\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/game-settings\"" ) ) );
     }
 
     /**
@@ -121,31 +142,62 @@ class LaunchSettingsViewIntegrationTest {
     }
 
     /**
-     * Verifies that valid server settings are written to the launch profile file in the configuration
-     * directory, leave the game settings untouched and redirect back with the confirmation flag.
+     * Verifies that a valid server identity is written to the launch profile file in the configuration
+     * directory, leaves the settings of the other panels untouched and redirects back with the
+     * confirmation flag.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request or the file cannot be read
      */
     @Test
-    void shouldStoreOnlyServerSettings_whenServerSubmissionIsValid() throws Exception {
+    void shouldStoreOnlyIdentitySettings_whenIdentitySubmissionIsValid() throws Exception {
         // GIVEN
         underTest.perform( gameSubmission( "none" ) ).andExpect( status().is3xxRedirection() );
-        MockHttpServletRequestBuilder request = serverSubmission( "2600", "Midgard" );
+        underTest.perform( worldSubmission( "Midgard" ) ).andExpect( status().is3xxRedirection() );
+        MockHttpServletRequestBuilder request = identitySubmission( "2600", "vDeck Midgard" );
 
         // WHEN
         var result = underTest.perform( request );
 
         // THEN
         result.andExpect( status().is3xxRedirection() )
-                .andExpect( redirectedUrl( "/server-settings?saved" ) );
+                .andExpect( redirectedUrl( "/server-settings/server?saved" ) );
         assertThat( readConfigurationFile( "valheim-server.properties" ) )
                 .containsEntry( "server.port", "2600" )
+                .containsEntry( "server.name", "vDeck Midgard" )
                 .containsEntry( "server.world", "Midgard" )
                 .containsEntry( "world.modifier.raids", "none" )
                 .containsEntry( "world.key.no.map", "true" );
         assertThat( directory.resolve( ".vDeck/config/vDeck.properties" ) ).isRegularFile();
         assertThat( directory.resolve( "vDeck.properties" ) ).doesNotExist();
+    }
+
+    /**
+     * Verifies that valid backup settings are written to the launch profile file and redirect back to the
+     * "Kopie automatyczne" panel with the confirmation flag.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the request or the file cannot be read
+     */
+    @Test
+    void shouldStoreBackupSettings_whenBackupsSubmissionIsValid() throws Exception {
+        // GIVEN
+        MockHttpServletRequestBuilder request = post( "/server-settings/inner-server-backups" ).with( administrator() )
+                .with( csrf() )
+                .param( "backupCount", "6" )
+                .param( "backupShort", "3600" )
+                .param( "backupLong", "86400" );
+
+        // WHEN
+        var result = underTest.perform( request );
+
+        // THEN
+        result.andExpect( status().is3xxRedirection() )
+                .andExpect( redirectedUrl( "/server-settings/inner-server-backups?saved" ) );
+        assertThat( readConfigurationFile( "valheim-server.properties" ) )
+                .containsEntry( "server.backup.count", "6" )
+                .containsEntry( "server.backup.short", "3600" )
+                .containsEntry( "server.backup.long", "86400" );
     }
 
     /**
@@ -158,7 +210,8 @@ class LaunchSettingsViewIntegrationTest {
     @Test
     void shouldStoreOnlyGameSettings_whenGameSubmissionIsValid() throws Exception {
         // GIVEN
-        underTest.perform( serverSubmission( "2700", "Asgard" ) ).andExpect( status().is3xxRedirection() );
+        underTest.perform( identitySubmission( "2700", "vDeck Asgard" ) ).andExpect( status().is3xxRedirection() );
+        underTest.perform( worldSubmission( "Asgard" ) ).andExpect( status().is3xxRedirection() );
         MockHttpServletRequestBuilder request = gameSubmission( "more" );
 
         // WHEN
@@ -176,30 +229,34 @@ class LaunchSettingsViewIntegrationTest {
     }
 
     /**
-     * Verifies that the stored server password never appears in the rendered screen; only the fact that
-     * one is set is shown.
+     * Verifies that the stored server password never appears in the rendered "Dostęp" panel; only the
+     * fact that one is set is shown.
      *
      * @throws Exception
-     *         if MockMvc cannot execute the request
+     *         if MockMvc cannot execute the request or the file cannot be read
      */
     @Test
-    void shouldNotRenderStoredPassword_whenScreenIsOpenedAfterSaving() throws Exception {
+    void shouldNotRenderStoredPassword_whenAccessPanelIsOpenedAfterSaving() throws Exception {
         // GIVEN
-        underTest.perform( serverSubmission( "2456", "Midgard" ) ).andExpect( status().is3xxRedirection() );
+        underTest.perform( accessSubmission( SERVER_PASSWORD ) )
+                .andExpect( redirectedUrl( "/server-settings/access?saved" ) );
 
         // WHEN
-        var result = underTest.perform( get( "/server-settings" ).queryParam( "saved", "" ).with( administrator() ) );
+        var result = underTest.perform( get( "/server-settings/access" ).queryParam( "saved", "" )
+                .with( administrator() ) );
 
         // THEN
         result.andExpect( status().isOk() )
                 .andExpect( content().string( not( containsString( SERVER_PASSWORD ) ) ) )
                 .andExpect( content().string( containsString( "name=\"clearPassword\"" ) ) )
                 .andExpect( content().string( containsString( "class=\"form-success" ) ) );
+        assertThat( readConfigurationFile( "valheim-server.properties" ) )
+                .containsEntry( "server.password", SERVER_PASSWORD );
     }
 
     /**
-     * Verifies that an out-of-range value is rejected by redirecting back to the screen, which then
-     * shows an alert with the submitted edits, never the password, while the stored profile is untouched.
+     * Verifies that an out-of-range value is rejected by redirecting back to the panel, which then shows
+     * an alert with the submitted edits while the stored profile is untouched.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request or the file cannot be read
@@ -207,24 +264,51 @@ class LaunchSettingsViewIntegrationTest {
     @Test
     void shouldRejectSubmission_whenPortIsOutOfRange() throws Exception {
         // GIVEN
-        underTest.perform( serverSubmission( "2456", "Midgard" ) ).andExpect( status().is3xxRedirection() );
+        underTest.perform( identitySubmission( "2456", "vDeck Midgard" ) ).andExpect( status().is3xxRedirection() );
         Properties before = readConfigurationFile( "valheim-server.properties" );
-        MockHttpServletRequestBuilder request = serverSubmission( "80", "Other" );
+        MockHttpServletRequestBuilder request = identitySubmission( "80", "Other server" );
 
         // WHEN
         MvcResult rejected = underTest.perform( request ).andReturn();
 
         // THEN
-        assertThat( rejected.getResponse().getRedirectedUrl() ).isEqualTo( "/server-settings" );
+        assertThat( rejected.getResponse().getRedirectedUrl() ).isEqualTo( "/server-settings/server" );
         Map< String, Object > flashed = rejected.getFlashMap();
         assertThat( flashed )
                 .containsEntry( "launchProfileErrorKey", "launchProfile.error.invalidInput" )
-                .containsKey( "serverSettingsForm" );
-        underTest.perform( get( "/server-settings" ).with( administrator() ).flashAttrs( rejected.getFlashMap() ) )
+                .containsKey( "serverIdentityForm" );
+        underTest.perform( get( "/server-settings/server" ).with( administrator() ).flashAttrs( flashed ) )
                 .andExpect( status().isOk() )
                 .andExpect( content().string( containsString( "class=\"form-alert" ) ) )
-                .andExpect( content().string( containsString( "value=\"Other\"" ) ) )
-                .andExpect( content().string( not( containsString( SERVER_PASSWORD ) ) ) );
+                .andExpect( content().string( containsString( "value=\"Other server\"" ) ) );
+        assertThat( readConfigurationFile( "valheim-server.properties" ) ).isEqualTo( before );
+    }
+
+    /**
+     * Verifies that a password breaking the format rules is rejected and shown again on the "Dostęp"
+     * panel without the typed password, while the stored profile is untouched.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the request or the file cannot be read
+     */
+    @Test
+    void shouldRejectSubmissionWithoutEchoingPassword_whenPasswordIsInvalid() throws Exception {
+        // GIVEN
+        Properties before = readConfigurationFile( "valheim-server.properties" );
+        String invalidPassword = "Bad\"Secret";
+
+        // WHEN
+        MvcResult rejected = underTest.perform( accessSubmission( invalidPassword ) ).andReturn();
+
+        // THEN
+        assertThat( rejected.getResponse().getRedirectedUrl() ).isEqualTo( "/server-settings/access" );
+        Map< String, Object > flashed = rejected.getFlashMap();
+        assertThat( flashed ).containsKey( "serverAccessForm" );
+        underTest.perform( get( "/server-settings/access" ).with( administrator() ).flashAttrs( flashed ) )
+                .andExpect( status().isOk() )
+                .andExpect( content().string( containsString( "class=\"form-alert" ) ) )
+                .andExpect( content().string( not( containsString( "Bad&quot;Secret" ) ) ) )
+                .andExpect( content().string( not( containsString( invalidPassword ) ) ) );
         assertThat( readConfigurationFile( "valheim-server.properties" ) ).isEqualTo( before );
     }
 
@@ -267,7 +351,8 @@ class LaunchSettingsViewIntegrationTest {
         // requests carrying no CSRF token
 
         // WHEN
-        var server = underTest.perform( post( "/server-settings" ).with( administrator() ).param( "serverName", "vDeck" ) );
+        var server = underTest.perform( post( "/server-settings/access" ).with( administrator() )
+                .param( "password", SERVER_PASSWORD ) );
         var game = underTest.perform( post( "/game-settings" ).with( administrator() ).param( "preset", "hard" ) );
         var toggle = underTest.perform( post( "/game-settings/advanced" ).with( administrator() ).param( "shown", "true" ) );
 
@@ -289,7 +374,7 @@ class LaunchSettingsViewIntegrationTest {
         // no authenticated session
 
         // WHEN
-        var server = underTest.perform( get( "/server-settings" ) );
+        var server = underTest.perform( get( "/server-settings/world" ) );
         var game = underTest.perform( get( "/game-settings" ) );
 
         // THEN
@@ -318,19 +403,24 @@ class LaunchSettingsViewIntegrationTest {
         return user( "admin" ).roles( "ADMIN" );
     }
 
-    private static MockHttpServletRequestBuilder serverSubmission( String port, String worldName ) {
-        return post( "/server-settings" ).with( administrator() ).with( csrf() )
-                .param( "serverName", "vDeck Midgard" )
+    private static MockHttpServletRequestBuilder identitySubmission( String port, String serverName ) {
+        return post( "/server-settings/server" ).with( administrator() ).with( csrf() )
+                .param( "serverName", serverName )
                 .param( "port", port )
-                .param( "worldName", worldName )
-                .param( "password", SERVER_PASSWORD )
                 .param( "publicServer", "true" )
-                .param( "instanceId", "" )
+                .param( "instanceId", "" );
+    }
+
+    private static MockHttpServletRequestBuilder accessSubmission( String password ) {
+        return post( "/server-settings/access" ).with( administrator() ).with( csrf() )
+                .param( "password", password );
+    }
+
+    private static MockHttpServletRequestBuilder worldSubmission( String worldName ) {
+        return post( "/server-settings/world" ).with( administrator() ).with( csrf() )
+                .param( "worldName", worldName )
                 .param( "saveDirectory", "valheim-data" )
-                .param( "saveInterval", "1800" )
-                .param( "backupCount", "4" )
-                .param( "backupShort", "7200" )
-                .param( "backupLong", "43200" );
+                .param( "saveInterval", "1800" );
     }
 
     private static MockHttpServletRequestBuilder gameSubmission( String raids ) {

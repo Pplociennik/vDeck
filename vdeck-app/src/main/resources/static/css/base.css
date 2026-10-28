@@ -668,11 +668,11 @@ body::before {
 }
 
 /*
- * Settings panel (AD-012): a long form of titled sections, used by the "Serwer" and "Ustawienia gry"
- * screens. The layout is built from the narrowest screen up. On a phone, and on any portrait screen, the
- * sections run in one column. A landscape screen with room to spare widens the card: a form with section
- * columns places them side by side, and the fields of every section flow into as many columns as fit, so
- * the form is read across the screen instead of scrolled through.
+ * Settings panel (AD-012): a form of fields, used by the panels of the "Serwer" branch and the
+ * "Ustawienia gry" screen. The layout is built from the narrowest screen up. On a phone, and on any
+ * portrait screen, the fields run in one column. A landscape screen with room to spare widens the card,
+ * and the fields flow into as many columns as fit, so the form is read across the screen instead of
+ * scrolled through.
  */
 
 /* The form is long, so even on a narrow screen its card is wider than the single-column password card. */
@@ -683,14 +683,6 @@ body::before {
 /* Sections are set further apart than the fields inside them, so each group reads as one unit. */
 .settings-form {
     gap: var(--space-xl);
-}
-
-/* A column stacks its sections with the same spacing the form uses between columns stacked vertically. */
-.settings-column {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xl);
-    min-inline-size: 0;
 }
 
 /*
@@ -736,21 +728,10 @@ body::before {
     min-inline-size: min(100%, var(--settings-submit-min-inline-size));
 }
 
-/* Landscape tablets and small laptops: the section columns of a settings form sit side by side. */
+/* Landscape tablets and small laptops: the card widens, so the fields of a settings form spread across it. */
 @media (min-width: 60rem) and (orientation: landscape) {
     .view-card--wide {
         max-inline-size: var(--card-max-inline-size-landscape);
-    }
-
-    .settings-form--columns {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        align-items: start;
-        column-gap: var(--space-xl);
-    }
-
-    .settings-form--columns .settings-footer {
-        grid-column: 1 / -1;
     }
 }
 
@@ -1141,8 +1122,7 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
         gap: var(--space-sm);
     }
 
-    .settings-form,
-    .settings-column {
+    .settings-form {
         gap: var(--space-lg);
     }
 }

@@ -171,7 +171,8 @@ TIP: Zapisz hasło w menedżerze haseł. Panel nie ma funkcji przypominania has�
 
 Przed pierwszym startem serwera:
 
-. Ustaw nazwę serwera, świat i hasło na ekranie *Serwer* (<<ekran-serwer>>).
+. Ustaw nazwę serwera, hasło i świat na panelach *Ogólne*, *Dostęp* oraz *Świat i zapis* z menu
+*Serwer* (<<ekran-serwer>>).
 . Wybierz poziom trudności na ekranie *Ustawienia gry* (<<ekran-ustawienia-gry>>).
 . Uruchom serwer przyciskiem *Uruchom serwer* (<<uruchamianie>>).
 
@@ -210,7 +211,7 @@ image::wyspa-akcji.jpg[Wyspa akcji z ponumerowanymi przyciskami]
 | 7 | Zmień hasło | Otwiera zmianę hasła panelu (<<zmiana-hasla>>).
 | 8 | Wyloguj się | Kończy sesję w przeglądarce. Serwer gry działa dalej.
 | 9 | Stan serwera | Aktualny stan, odświeżany co dwie sekundy (<<stany>>).
-| 10 | Nazwa serwera | Nazwa ustawiona na ekranie *Serwer*, wyświetlana nad wyspą. Zbyt długa nazwa
+| 10 | Nazwa serwera | Nazwa ustawiona na panelu *Serwer* → *Ogólne*, wyświetlana nad wyspą. Zbyt długa nazwa
 jest skracana; całą pokazuje podpowiedź po najechaniu kursorem.
 |===
 
@@ -224,12 +225,15 @@ Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Sekcja *Konfiguracja
 ekranów ustawień, a sekcja *Procesy* — do konsoli serwera.
 
 .Menu boczne
-image::menu-boczne.jpg[Menu boczne z wyróżnionymi pozycjami Serwer, Ustawienia gry i Konsola,pdfwidth=40%]
+image::menu-boczne.jpg[Menu boczne z rozwiniętą pozycją Serwer oraz pozycjami Ustawienia gry i Konsola,pdfwidth=40%]
 
 [horizontal]
-1:: *Serwer* — tożsamość serwera, dostęp, świat i kopie automatyczne.
+1:: *Serwer* — rozwija listę czterech paneli ustawień serwera: *Ogólne*, *Dostęp*, *Świat i zapis*
+oraz *Kopie automatyczne* (<<ekran-serwer>>). Ponowne kliknięcie zwija listę.
 2:: *Ustawienia gry* — poziom trudności i zasady świata.
 3:: *Konsola* — log działającego serwera (<<konsola>>).
+
+Pozycja otwartego ekranu jest wyróżniona złotą ramką.
 
 Na każdym ekranie poza stroną główną obok przycisku menu jest mały przycisk z domkiem — wraca
 na stronę główną.
@@ -246,27 +250,39 @@ image::przyciski-nawigacji.jpg[Przycisk menu i przycisk strony głównej w lewym
 Panel dopasowuje się do ekranu telefonu i tabletu w obu orientacjach. Przyciski wyspy akcji
 układają się wtedy w dwóch rzędach, a formularze w jednej kolumnie.
 
-.Ekran „Serwer” na telefonie
-image::telefon-ekran-serwer.jpg[Ekran Serwer wyświetlony na telefonie,pdfwidth=35%]
+.Panel „Ogólne” na telefonie
+image::telefon-ekran-serwer.jpg[Panel Ogólne z menu Serwer wyświetlony na telefonie,pdfwidth=35%]
 
 Aby otworzyć panel z innego urządzenia, trzeba zmienić adres nasłuchu (<<adres-i-port>>).
 
 [#ekran-serwer]
-== Ekran „Serwer”
+== Ustawienia serwera
 
-Ekran *Serwer* zawiera ustawienia, z którymi panel uruchamia serwer Valheim. Otworzysz go
-z menu bocznego: *Konfiguracja* → *Serwer*.
+Ustawienia, z którymi panel uruchamia serwer Valheim, są podzielone na cztery panele. Otworzysz je
+z menu bocznego: *Konfiguracja* → *Serwer*, a potem jedna z pozycji:
+
+[cols="1,3",options="header"]
+|===
+| Panel | Co ustawisz
+
+| Ogólne | Nazwę, port i widoczność serwera oraz crossplay (<<panel-ogolne>>).
+| Dostęp | Hasło serwera (<<panel-dostep>>).
+| Świat i zapis | Świat, katalog zapisu i częstotliwość zapisu (<<panel-swiat>>).
+| Kopie automatyczne | Kopie świata tworzone przez sam serwer (<<panel-kopie>>).
+|===
 
 [#fig-ekran-serwer]
-.Ekran „Serwer”
-image::ekran-serwer.jpg[Ekran Serwer z formularzem ustawień serwera]
+.Panel „Ogólne”
+image::ekran-serwer.jpg[Panel Ogólne z formularzem ustawień serwera]
 
 Pod każdym polem panel wyświetla opis: jakiej opcji serwera dotyczy, jakie wartości są
-dozwolone i jaka jest wartość domyślna. Formularz ma cztery sekcje.
+dozwolone i jaka jest wartość domyślna. Każdy panel ma własny przycisk zapisu i zapisuje tylko
+swoje pola — zmiany na innych panelach nie są przy tym zapisywane ani tracone.
 
-=== Sekcja „Serwer”
+[#panel-ogolne]
+=== Panel „Ogólne”
 
-.Sekcja „Serwer”
+.Pola panelu „Ogólne”
 image::serwer-sekcja-serwer.jpg[Pola Nazwa serwera, Port, Serwer publiczny, Crossplay i Identyfikator instancji,pdfwidth=65%]
 
 [cols="1,3",options="header"]
@@ -295,15 +311,19 @@ zostaw puste.
 TIP: Jeśli znajomi mają się łączyć przez internet, nie otwieraj portów na routerze. Bezpieczniej
 jest użyć prywatnej sieci, np. Tailscale lub Hamachi — opisuje to <<gra-przez-internet>>.
 
-=== Sekcja „Dostęp”
+Nowa nazwa serwera nie może zawierać zapisanego hasła serwera. Jeśli chcesz takiej nazwy, najpierw
+zmień hasło na panelu *Dostęp*.
 
-.Sekcja „Dostęp”
+[#panel-dostep]
+=== Panel „Dostęp”
+
+.Pola panelu „Dostęp”
 image::serwer-sekcja-dostep.jpg[Pole Hasło serwera i pole wyboru Usuń hasło,pdfwidth=65%]
 
 *Hasło serwera* podają gracze przy dołączaniu do gry. Nie ma związku z hasłem do panelu.
 
 * Hasło ma od 5 do 64 znaków, bez cudzysłowu i bez spacji na początku i końcu.
-* Hasło nie może być fragmentem nazwy serwera.
+* Hasło nie może być fragmentem nazwy serwera zapisanej na panelu *Ogólne*.
 * Serwer publiczny musi mieć hasło.
 * Panel nigdy nie wyświetla zapisanego hasła — pokazuje tylko, czy jest ustawione. Puste pole
   przy zapisie zostawia obecne hasło bez zmian.
@@ -312,9 +332,10 @@ image::serwer-sekcja-dostep.jpg[Pole Hasło serwera i pole wyboru Usuń hasło,p
 WARNING: Hasło serwera jest zapisane w pliku ustawień zwykłym tekstem. Nie używaj tego samego
 hasła co do innych kont.
 
-=== Sekcja „Świat i zapis”
+[#panel-swiat]
+=== Panel „Świat i zapis”
 
-.Sekcja „Świat i zapis”
+.Pola panelu „Świat i zapis”
 image::serwer-sekcja-swiat.jpg[Pola Nazwa świata, Katalog zapisu, Interwał zapisu świata i Plik logu serwera,pdfwidth=65%]
 
 [cols="1,3",options="header"]
@@ -336,9 +357,10 @@ cyfry, spacje, `_` i `-`. Domyślnie `Dedicated`.
 | Tylko informacja: panel sam zapisuje log każdego uruchomienia w osobnym pliku (<<pliki>>).
 |===
 
-=== Sekcja „Kopie automatyczne”
+[#panel-kopie]
+=== Panel „Kopie automatyczne”
 
-.Sekcja „Kopie automatyczne”
+.Pola panelu „Kopie automatyczne”
 image::serwer-sekcja-kopie.jpg[Pola Liczba kopii, Interwał pierwszej kopii i Interwał kolejnych kopii,pdfwidth=65%]
 
 Te kopie tworzy sam serwer Valheim, w trakcie gry. Domyślnie przechowuje 4 kopie: pierwszą po
@@ -347,7 +369,8 @@ zatrzymaniu (<<kopie>>).
 
 === Zapisywanie ustawień
 
-Po zmianach naciśnij btn:[Zapisz ustawienia] na dole formularza.
+Po zmianach na panelu naciśnij btn:[Zapisz ustawienia] na jego dole. Zapisz każdy panel osobno,
+zanim przejdziesz do następnego — przejście bez zapisu porzuca wpisane zmiany.
 
 .Przycisk zapisu ustawień
 image::serwer-przycisk-zapisz.jpg[Przycisk Zapisz ustawienia w złotej ramce,pdfwidth=45%]
@@ -431,7 +454,7 @@ image::gra-sekcja-zaawansowane.jpg[Modyfikatory świata i klucze świata,pdfwidt
 NOTE: Ukrycie sekcji *Zaawansowane* nie kasuje ustawionych w niej wartości. Nadal obowiązują
 przy uruchomieniu serwera.
 
-Ustawienia zapisujesz przyciskiem btn:[Zapisz ustawienia]. Jak na ekranie *Serwer*, obowiązują
+Ustawienia zapisujesz przyciskiem btn:[Zapisz ustawienia]. Jak na panelach menu *Serwer*, obowiązują
 od następnego uruchomienia serwera.
 
 [#praca-z-serwerem]
@@ -711,7 +734,7 @@ Na komputerze każdego gracza:
 [#prywatna-siec-wskazowki]
 === Wskazówki do gry w prywatnej sieci
 
-* *Serwer publiczny* na ekranie *Serwer* (<<ekran-serwer>>) możesz wyłączyć — gracze i tak
+* *Serwer publiczny* na panelu *Serwer* → *Ogólne* (<<panel-ogolne>>) możesz wyłączyć — gracze i tak
   łączą się przez adres IP, a serwer nie pojawi się na publicznej liście. Mimo to zostaw
   hasło serwera.
 * *Crossplay* zostaw wyłączony. Przy crossplay gracze łączą się przez serwery pośredniczące
@@ -721,7 +744,7 @@ Na komputerze każdego gracza:
   połączyć, sprawdź w *Zaporze Windows Defender* → *Zezwalaj aplikacji na dostęp przez Zaporę
   Windows*, czy `valheim_server.exe` ma zezwolenie dla sieci, do której należy Tailscale lub
   Hamachi.
-* Port w adresie musi być taki sam jak pole *Port* na ekranie *Serwer* (domyślnie `2456`).
+* Port w adresie musi być taki sam jak pole *Port* na panelu *Serwer* → *Ogólne* (domyślnie `2456`).
 
 WARNING: Jeśli ustawisz `panel.address=0.0.0.0` (<<adres-i-port>>), panel vDeck stanie się dostępny
 także dla wszystkich osób w Twojej prywatnej sieci. Zapraszaj do niej tylko zaufane osoby albo
@@ -750,7 +773,7 @@ przeglądarka ma sama otworzyć panel.
 | Konto administratora panelu. Powstaje przy pierwszym uruchomieniu.
 
 | `valheim-data`
-| Domyślny katalog światów (zmienisz go na ekranie *Serwer*).
+| Domyślny katalog światów (zmienisz go na panelu *Serwer* → *Świat i zapis*).
 
 | `.vDeck\log`
 | Logi serwera gry, osobny plik dla każdego uruchomienia.
@@ -903,10 +926,10 @@ Przeglądarka nie może połączyć się z panelem::
 
 „Port serwera albo port o jeden wyższy jest zajęty przez inny program.”::
   Działa już inny serwer Valheim albo inny program używa tych portów. Zamknij go albo zmień
-  *Port* na ekranie *Serwer*.
+  *Port* na panelu *Serwer* → *Ogólne*.
 
 „Profil uruchomieniowy jest niekompletny.”::
-  Uzupełnij ustawienia na ekranie *Serwer* i zapisz je.
+  Uzupełnij ustawienia na panelach menu *Serwer* i zapisz je.
 
 „Serwer publiczny wymaga ustawienia hasła.”::
   Ustaw hasło serwera albo odznacz *Serwer publiczny*.

@@ -19,10 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
- * Verifies annotation-based validation, the conversion from the stored profile and the secret redaction
- * of {@link ServerSettingsForm}.
+ * Verifies annotation-based validation and the conversion from the stored profile of
+ * {@link ServerIdentityForm}.
  */
-class ServerSettingsFormTest {
+class ServerIdentityFormTest {
 
     // =================================================================================================
     // FIELDS
@@ -32,7 +32,7 @@ class ServerSettingsFormTest {
 
     private Validator validator;
 
-    private ServerSettingsForm underTest;
+    private ServerIdentityForm underTest;
 
     // =================================================================================================
     // BEFORE METHODS
@@ -45,7 +45,7 @@ class ServerSettingsFormTest {
     void setUp() {
         validatorFactory = Validation.buildDefaultValidatorFactory();
         validator = validatorFactory.getValidator();
-        underTest = form( 2456, "Dedicated", "Secret1" );
+        underTest = form( "My server", 2456, "" );
     }
 
     // =================================================================================================
@@ -73,22 +73,7 @@ class ServerSettingsFormTest {
         // the valid form created in setUp
 
         // WHEN
-        Set< ConstraintViolation< ServerSettingsForm > > violations = validator.validate( underTest );
-
-        // THEN
-        assertThat( violations ).isEmpty();
-    }
-
-    /**
-     * Verifies that an empty password is valid, because it means that the stored password is kept.
-     */
-    @Test
-    void shouldHaveNoViolations_whenPasswordIsEmpty() {
-        // GIVEN
-        underTest = form( 2456, "Dedicated", "" );
-
-        // WHEN
-        Set< ConstraintViolation< ServerSettingsForm > > violations = validator.validate( underTest );
+        Set< ConstraintViolation< ServerIdentityForm > > violations = validator.validate( underTest );
 
         // THEN
         assertThat( violations ).isEmpty();
@@ -105,10 +90,10 @@ class ServerSettingsFormTest {
     @ValueSource( ints = { 0, 1023, 65535 } )
     void shouldReportPortViolation_whenPortIsOutOfRange( int port ) {
         // GIVEN
-        underTest = form( port, "Dedicated", "" );
+        underTest = form( "My server", port, "" );
 
         // WHEN
-        Set< ConstraintViolation< ServerSettingsForm > > violations = validator.validate( underTest );
+        Set< ConstraintViolation< ServerIdentityForm > > violations = validator.validate( underTest );
 
         // THEN
         assertThat( violations ).extracting( violation -> violation.getPropertyPath().toString() )
@@ -116,95 +101,76 @@ class ServerSettingsFormTest {
     }
 
     /**
-     * Verifies that a password which is too short, too long, padded with whitespace or containing a
-     * double quote is rejected.
+     * Verifies that a server name which is blank, too long or would break the quoting of the command line
+     * is rejected.
      *
-     * @param password
-     *         password breaking one of the rules
+     * @param serverName
+     *         server name breaking one of the rules
      */
-    @ParameterizedTest( name = "[{index}] password=\"{0}\"" )
-    @ValueSource( strings = { "abcd", " abcde", "abcde ", "abc\"de",
+    @ParameterizedTest( name = "[{index}] serverName=\"{0}\"" )
+    @ValueSource( strings = { "", "   ", "My \"server\"",
             "12345678901234567890123456789012345678901234567890123456789012345" } )
-    void shouldReportPasswordViolation_whenPasswordBreaksRules( String password ) {
+    void shouldReportServerNameViolation_whenNameBreaksRules( String serverName ) {
         // GIVEN
-        underTest = form( 2456, "Dedicated", password );
+        underTest = form( serverName, 2456, "" );
 
         // WHEN
-        Set< ConstraintViolation< ServerSettingsForm > > violations = validator.validate( underTest );
+        Set< ConstraintViolation< ServerIdentityForm > > violations = validator.validate( underTest );
 
         // THEN
         assertThat( violations ).extracting( violation -> violation.getPropertyPath().toString() )
-                .containsExactly( "password" );
+                .containsOnly( "serverName" );
     }
 
     /**
-     * Verifies that a world name which could not be a plain file name is rejected.
+     * Verifies that an instance identifier outside the allowed characters or length is rejected.
      *
-     * @param worldName
-     *         world name breaking the allowed format
+     * @param instanceId
+     *         identifier breaking the allowed format
      */
-    @ParameterizedTest( name = "[{index}] worldName=\"{0}\"" )
-    @ValueSource( strings = { "", " Dedicated", "Dedicated ", "my.world", "../world", "world/sub" } )
-    void shouldReportWorldNameViolation_whenNameIsNotPlain( String worldName ) {
+    @ParameterizedTest( name = "[{index}] instanceId=\"{0}\"" )
+    @ValueSource( strings = { "a b", "a.b", "123456789012345678901234567890123" } )
+    void shouldReportInstanceIdViolation_whenIdentifierBreaksFormat( String instanceId ) {
         // GIVEN
-        underTest = form( 2456, worldName, "" );
+        underTest = form( "My server", 2456, instanceId );
 
         // WHEN
-        Set< ConstraintViolation< ServerSettingsForm > > violations = validator.validate( underTest );
+        Set< ConstraintViolation< ServerIdentityForm > > violations = validator.validate( underTest );
 
         // THEN
         assertThat( violations ).extracting( violation -> violation.getPropertyPath().toString() )
-                .contains( "worldName" );
+                .containsExactly( "instanceId" );
     }
 
     /**
-     * Verifies that a form created from a stored profile shows every server value and never carries a
-     * password.
+     * Verifies that a form created from a stored profile shows every identity value of the profile.
      */
     @Test
-    void shouldFillFieldsWithoutPassword_whenCreatedFromProfile() {
+    void shouldFillIdentityFields_whenCreatedFromProfile() {
         // GIVEN
         LaunchProfile profile = new LaunchProfile( "My server", 2457, "Dedicated", true, false, true, "a1",
                 "worlds", 900, 3, 3600, 7200, WorldPreset.HARD, Map.of(), Set.of() );
 
         // WHEN
-        underTest = ServerSettingsForm.from( profile );
+        underTest = ServerIdentityForm.from( profile );
 
         // THEN
-        assertThat( underTest ).isEqualTo( new ServerSettingsForm( "My server", 2457, "Dedicated", null, false,
-                false, true, "a1", "worlds", 900, 3, 3600, 7200 ) );
+        assertThat( underTest ).isEqualTo( new ServerIdentityForm( "My server", 2457, false, true, "a1" ) );
     }
 
     /**
-     * Verifies that the copy shown again after a rejection has the password removed and keeps
-     * everything else.
+     * Verifies that the form holds no secret, so the copy shown again after a rejection is the form itself.
      */
     @Test
-    void shouldDropOnlyPassword_whenCopiedWithoutPassword() {
+    void shouldReturnItself_whenCopiedWithoutSecrets() {
         // GIVEN
-        // the valid form with a password created in setUp
+        // the valid form created in setUp
 
         // WHEN
-        ServerSettingsForm result = underTest.withoutPassword();
+        LaunchProfileForm result = underTest.withoutSecrets();
 
         // THEN
-        assertThat( result.password() ).isNull();
-        assertThat( result ).usingRecursiveComparison().ignoringFields( "password" ).isEqualTo( underTest );
-    }
-
-    /**
-     * Verifies that the textual representation never contains the submitted password.
-     */
-    @Test
-    void shouldRedactPassword_whenConvertedToString() {
-        // GIVEN
-        // the valid form with a password created in setUp
-
-        // WHEN
-        String result = underTest.toString();
-
-        // THEN
-        assertThat( result ).doesNotContain( "Secret1" ).contains( "password=<redacted>" );
+        assertThat( result ).isSameAs( underTest );
     }
 
     /**
@@ -216,7 +182,7 @@ class ServerSettingsFormTest {
         // no profile at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> ServerSettingsForm.from( null ) );
+        Throwable thrown = catchThrowable( () -> ServerIdentityForm.from( null ) );
 
         // THEN
         assertThat( thrown )
@@ -228,8 +194,7 @@ class ServerSettingsFormTest {
     // HELPER METHODS
     // =================================================================================================
 
-    private static ServerSettingsForm form( int port, String worldName, String password ) {
-        return new ServerSettingsForm( "My server", port, worldName, password, false, true, false, "",
-                "valheim-data", 1800, 4, 7200, 43200 );
+    private static ServerIdentityForm form( String serverName, int port, String instanceId ) {
+        return new ServerIdentityForm( serverName, port, true, false, instanceId );
     }
 }

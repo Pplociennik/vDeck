@@ -877,8 +877,8 @@ Wyspa dzieli się na trzy grupy akcji rozdzielone pionowymi liniami o wysokości
 
 | Grupa | Szerokość | Akcje | Stan |
 |---|---|---|---|
-| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Start: `POST /server/start`; Stop: `POST /server/stop`; Kill: potwierdzenie i `POST /server/kill`; Restart pozostaje bez akcji |
-| Kopie bezpieczeństwa | nieco węższa | utworzenie kopii świata, utworzenie kopii serwera | Przyciski bez akcji — funkcjonalność nie jest zaimplementowana |
+| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Start: `POST /server/start`; Stop: `POST /server/stop`; Kill: potwierdzenie i `POST /server/kill`; Restart jest zawsze wyłączony (`disabled`) — funkcjonalność nie jest zaimplementowana |
+| Kopie bezpieczeństwa | nieco węższa | utworzenie kopii świata, utworzenie kopii serwera | Oba przyciski są zawsze wyłączone (`disabled`) — funkcjonalność nie jest zaimplementowana |
 | Zarządzanie panelem | wąska | zmiana hasła, wylogowanie | Działa: odnośnik do `/change-password` oraz formularz `POST /logout` obsługiwany przez domyślne wylogowanie Spring Security |
 
 Przyciski są kwadratowe i zawierają wyłącznie ikonę, więc każdy ma `aria-label` z nazwą akcji.
@@ -969,13 +969,11 @@ Widoczne zachowanie:
   menu i przyciskiem. Zamknięcie zwija wszystkie gałęzie, a fokus z wnętrza menu wraca na przycisk.
 - Pozycje są pogrupowane w sekcje. Sekcja nie ma własnej ramy — wyróżnia ją jedynie tytuł: przygaszony
   tekst na środku poziomej linii. Sekcje dzielą większe odstępy niż pozycje wewnątrz nich. Sekcje to
-  „Konfiguracja”, „Procesy” i „Kopie bezpieczeństwa”.
+  „Konfiguracja” i „Procesy”.
 - Sekcja „Konfiguracja” zawiera „Serwer” (odnośnik do `/server-settings`, identyfikator
   `serverSettings`) i „Ustawienia gry” (odnośnik do `/game-settings`, identyfikator `gameSettings`),
   a sekcja „Procesy” — „Konsola” (odnośnik do `/console`, identyfikator `console`).
   Na swoim ekranie pozycja ma `aria-current="page"` oraz obramowanie i tekst w kolorze akcentu.
-  Jedyna pozostała pozycja, w sekcji „Kopie bezpieczeństwa”, jest przykładowa: nosi etykietę „Test”
-  (klucz `sideMenu.dummy.label`) i nie otwiera żadnego panelu.
 - W obrębie sekcji pozycje mogą tworzyć drzewo o co najwyżej trzech poziomach, działające jak akordeon:
   gałąź rozwija swoje dzieci w miejscu, z wcięciem, a rozwinięcie gałęzi zwija rozwinięte rodzeństwo
   z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron. Obecnie żadna
@@ -995,7 +993,6 @@ Budowa komponentu:
 | `section.side-menu-section` | Sekcja: tytuł `sectionTitle( labelKey, titleId )`, który nazywa sekcję przez `aria-labelledby`, oraz lista pierwszego poziomu |
 | `branchToggle( labelKey, iconId, childrenId )` | Pozycja rozwijająca gałąź; bezpośrednio po niej w tym samym elemencie listy leży opakowanie dzieci `.side-menu-children` o identyfikatorze `childrenId` |
 | `link( labelKey, iconId, href, entryId )` | Pozycja otwierająca panel — odnośnik; gdy `entryId` równa się `activeEntry` przekazanemu przez widok, pozycja dostaje `aria-current="page"` |
-| `leaf( labelKey, iconId )` | Przykładowa pozycja bez zachowania, zastępowana przez `link` wraz z powstaniem panelu; `iconId` może być `null` |
 | `side-menu.js` | Przełącza atrybuty `data-state`, `aria-expanded` i `inert`; animacje należą wyłącznie do arkusza stylów |
 
 Drzewo jest zapisane bezpośrednio w znacznikach fragmentu — nie ma modelu w Javie. Dodanie panelu
@@ -1547,10 +1544,9 @@ Znane ograniczenia stanu bieżącego:
 - panel nie ma własnej strony błędu — odpowiedź `500` z `DefaultExceptionHandler` renderuje domyślna
   strona błędu Spring Boota, bez treści wyjątku;
 - strona główna pokazuje wyspę, komunikaty operacji i ewentualną adopcję; status wyspy odświeża polling;
-- Restart i przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji;
+- Restart i przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji, dlatego są stale wyłączone;
 - serwer może przeżyć zamknięcie panelu; nieudany Stop nigdy nie przechodzi automatycznie do Kill;
-- menu boczne ma trzy działające pozycje — „Serwer”, „Ustawienia gry” i „Konsola”; pozycja
-  w sekcji „Kopie bezpieczeństwa” jest przykładowa (etykieta „Test”) i nie otwiera żadnego panelu;
+- menu boczne ma trzy pozycje — „Serwer”, „Ustawienia gry” i „Konsola”;
 - konsola odświeża się przez odpytywanie co sekundę, więc nowe linie pojawiają się z opóźnieniem do
   około sekundy, a każda otwarta karta konsoli wysyła jedno żądanie na sekundę;
 - hasło serwera Valheim leży w pliku ustawień jawnym tekstem, chronione wyłącznie uprawnieniami

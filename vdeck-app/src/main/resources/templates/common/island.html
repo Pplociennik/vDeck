@@ -30,7 +30,8 @@
         <div class="island surface surface--island">
             <div class="island-section island-section--server-control" role="group"
                  th:attr="aria-label=#{island.group.serverControl}">
-                <!-- Runtime state disables commands conflicting with active work or unresolved recovery. -->
+                <!-- Runtime state disables commands conflicting with active work or unresolved recovery.
+                     Restart and both backup actions are not implemented yet, so they stay disabled. -->
                 <form class="island-action-form" th:action="@{/server/start}" method="post">
                     <button class="action-button" type="submit"
                             th:disabled="${!serverStatus.state.startable}"
@@ -49,7 +50,7 @@
                         </svg>
                     </button>
                 </form>
-                <button class="action-button" type="button"
+                <button class="action-button" type="button" disabled
                         th:attr="aria-label=#{island.action.restart},title=#{island.action.restart}">
                     <svg class="icon" aria-hidden="true" focusable="false">
                         <use th:href="@{/icons/icons.svg#icon-restart}"></use>
@@ -68,13 +69,13 @@
 
             <div class="island-section island-section--backups" role="group"
                  th:attr="aria-label=#{island.group.backups}">
-                <button class="action-button" type="button"
+                <button class="action-button" type="button" disabled
                         th:attr="aria-label=#{island.action.worldBackup},title=#{island.action.worldBackup}">
                     <svg class="icon" aria-hidden="true" focusable="false">
                         <use th:href="@{/icons/icons.svg#icon-world-backup}"></use>
                     </svg>
                 </button>
-                <button class="action-button" type="button"
+                <button class="action-button" type="button" disabled
                         th:attr="aria-label=#{island.action.serverBackup},title=#{island.action.serverBackup}">
                     <svg class="icon" aria-hidden="true" focusable="false">
                         <use th:href="@{/icons/icons.svg#icon-server-backup}"></use>

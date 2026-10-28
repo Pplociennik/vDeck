@@ -13,6 +13,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -86,8 +87,30 @@ class HomeViewIntegrationTest {
     }
 
     /**
+     * Verifies that the island renders restart and both backup actions disabled, because they are not
+     * implemented yet.
+     *
+     * @throws Exception
+     *         if MockMvc cannot execute the request
+     */
+    @Test
+    void shouldRenderUnimplementedIslandActionsDisabled_whenAdministratorOpensPanelRoot() throws Exception {
+        // GIVEN
+        // an authenticated administrator opening the panel root
+
+        // WHEN
+        var result = underTest.perform( get( "/" ).with( user( "admin" ).roles( "ADMIN" ) ) );
+
+        // THEN
+        result.andExpect( status().isOk() )
+                .andExpect( content().string( matchesRegex( disabledActionButton( "icon-restart" ) ) ) )
+                .andExpect( content().string( matchesRegex( disabledActionButton( "icon-world-backup" ) ) ) )
+                .andExpect( content().string( matchesRegex( disabledActionButton( "icon-server-backup" ) ) ) );
+    }
+
+    /**
      * Verifies that the panel root embeds the side menu closed: its texts resolved, its entries grouped
-     * into titled sections, the toggle collapsed, the panel inert, the menu icon referenced from the
+     * into titled sections, without the placeholder backup section, the toggle collapsed, the panel inert, the menu icon referenced from the
      * sprite, the server and game settings entries linked but not marked as the current page, and its behaviour
      * module loaded.
      *
@@ -109,6 +132,7 @@ class HomeViewIntegrationTest {
                 .andExpect( content().string( containsString( "aria-controls=\"side-menu-panel\"" ) ) )
                 .andExpect( content().string( containsString(
                         "<h2 class=\"side-menu-section__title\" id=\"side-menu-section-title-configuration\">" ) ) )
+                .andExpect( content().string( not( containsString( "side-menu-section-title-backup" ) ) ) )
                 .andExpect( content().string( containsString(
                         "class=\"side-menu-panel\" data-state=\"closed\" data-side-menu-panel inert" ) ) )
                 .andExpect( content().string( containsString( "/icons/icons.svg#icon-menu" ) ) )
@@ -165,6 +189,20 @@ class HomeViewIntegrationTest {
     // =================================================================================================
     // HELPER METHODS
     // =================================================================================================
+
+    /**
+     * Builds a pattern matching a whole page that contains a disabled island button showing the given
+     * sprite icon.
+     *
+     * @param iconId
+     *         identifier of the icon in the SVG sprite
+     *
+     * @return the regular expression matching the whole rendered page
+     */
+    private static String disabledActionButton( String iconId ) {
+        return "(?s).*<button class=\"action-button\" type=\"button\" disabled[^>]*>\\s*<svg[^>]*>\\s*"
+                + "<use href=\"/icons/icons\\.svg#" + iconId + "\"></use>.*";
+    }
 
     /**
      * Supplies an isolated installation directory and SQLite file before the Spring context starts.

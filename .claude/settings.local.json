@@ -34,7 +34,11 @@
       "Bash(sed -i 's/\"Backup directory must be/\"Snapshot directory must be/; s/\"Backup directory overlaps/\"Snapshot directory overlaps/; s/\"Backup directory chain/\"Snapshot directory chain/' vdeck-app/src/main/java/com/github/pplociennik/vdeck/feature/backup/service/impl/BackupPathServiceImpl.java)",
       "PowerShell($v = .\\\\mvnw.cmd -B -q help:evaluate \"-Dexpression=project.version\" -DforceStdout; \"[$v]\"; $LASTEXITCODE)",
       "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\wspolne\\\\przeplyw-ci-wydanie.mmd -o dokumentacja\\\\diagramy\\\\wspolne\\\\img\\\\przeplyw-ci-wydanie.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json)",
-      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\wspolne\\\\przeplyw-ci-wydanie.mmd -o \"C:\\\\Users\\\\Pszemko\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\6b36de3f-a843-463c-a9b0-1db7690d3a13\\\\scratchpad\\\\ci.png\" -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json)"
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\wspolne\\\\przeplyw-ci-wydanie.mmd -o \"C:\\\\Users\\\\Pszemko\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\6b36de3f-a843-463c-a9b0-1db7690d3a13\\\\scratchpad\\\\ci.png\" -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json)",
+      "PowerShell(.\\\\mvnw.cmd -q test -pl vdeck-app \"-Dtest=HomeViewIntegrationTest,ConsoleViewIntegrationTest,PasswordChangeViewIntegrationTest\" 2>&1)",
+      "PowerShell(.\\\\mvnw.cmd package -DskipTests 2>&1)",
+      "PowerShell($dir = \"C:\\\\Users\\\\Pszemko\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\8e72fd9e-0581-4b07-bef5-6f9e60bbb59f\\\\scratchpad\\\\vdeck-zrzuty\"; if \\(Test-Path $dir\\) { Remove-Item -Recurse -Force $dir -Confirm:$false }; Expand-Archive target\\\\vDeck-dist-0.0.1-SNAPSHOT.zip -DestinationPath $dir; Get-ChildItem $dir; Get-Content \"$dir\\\\.vDeck\\\\config\\\\vDeck-start.properties\"; \\(Get-NetTCPConnection -LocalPort 8085 -State Listen -ErrorAction SilentlyContinue\\) -ne $null)",
+      "PowerShell(Set-Location dokumentacja\\\\instrukcja-uzytkownika\\\\zrzuty; if \\(-not \\(Test-Path node_modules\\\\playwright\\)\\) { npm install }; $env:VDECK_NEW_PASSWORD='Zrzuty-Haslo-2026!'; npm run zrzuty 2>&1 | Select-Object -Last 20)"
     ]
   }
 }

@@ -1,5 +1,7 @@
 package com.github.pplociennik.vdeck.feature.authentication;
 
+import com.github.pplociennik.vdeck.feature.authentication.persistence.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +42,22 @@ class SecurityFlowIntegrationTest {
 
     @Autowired
     private MockMvc underTest;
+
+    @Autowired
+    private UserRepository users;
+
+    // =================================================================================================
+    // AFTER METHODS
+    // =================================================================================================
+
+    /**
+     * Removes every account so that the next, recreated context initializes the default administrator
+     * again. The Liquibase-managed database file outlives each context.
+     */
+    @AfterEach
+    void removeAccounts() {
+        users.deleteAll();
+    }
 
     // =================================================================================================
     // TESTS
@@ -295,7 +313,6 @@ class SecurityFlowIntegrationTest {
     static void registerApplicationProperties( DynamicPropertyRegistry registry ) {
         registry.add( "vdeck.server-directory", directory::toString );
         registry.add( "spring.datasource.url", () -> "jdbc:sqlite:" + directory.resolve( "security-test.db" ) );
-        registry.add( "spring.jpa.hibernate.ddl-auto", () -> "create-drop" );
     }
 
     private MockHttpSession loginWithInitialPassword() throws Exception {

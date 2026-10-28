@@ -20,7 +20,8 @@ flowchart TD
     sender --> lock{Przejęty lock albo FileLock<br/>.vDeck/vdeck.lock zdobyty?}
     lock -- nie --> lockFail([Drugi panel: start przerwany])
     lock -- tak --> recovery[Walidacja tokenu i skan procesu<br/>STOPPED albo RECOVERY_REQUIRED]
-    recovery --> schema[Hibernate ddl-auto=update:<br/>utworzenie lub aktualizacja tabeli panel_users]
+    recovery --> schema[Liquibase: changesety z db.changelog-master.xml<br/>niezastosowane jeszcze do vdeck.db]
+    schema -- błąd changesetu --> schemaFail([Start przerwany])
     schema --> props[SystemPropertiesInitializer: loadFile dla każdego pliku ustawień<br/>vDeck.properties, valheim-server.properties<br/>PathService.getConfigurationFile → .vDeck/config/plik]
     props --> exists{Plik ustawień<br/>istnieje?}
     exists -- nie --> create[Utworzenie katalogu .vDeck/config<br/>i zapis pliku z wartościami domyślnymi enuma]

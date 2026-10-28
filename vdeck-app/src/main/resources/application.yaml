@@ -9,7 +9,10 @@ spring:
   jpa:
     database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.xml
+    analytics-enabled: false
   messages:
     use-code-as-default-message: true
 logging:

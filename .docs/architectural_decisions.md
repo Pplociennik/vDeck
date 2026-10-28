@@ -405,3 +405,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** `ReleaseDownloader` przerywa pobieranie po 30 s bez danych i pokazuje postęp w konsoli, a sufit `UpdatePreparation.BUDGET` wynosi 60 minut.
 - **Powód:** Stały limit 5 minut blokował aktualizację na wolnym łączu.
 - **Konsekwencja:** Wolne, ale postępujące pobieranie trwa do 60 minut, a każde przerwanie uruchamia bieżącą wersję.
+
+## AD-028 — Schemat bazy przez Liquibase
+
+- **Status:** obowiązująca (2026-10-28)
+- **Decyzja:** Schemat `vdeck.db` zmieniają tylko changesety Liquibase w XML, stosowane przez Spring Boot przy starcie, a Hibernate ma `ddl-auto: none`.
+- **Powód:** `ddl-auto: update` nie przekształca ani nie usuwa kolumn i nie zostawia historii schematu.
+- **Konsekwencja:** Zmiana encji wymaga changesetu w pliku XML bieżącej wersji, a plików wydanych wersji nie zmieniamy.

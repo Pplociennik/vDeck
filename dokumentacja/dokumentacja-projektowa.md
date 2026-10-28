@@ -92,7 +92,7 @@ gotowe artefakty. Launcher dodatkowo korzysta z `tools.jackson.core:jackson-core
 parser JSON odpowiedzi GitHuba).
 
 Stos: Java 25, Maven (wrapper 3.9.16), Spring Boot 4.1.0, Spring MVC + Thymeleaf, Spring Security,
-Spring Data JPA + SQLite (`org.xerial:sqlite-jdbc`), Log4j2 jako jedyne API i backend logowania,
+Spring Data JPA + SQLite (`org.xerial:sqlite-jdbc`), Liquibase (schemat bazy), Log4j2 jako jedyne API i backend logowania,
 Lombok, JUnit 5 + AssertJ + Mockito.
 
 ### 1.3 Uruchomienie panelu
@@ -479,7 +479,8 @@ Wszystkie pliki ustawień leżą w podkatalogu `.vDeck/config` katalogu instalac
 instalacyjnym przez wcześniejszą wersję deweloperską nie jest czytany ani przenoszony.
 
 Bieżąca zawartość `application.yaml` obejmuje nazwę aplikacji, źródło danych SQLite
-(`jdbc:sqlite:vdeck.db`), dialekt Hibernate `SQLiteDialect` z `ddl-auto: update`, zachowanie
+(`jdbc:sqlite:vdeck.db`), dialekt Hibernate `SQLiteDialect` z `ddl-auto: none`, changelog Liquibase
+(`spring.liquibase.change-log`) z wyłączoną telemetrią (`analytics-enabled: false`), zachowanie
 `MessageSource` (`spring.messages.use-code-as-default-message`) oraz ustawienia serwera:
 `port: 8085` i ciasteczko sesji z `http-only: true` i `same-site: lax`.
 
@@ -1467,7 +1468,16 @@ Zaimplementowane mechanizmy przekrojowe:
 ## 7. Persystencja
 
 Bazą jest jednoplikowy SQLite (`vdeck.db`) obsługiwany przez Spring Data JPA z dialektem
-`org.hibernate.community.dialect.SQLiteDialect`. Schemat jest utrzymywany przez `ddl-auto: update`.
+`org.hibernate.community.dialect.SQLiteDialect`. Schemat tworzy i zmienia wyłącznie Liquibase (AD-028):
+Spring Boot przy każdym starcie panelu, przed inicjalizacją JPA, stosuje do `vdeck.db` changesety
+jeszcze niezapisane w tabeli `DATABASECHANGELOG`. Hibernate działa z `ddl-auto: none` i nie zmienia
+schematu. Błąd changesetu albo niezgodność sumy kontrolnej wydanego changesetu przerywa start.
+
+Changelog leży w `vdeck-app/src/main/resources/db/changelog`. `db.changelog-master.xml` dołącza w
+kolejności wydań po jednym pliku XML na wersję projektu (`versions/<wersja>.xml`); changesety
+jednego zadania tworzą w nim blok oznaczony numerem i opisem zadania (`clean-code.md` §13). Wersja
+0.0.1 zawiera changeset `VDEC-24-create-panel-users`. `DatabaseSchemaIntegrationTest` uruchamia
+panel z `ddl-auto: validate`, więc changeset niezgodny z encją wykrywa build.
 
 Obecnie utrwalana jest jedna encja — `PanelUser` w tabeli `panel_users`. Repozytorium `UserRepository`
 rozszerza `JpaRepository< PanelUser, String >` i nie deklaruje własnych metod. Operacje zmieniające

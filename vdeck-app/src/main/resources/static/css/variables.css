@@ -94,6 +94,15 @@
     --island-status-color-running: #6fbf73;
     --island-status-color-failed: #d9534f;
 
+    /*
+     * Server name tab: the status badge mirrored above the island, sharing its height, protrusion,
+     * surface and type. The width is a share of the island; the taper and chamfer are absolute so the
+     * wide tab keeps the narrow badge's slant.
+     */
+    --island-name-inline-size: 80%;
+    --island-name-taper: 0.9rem;
+    --island-name-chamfer: 0.27rem;
+
     /* Round buttons floating over the page: the side menu toggle and the home button */
     --round-button-rim-width: 0.125rem;
     --round-button-shadow: 0 0.375rem 0.875rem rgba(0, 0, 0, 0.55), inset 0 0.0625rem 0 var(--color-edge-highlight);

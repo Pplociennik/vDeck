@@ -884,6 +884,12 @@ Przyciski są kwadratowe i zawierają wyłącznie ikonę, więc każdy ma `aria-
 Na wąskich ekranach grupy zawijają się do kolejnych wierszy, a separatory — które nie leżałyby już
 między sąsiadami — są ukrywane.
 
+Nad wyspą wyrasta zakładka z nazwą serwera (`island-name`) — lustrzane odbicie znacznika stanu:
+trapez zwężający się ku górze, o tej samej wysokości, tle i kroju, ale szeroki na 80 % wyspy, z nazwą
+wyśrodkowaną i skracaną wielokropkiem (pełna nazwa w `title`). Nazwę (`serverName`) dostarcza
+`ServerStatusAdvice` z opublikowanego profilu uruchomienia (`LaunchProfileService.getProfile()`), więc
+zapisana zmiana na ekranie „Serwer” pojawia się przy następnym renderowaniu.
+
 Pod wyspą znajduje się znacznik stanu (`island-status`). `ServerStatusAdvice` dostarcza aktualny
 `serverStatus` przy każdym renderowaniu. Start jest dostępny tylko w STOPPED, START_FAILED i CRASHED;
 Stop i Kill tylko w RUNNING lub STOP_FAILED. `server-status.js` co 2 sekundy pobiera fragment

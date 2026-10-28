@@ -6,6 +6,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.github.pplociennik.vdeck.feature.launch.domain.LaunchProfile;
+import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import com.github.pplociennik.vdeck.feature.server.service.ServerService;
 import com.github.pplociennik.vdeck.runtime.api.ServerStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,7 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** Verifies that each rendered view receives a fresh runtime snapshot. */
+/** Verifies that each rendered view receives a fresh runtime snapshot and the configured server name. */
 @ExtendWith( MockitoExtension.class )
 class ServerStatusAdviceTest {
 
@@ -25,6 +27,12 @@ class ServerStatusAdviceTest {
     @Mock
     private ServerService serverService;
 
+    @Mock
+    private LaunchProfileService launchProfileService;
+
+    @Mock
+    private LaunchProfile launchProfile;
+
     private ServerStatusAdvice underTest;
 
     // =================================================================================================
@@ -34,7 +42,7 @@ class ServerStatusAdviceTest {
     /** Creates fresh advice for each test. */
     @BeforeEach
     void setUp() {
-        underTest = new ServerStatusAdvice( serverService );
+        underTest = new ServerStatusAdvice( serverService, launchProfileService );
     }
 
     // =================================================================================================
@@ -73,6 +81,20 @@ class ServerStatusAdviceTest {
         verify( serverService, times( 2 ) ).getStatus();
     }
 
+    /** Verifies that the view receives the server name of the published launch profile. */
+    @Test
+    void shouldReturnServerNameFromProfile_whenViewRequestsName() {
+        // GIVEN
+        given( launchProfileService.getProfile() ).willReturn( launchProfile );
+        given( launchProfile.serverName() ).willReturn( "Midgard" );
+
+        // WHEN
+        var result = underTest.serverName();
+
+        // THEN
+        assertThat( result ).isEqualTo( "Midgard" );
+    }
+
     /** Verifies that advice cannot be constructed without a status source. */
     @Test
     void shouldThrowException_whenServiceIsNull() {
@@ -80,9 +102,23 @@ class ServerStatusAdviceTest {
         // No service.
 
         // WHEN
-        var thrown = catchThrowable( () -> new ServerStatusAdvice( null ) );
+        var thrown = catchThrowable( () -> new ServerStatusAdvice( null, launchProfileService ) );
 
         // THEN
         assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( "serverService" );
+    }
+
+    /** Verifies that advice cannot be constructed without a server name source. */
+    @Test
+    void shouldThrowException_whenLaunchProfileServiceIsNull() {
+        // GIVEN
+        // No launch profile service.
+
+        // WHEN
+        var thrown = catchThrowable( () -> new ServerStatusAdvice( serverService, null ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "launchProfileService" );
     }
 }

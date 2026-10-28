@@ -208,6 +208,8 @@ image::wyspa-akcji.jpg[Wyspa akcji z ponumerowanymi przyciskami]
 | 7 | Zmień hasło | Otwiera zmianę hasła panelu (<<zmiana-hasla>>).
 | 8 | Wyloguj się | Kończy sesję w przeglądarce. Serwer gry działa dalej.
 | 9 | Stan serwera | Aktualny stan, odświeżany co dwie sekundy (<<stany>>).
+| 10 | Nazwa serwera | Nazwa ustawiona na ekranie *Serwer*, wyświetlana nad wyspą. Zbyt długa nazwa
+jest skracana; całą pokazuje podpowiedź po najechaniu kursorem.
 |===
 
 Przycisk, którego nie można teraz użyć, jest wyszarzony. Na przykład zatrzymanego serwera nie

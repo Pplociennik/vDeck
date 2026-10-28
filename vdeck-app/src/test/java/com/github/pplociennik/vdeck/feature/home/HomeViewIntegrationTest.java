@@ -80,6 +80,7 @@ class HomeViewIntegrationTest {
                 .andExpect( view().name( "home/index" ) )
                 .andExpect( content().string( not( containsString( ISLAND_TRANSLATION_KEY_PREFIX ) ) ) )
                 .andExpect( content().string( containsString( "class=\"island surface surface--island\"" ) ) )
+                .andExpect( content().string( containsString( "<span class=\"island-name__label\">vDeck</span>" ) ) )
                 .andExpect( content().string( containsString( "href=\"/change-password\"" ) ) )
                 .andExpect( content().string( containsString( "action=\"/logout\"" ) ) );
     }

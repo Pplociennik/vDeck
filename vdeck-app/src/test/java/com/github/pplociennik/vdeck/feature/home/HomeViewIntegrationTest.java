@@ -136,7 +136,9 @@ class HomeViewIntegrationTest {
                 .andExpect( content().string( containsString(
                         "class=\"side-menu-panel\" data-state=\"closed\" data-side-menu-panel inert" ) ) )
                 .andExpect( content().string( containsString( "/icons/icons.svg#icon-menu" ) ) )
-                .andExpect( content().string( containsString( "href=\"/server-settings\"" ) ) )
+                .andExpect( content().string( containsString( "data-side-menu-branch" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings/server\"" ) ) )
+                .andExpect( content().string( containsString( "href=\"/server-settings/backups\"" ) ) )
                 .andExpect( content().string( containsString( "href=\"/game-settings\"" ) ) )
                 .andExpect( content().string( not( containsString( "aria-current" ) ) ) )
                 .andExpect( content().string( containsString(

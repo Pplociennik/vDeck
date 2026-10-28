@@ -14,13 +14,13 @@ import org.springframework.web.util.UrlPathHelper;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Answers a {@link LaunchProfileUpdateException} thrown while one of the launch profile screens is
- * updated. The user is redirected back to the screen that was submitted, with the message and the
+ * Answers a {@link LaunchProfileUpdateException} thrown while one of the launch profile panels is
+ * updated. The user is redirected back to the panel that was submitted, with the message and the
  * submitted form as flash attributes, so the edits are shown again and reloading the page never repeats
  * the post.
  *
- * <p>The form is flashed under its conventional attribute name ({@code serverSettingsForm} or
- * {@code gameSettingsForm}), the one the screen's controller reads. A rejection is logged at
+ * <p>The form is flashed under its conventional attribute name (for example {@code serverAccessForm} or
+ * {@code gameSettingsForm}), the one the panel's controller reads. A rejection is logged at
  * {@code INFO} without a stack trace; a failure to write the settings is logged at {@code ERROR} with it.
  * The advice takes precedence over the application-wide default handler.
  */
@@ -37,15 +37,15 @@ class LaunchProfileExceptionHandler {
     private final UrlPathHelper urlPathHelper = new UrlPathHelper();
 
     /**
-     * Sends the user back to the submitted screen with the message and the submitted values.
+     * Sends the user back to the submitted panel with the message and the submitted values.
      *
      * @param exception
      *         update that was not stored
      * @param request
-     *         request of the submitted screen, whose path is the redirect target
+     *         request of the submitted panel, whose path is the redirect target
      * @param redirectAttributes
      *         attributes receiving the flashed form and message key
-     * @return redirect to the submitted screen
+     * @return redirect to the submitted panel
      */
     @ExceptionHandler( LaunchProfileUpdateException.class )
     @Nonnull

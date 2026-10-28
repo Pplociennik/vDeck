@@ -13,7 +13,11 @@ import com.github.pplociennik.vdeck.feature.launch.domain.WorldKey;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldModifier;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldPreset;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
-import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.LaunchProfileForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerAccessForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerBackupsForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerIdentityForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.WorldSaveForm;
 import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import com.github.pplociennik.vdeck.shared.PropertyReader;
@@ -33,7 +37,6 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 
 import static java.util.Objects.requireNonNull;
 
@@ -41,13 +44,16 @@ import static java.util.Objects.requireNonNull;
  * Reads and updates the launch profile stored in {@code valheim-server.properties}
  * ({@link LaunchProperty#FILE_NAME}) through {@link SystemPropertiesService}.
  *
- * <p>The profile is edited on two screens, "Serwer" and "Ustawienia gry", and each update writes only the
- * settings of its own screen. An update is all-or-nothing: every check runs before anything is written,
- * and the settings are then stored with a single atomic write of the file. A rejected or failed update ends
- * with a {@link LaunchProfileUpdateException}, which the launch feature's controller advice answers. The
- * save directory is stored normalised, relative to the installation directory, after {@link PathService}
- * has confirmed that it stays inside it. After a successful write the new configuration is built from the
- * values just stored and the unchanged settings of the other screen, so nothing is read back.
+ * <p>The profile is edited on several panels - "Serwer", "Dostęp", "Świat i zapis", "Kopie automatyczne"
+ * and "Ustawienia gry" - and each update writes only the settings of its own panel. An update is
+ * all-or-nothing: every check runs before anything is written, and the settings are then stored with a
+ * single atomic write of the file. A rejected or failed update ends with a
+ * {@link LaunchProfileUpdateException}, which the launch feature's controller advice answers. The save
+ * directory is stored normalised, relative to the installation directory, after {@link PathService} has
+ * confirmed that it stays inside it. The server name and the password live on different panels, so each
+ * of them is checked against the stored value of the other. After a successful write the new
+ * configuration is built from the values just stored and the unchanged settings of the other panels, so
+ * nothing is read back.
  *
  * <p>The server password is a secret: it is stored because the server needs it on its command line, but
  * only the internal launch configuration carries it. The web layer receives the secret-free profile.
@@ -101,32 +107,101 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
     }
 
     /**
-     * Validates the submitted server settings and stores them with one atomic write of the properties
-     * file. Nothing is stored when any check fails or the file cannot be written.
+     * Validates the submitted server identity and stores it with one atomic write of the properties file.
+     * Nothing is stored when any check fails or the file cannot be written.
      *
      * @param form
-     *         submitted server settings that have already passed annotation validation
+     *         submitted server identity that has already passed annotation validation
      * @throws LaunchProfileUpdateException
      *         if a check rejects the settings or the settings file cannot be written; nothing was stored
      */
     @Override
-    public synchronized void updateServerSettings( @Nonnull ServerSettingsForm form ) {
+    public synchronized void updateServerIdentity( @Nonnull ServerIdentityForm form ) {
         requireNonNull( form, "form must not be null" );
-        log.info( "Server settings update requested" );
+        log.info( "Server identity update requested" );
 
-        if ( !isComplete( form ) ) {
+        if ( form.serverName() == null || form.port() == null ) {
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
+        }
+        LaunchConfiguration current = getConfiguration();
+        if ( LaunchProfile.isPasswordPartOfName( current.password(), form.serverName() ) ) {
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME, form );
+        }
+        store( "Server identity", toIdentityValues( form ), form );
+
+        publish( new LaunchConfiguration( withServerIdentity( current.profile(), form ), current.password() ) );
+    }
+
+    /**
+     * Validates the submitted server password and stores it with one atomic write of the properties file.
+     * Nothing is stored when the check fails or the file cannot be written.
+     *
+     * @param form
+     *         submitted access settings that have already passed annotation validation
+     * @throws LaunchProfileUpdateException
+     *         if a check rejects the password or the settings file cannot be written; nothing was stored
+     */
+    @Override
+    public synchronized void updateServerAccess( @Nonnull ServerAccessForm form ) {
+        requireNonNull( form, "form must not be null" );
+        log.info( "Server access update requested" );
+
+        LaunchConfiguration current = getConfiguration();
+        String password = effectivePassword( form, current.password() );
+        if ( LaunchProfile.isPasswordPartOfName( password, current.profile().serverName() ) ) {
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME, form );
+        }
+        store( "Server access", SystemPropertyValues.create().with( LaunchProperty.SERVER_PASSWORD, password ), form );
+
+        publish( new LaunchConfiguration( withPasswordSet( current.profile(), !password.isEmpty() ), password ) );
+    }
+
+    /**
+     * Validates the submitted world and save settings and stores them with one atomic write of the
+     * properties file. Nothing is stored when any check fails or the file cannot be written.
+     *
+     * @param form
+     *         submitted world and save settings that have already passed annotation validation
+     * @throws LaunchProfileUpdateException
+     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
+     */
+    @Override
+    public synchronized void updateWorldSave( @Nonnull WorldSaveForm form ) {
+        requireNonNull( form, "form must not be null" );
+        log.info( "World and save settings update requested" );
+
+        if ( form.worldName() == null || form.saveDirectory() == null || form.saveInterval() == null ) {
             throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
         }
         String saveDirectory = toStoredSaveDirectory( form );
-        String password = effectivePassword( form );
-        if ( LaunchProfile.isPasswordPartOfName( password, form.serverName() ) ) {
-            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME, form );
-        }
-        store( "Server settings", toServerValues( form, saveDirectory, password ),
-                cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+        store( "World and save settings", toWorldSaveValues( form, saveDirectory ), form );
 
-        LaunchProfile profile = withServerSettings( getProfile(), form, saveDirectory, !password.isEmpty() );
-        publish( new LaunchConfiguration( profile, password ) );
+        LaunchConfiguration current = getConfiguration();
+        LaunchProfile profile = withWorldSave( current.profile(), form, saveDirectory );
+        publish( new LaunchConfiguration( profile, current.password() ) );
+    }
+
+    /**
+     * Validates the submitted automatic backup settings and stores them with one atomic write of the
+     * properties file. Nothing is stored when any check fails or the file cannot be written.
+     *
+     * @param form
+     *         submitted backup settings that have already passed annotation validation
+     * @throws LaunchProfileUpdateException
+     *         if a check rejects the settings or the settings file cannot be written; nothing was stored
+     */
+    @Override
+    public synchronized void updateServerBackups( @Nonnull ServerBackupsForm form ) {
+        requireNonNull( form, "form must not be null" );
+        log.info( "Automatic backup settings update requested" );
+
+        if ( form.backupCount() == null || form.backupShort() == null || form.backupLong() == null ) {
+            throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
+        }
+        store( "Automatic backup settings", toBackupValues( form ), form );
+
+        LaunchConfiguration current = getConfiguration();
+        publish( new LaunchConfiguration( withBackups( current.profile(), form ), current.password() ) );
     }
 
     /**
@@ -146,7 +221,7 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
         if ( !hasKnownOptions( form ) ) {
             throw LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, form );
         }
-        store( "Game settings", toGameValues( form ), cause -> LaunchProfileUpdateException.saveFailed( form, cause ) );
+        store( "Game settings", toGameValues( form ), form );
 
         LaunchConfiguration current = getConfiguration();
         publish( new LaunchConfiguration( withGameSettings( current.profile(), form ), current.password() ) );
@@ -212,16 +287,16 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
     }
 
     /**
-     * Stores the given settings together; the settings of the other screen keep their stored values.
-     * A failed write is turned into the process exception built by {@code saveFailure}, which keeps it as
-     * its cause; the exception is logged by the controller advice, not here.
+     * Stores the given settings together; the settings of the other panels keep their stored values.
+     * A failed write is turned into the process exception carrying the submitted {@code form} and the
+     * failure as its cause; the exception is logged by the controller advice, not here.
      */
     private void store( @Nonnull String scope, @Nonnull SystemPropertyValues values,
-                        @Nonnull Function< UncheckedIOException, LaunchProfileUpdateException > saveFailure ) {
+                        @Nonnull LaunchProfileForm form ) {
         try {
             systemPropertiesService.setValues( LaunchProperty.FILE_NAME, values );
         } catch ( UncheckedIOException exception ) {
-            throw saveFailure.apply( exception );
+            throw LaunchProfileUpdateException.saveFailed( form, exception );
         }
         log.info( "{} stored ({} settings)", scope, values.asMap().size() );
     }
@@ -232,22 +307,92 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
     }
 
     /**
-     * Returns the profile with the "Serwer" screen's settings replaced by the values just stored; the game
-     * settings are kept from {@code current}, because the other screen did not change them.
+     * Returns the profile with the "Serwer" panel's settings replaced by the values just stored; every
+     * other setting is kept from {@code current}, because the other panels did not change it.
      */
-    private static @Nonnull LaunchProfile withServerSettings( @Nonnull LaunchProfile current,
-                                                             @Nonnull ServerSettingsForm form,
-                                                             @Nonnull String saveDirectory, boolean passwordSet ) {
+    private static @Nonnull LaunchProfile withServerIdentity( @Nonnull LaunchProfile current,
+                                                             @Nonnull ServerIdentityForm form ) {
         return new LaunchProfile(
                 form.serverName(),
                 form.port(),
-                form.worldName(),
-                passwordSet,
+                current.worldName(),
+                current.passwordSet(),
                 Boolean.TRUE.equals( form.publicServer() ),
                 Boolean.TRUE.equals( form.crossplay() ),
                 emptyIfNull( form.instanceId() ),
+                current.saveDirectory(),
+                current.saveInterval(),
+                current.backupCount(),
+                current.backupShort(),
+                current.backupLong(),
+                current.preset(),
+                current.modifiers(),
+                current.enabledKeys() );
+    }
+
+    /**
+     * Returns the profile with the "Dostęp" panel's outcome - whether a password is set - replaced; every
+     * other setting is kept from {@code current}.
+     */
+    private static @Nonnull LaunchProfile withPasswordSet( @Nonnull LaunchProfile current, boolean passwordSet ) {
+        return new LaunchProfile(
+                current.serverName(),
+                current.port(),
+                current.worldName(),
+                passwordSet,
+                current.publicServer(),
+                current.crossplay(),
+                current.instanceId(),
+                current.saveDirectory(),
+                current.saveInterval(),
+                current.backupCount(),
+                current.backupShort(),
+                current.backupLong(),
+                current.preset(),
+                current.modifiers(),
+                current.enabledKeys() );
+    }
+
+    /**
+     * Returns the profile with the "Świat i zapis" panel's settings replaced by the values just stored;
+     * every other setting is kept from {@code current}.
+     */
+    private static @Nonnull LaunchProfile withWorldSave( @Nonnull LaunchProfile current, @Nonnull WorldSaveForm form,
+                                                        @Nonnull String saveDirectory ) {
+        return new LaunchProfile(
+                current.serverName(),
+                current.port(),
+                form.worldName(),
+                current.passwordSet(),
+                current.publicServer(),
+                current.crossplay(),
+                current.instanceId(),
                 saveDirectory,
                 form.saveInterval(),
+                current.backupCount(),
+                current.backupShort(),
+                current.backupLong(),
+                current.preset(),
+                current.modifiers(),
+                current.enabledKeys() );
+    }
+
+    /**
+     * Returns the profile with the "Kopie automatyczne" panel's settings replaced by the values just
+     * stored; every other setting is kept from {@code current}.
+     */
+    private static @Nonnull LaunchProfile withBackups( @Nonnull LaunchProfile current,
+                                                      @Nonnull ServerBackupsForm form ) {
+        return new LaunchProfile(
+                current.serverName(),
+                current.port(),
+                current.worldName(),
+                current.passwordSet(),
+                current.publicServer(),
+                current.crossplay(),
+                current.instanceId(),
+                current.saveDirectory(),
+                current.saveInterval(),
                 form.backupCount(),
                 form.backupShort(),
                 form.backupLong(),
@@ -257,8 +402,8 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
     }
 
     /**
-     * Returns the profile with the "Ustawienia gry" screen's settings replaced by the values just stored;
-     * the server settings are kept from {@code current}, because the other screen did not change them.
+     * Returns the profile with the "Ustawienia gry" panel's settings replaced by the values just stored;
+     * every other setting is kept from {@code current}.
      */
     private static @Nonnull LaunchProfile withGameSettings( @Nonnull LaunchProfile current,
                                                            @Nonnull GameSettingsForm form ) {
@@ -301,12 +446,6 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
         return enabledKeys;
     }
 
-    private static boolean isComplete( @Nonnull ServerSettingsForm form ) {
-        return form.serverName() != null && form.port() != null && form.worldName() != null
-                && form.saveDirectory() != null && form.saveInterval() != null && form.backupCount() != null
-                && form.backupShort() != null && form.backupLong() != null;
-    }
-
     /**
      * Checks the values the annotations cannot: the preset and every modifier must be empty or one of
      * the options the server accepts.
@@ -330,7 +469,7 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
      * worlds would then be mixed with the server and panel files. A refused directory is a rejection of
      * the submitted value, so the reason is logged at {@code DEBUG} and the exception carries no cause.
      */
-    private @Nonnull String toStoredSaveDirectory( @Nonnull ServerSettingsForm form ) {
+    private @Nonnull String toStoredSaveDirectory( @Nonnull WorldSaveForm form ) {
         Path resolved;
         try {
             resolved = pathService.getAbsolutePath( form.saveDirectory() );
@@ -350,29 +489,36 @@ class LaunchProfileServiceImpl implements LaunchProfileService {
      * Returns the password to store: none when removal was requested, the stored one when the field was
      * left empty, and the submitted one otherwise.
      */
-    private @Nonnull String effectivePassword( @Nonnull ServerSettingsForm form ) {
+    private static @Nonnull String effectivePassword( @Nonnull ServerAccessForm form,
+                                                      @Nonnull String storedPassword ) {
         if ( Boolean.TRUE.equals( form.clearPassword() ) ) {
             return "";
         }
         if ( isBlank( form.password() ) ) {
-            return read( systemPropertiesService, LaunchProperty.FILE_NAME, LaunchProperty.SERVER_PASSWORD );
+            return storedPassword;
         }
         return form.password();
     }
 
-    private static @Nonnull SystemPropertyValues toServerValues( @Nonnull ServerSettingsForm form,
-                                                                @Nonnull String saveDirectory,
-                                                                @Nonnull String password ) {
+    private static @Nonnull SystemPropertyValues toIdentityValues( @Nonnull ServerIdentityForm form ) {
         return SystemPropertyValues.create()
                 .with( LaunchProperty.SERVER_NAME, form.serverName() )
                 .with( LaunchProperty.SERVER_PORT, form.port().toString() )
-                .with( LaunchProperty.SERVER_WORLD, form.worldName() )
-                .with( LaunchProperty.SERVER_PASSWORD, password )
                 .with( LaunchProperty.SERVER_PUBLIC, Boolean.toString( Boolean.TRUE.equals( form.publicServer() ) ) )
                 .with( LaunchProperty.SERVER_CROSSPLAY, Boolean.toString( Boolean.TRUE.equals( form.crossplay() ) ) )
-                .with( LaunchProperty.SERVER_INSTANCE_ID, emptyIfNull( form.instanceId() ) )
+                .with( LaunchProperty.SERVER_INSTANCE_ID, emptyIfNull( form.instanceId() ) );
+    }
+
+    private static @Nonnull SystemPropertyValues toWorldSaveValues( @Nonnull WorldSaveForm form,
+                                                                   @Nonnull String saveDirectory ) {
+        return SystemPropertyValues.create()
+                .with( LaunchProperty.SERVER_WORLD, form.worldName() )
                 .with( LaunchProperty.SERVER_SAVE_DIRECTORY, saveDirectory )
-                .with( LaunchProperty.SERVER_SAVE_INTERVAL, form.saveInterval().toString() )
+                .with( LaunchProperty.SERVER_SAVE_INTERVAL, form.saveInterval().toString() );
+    }
+
+    private static @Nonnull SystemPropertyValues toBackupValues( @Nonnull ServerBackupsForm form ) {
+        return SystemPropertyValues.create()
                 .with( LaunchProperty.SERVER_BACKUP_COUNT, form.backupCount().toString() )
                 .with( LaunchProperty.SERVER_BACKUP_SHORT, form.backupShort().toString() )
                 .with( LaunchProperty.SERVER_BACKUP_LONG, form.backupLong().toString() );

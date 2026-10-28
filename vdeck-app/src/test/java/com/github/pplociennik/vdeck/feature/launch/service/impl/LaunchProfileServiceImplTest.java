@@ -21,7 +21,10 @@ import com.github.pplociennik.vdeck.feature.launch.domain.WorldKey;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldModifier;
 import com.github.pplociennik.vdeck.feature.launch.domain.WorldPreset;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
-import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerAccessForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerBackupsForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerIdentityForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.WorldSaveForm;
 import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
 import com.github.pplociennik.vdeck.shared.SystemPropertyValues;
@@ -48,8 +51,8 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Verifies that {@link LaunchProfileServiceImpl} maps the stored launch profile to its typed view,
- * validates submitted profiles and stores an accepted profile with a single write, without the server
- * password ever entering the web profile.
+ * validates the settings submitted from every panel and stores an accepted panel with a single write of
+ * only its own settings, without the server password ever entering the web profile.
  */
 @ExtendWith( MockitoExtension.class )
 class LaunchProfileServiceImplTest {
@@ -131,30 +134,74 @@ class LaunchProfileServiceImplTest {
     }
 
     /**
-     * Verifies that server edits publish the stored server settings and password together with the
-     * unchanged game settings, built from the submitted values without reading the settings back.
+     * Verifies that a server identity edit publishes the stored identity together with the unchanged
+     * password and game settings, built from the submitted values without reading the settings back.
      */
     @Test
-    void shouldPublishConfiguration_whenServerSettingsAreSaved() {
+    void shouldPublishConfiguration_whenServerIdentityIsSaved() {
         // GIVEN
         storedValues.put( LaunchProperty.WORLD_PRESET, "hard" );
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "UnchangedSecret" );
         underTest.reload();
         var previous = underTest.getConfiguration();
         clearInvocations( systemPropertiesService );
 
         // WHEN
-        underTest.updateServerSettings( form( "Changed server", "ChangedSecret", false, "worlds" ) );
+        underTest.updateServerIdentity( identityForm( "Changed server" ) );
 
         // THEN
         var result = underTest.getConfiguration();
         assertThat( result ).isNotSameAs( previous );
         assertThat( result.profile().serverName() ).isEqualTo( "Changed server" );
-        assertThat( result.profile().saveDirectory() ).isEqualTo( "worlds" );
-        assertThat( result.password() ).isEqualTo( "ChangedSecret" );
+        assertThat( result.profile().port() ).isEqualTo( 2457 );
+        assertThat( result.profile().publicServer() ).isFalse();
+        assertThat( result.profile().crossplay() ).isTrue();
+        assertThat( result.password() ).isEqualTo( "UnchangedSecret" );
         assertThat( result.profile().passwordSet() ).isTrue();
         assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
         assertThat( previous.profile().serverName() ).isEqualTo( "vDeck" );
-        assertThat( previous.password() ).isEmpty();
+        verify( systemPropertiesService, never() ).getValue( any(), any() );
+    }
+
+    /**
+     * Verifies that a world and save edit publishes the stored world settings and keeps the rest of the
+     * profile.
+     */
+    @Test
+    void shouldPublishConfiguration_whenWorldSaveIsSaved() {
+        // GIVEN
+        clearInvocations( systemPropertiesService );
+
+        // WHEN
+        underTest.updateWorldSave( new WorldSaveForm( "Midgard", "worlds", 600 ) );
+
+        // THEN
+        var result = underTest.getProfile();
+        assertThat( result.worldName() ).isEqualTo( "Midgard" );
+        assertThat( result.saveDirectory() ).isEqualTo( "worlds" );
+        assertThat( result.saveInterval() ).isEqualTo( 600 );
+        assertThat( result.serverName() ).isEqualTo( "vDeck" );
+        assertThat( result.backupCount() ).isEqualTo( 4 );
+        verify( systemPropertiesService, never() ).getValue( any(), any() );
+    }
+
+    /**
+     * Verifies that a backup edit publishes the stored backup settings and keeps the rest of the profile.
+     */
+    @Test
+    void shouldPublishConfiguration_whenServerBackupsAreSaved() {
+        // GIVEN
+        clearInvocations( systemPropertiesService );
+
+        // WHEN
+        underTest.updateServerBackups( new ServerBackupsForm( 10, 3600, 86400 ) );
+
+        // THEN
+        var result = underTest.getProfile();
+        assertThat( result.backupCount() ).isEqualTo( 10 );
+        assertThat( result.backupShort() ).isEqualTo( 3600 );
+        assertThat( result.backupLong() ).isEqualTo( 86400 );
+        assertThat( result.worldName() ).isEqualTo( "Dedicated" );
         verify( systemPropertiesService, never() ).getValue( any(), any() );
     }
 
@@ -224,8 +271,7 @@ class LaunchProfileServiceImplTest {
 
         try ( var executor = Executors.newSingleThreadExecutor() ) {
             // WHEN
-            var update = executor.submit( () -> underTest.updateServerSettings(
-                    form( "New server", "NewSecret", false, "worlds" ) ) );
+            var update = executor.submit( () -> underTest.updateServerAccess( accessForm( "NewSecret", false ) ) );
             try {
                 assertThat( writing.await( 5, TimeUnit.SECONDS ) ).isTrue();
                 var duringWrite = underTest.getConfiguration();
@@ -236,8 +282,8 @@ class LaunchProfileServiceImplTest {
                 finishWrite.countDown();
             }
             update.get( 5, TimeUnit.SECONDS );
-            assertThat( underTest.getConfiguration().profile().serverName() ).isEqualTo( "New server" );
             assertThat( underTest.getConfiguration().password() ).isEqualTo( "NewSecret" );
+            assertThat( underTest.getProfile().passwordSet() ).isTrue();
         }
     }
 
@@ -311,32 +357,99 @@ class LaunchProfileServiceImplTest {
     }
 
     /**
-     * Verifies that valid server settings are stored with a single write carrying only the server
-     * settings, so the game settings keep their stored values.
+     * Verifies that a valid server identity is stored with a single write carrying only the identity
+     * settings, so every other setting keeps its stored value.
      */
     @Test
-    void shouldStoreOnlyServerSettingsInOneWrite_whenServerFormIsValid() {
+    void shouldStoreOnlyIdentitySettingsInOneWrite_whenIdentityFormIsValid() {
         // GIVEN
-        ServerSettingsForm form = form( "My server", "Secret1", false, "worlds/main" );
+        ServerIdentityForm form = identityForm( "My server" );
 
         // WHEN
-        underTest.updateServerSettings( form );
+        underTest.updateServerIdentity( form );
 
         // THEN
         Map< SystemPropertyIf, String > written = capturedWrite();
         assertThat( written ).containsOnlyKeys( LaunchProperty.SERVER_NAME, LaunchProperty.SERVER_PORT,
-                LaunchProperty.SERVER_WORLD, LaunchProperty.SERVER_PASSWORD, LaunchProperty.SERVER_PUBLIC,
-                LaunchProperty.SERVER_CROSSPLAY, LaunchProperty.SERVER_INSTANCE_ID,
-                LaunchProperty.SERVER_SAVE_DIRECTORY, LaunchProperty.SERVER_SAVE_INTERVAL,
-                LaunchProperty.SERVER_BACKUP_COUNT, LaunchProperty.SERVER_BACKUP_SHORT,
-                LaunchProperty.SERVER_BACKUP_LONG );
+                LaunchProperty.SERVER_PUBLIC, LaunchProperty.SERVER_CROSSPLAY, LaunchProperty.SERVER_INSTANCE_ID );
         assertThat( written )
                 .containsEntry( LaunchProperty.SERVER_NAME, "My server" )
                 .containsEntry( LaunchProperty.SERVER_PORT, "2457" )
-                .containsEntry( LaunchProperty.SERVER_PASSWORD, "Secret1" )
                 .containsEntry( LaunchProperty.SERVER_PUBLIC, "false" )
                 .containsEntry( LaunchProperty.SERVER_CROSSPLAY, "true" )
-                .containsEntry( LaunchProperty.SERVER_SAVE_DIRECTORY, "worlds/main" );
+                .containsEntry( LaunchProperty.SERVER_INSTANCE_ID, "" );
+        verify( pathService, never() ).getAbsolutePath( any() );
+    }
+
+    /**
+     * Verifies that an unchecked checkbox and a missing instance identifier, both submitted as nothing,
+     * are stored as {@code false} and empty.
+     */
+    @Test
+    void shouldStoreFalseAndEmpty_whenOptionalIdentityFieldsAreMissing() {
+        // GIVEN
+        ServerIdentityForm form = new ServerIdentityForm( "My server", 2456, null, null, null );
+
+        // WHEN
+        underTest.updateServerIdentity( form );
+
+        // THEN
+        assertThat( capturedWrite() )
+                .containsEntry( LaunchProperty.SERVER_PUBLIC, "false" )
+                .containsEntry( LaunchProperty.SERVER_CROSSPLAY, "false" )
+                .containsEntry( LaunchProperty.SERVER_INSTANCE_ID, "" );
+    }
+
+    /**
+     * Verifies that a new password is stored with a single write carrying only the password.
+     */
+    @Test
+    void shouldStoreOnlyPasswordInOneWrite_whenAccessFormIsValid() {
+        // GIVEN
+        ServerAccessForm form = accessForm( "Secret1", false );
+
+        // WHEN
+        underTest.updateServerAccess( form );
+
+        // THEN
+        assertThat( capturedWrite() ).containsOnly( Map.entry( LaunchProperty.SERVER_PASSWORD, "Secret1" ) );
+    }
+
+    /**
+     * Verifies that valid world and save settings are stored with a single write carrying only those
+     * settings.
+     */
+    @Test
+    void shouldStoreOnlyWorldSettingsInOneWrite_whenWorldFormIsValid() {
+        // GIVEN
+        WorldSaveForm form = worldForm( "worlds/main" );
+
+        // WHEN
+        underTest.updateWorldSave( form );
+
+        // THEN
+        assertThat( capturedWrite() ).containsOnly(
+                Map.entry( LaunchProperty.SERVER_WORLD, "Dedicated" ),
+                Map.entry( LaunchProperty.SERVER_SAVE_DIRECTORY, "worlds/main" ),
+                Map.entry( LaunchProperty.SERVER_SAVE_INTERVAL, "1800" ) );
+    }
+
+    /**
+     * Verifies that valid backup settings are stored with a single write carrying only those settings.
+     */
+    @Test
+    void shouldStoreOnlyBackupSettingsInOneWrite_whenBackupsFormIsValid() {
+        // GIVEN
+        ServerBackupsForm form = new ServerBackupsForm( 1, 60, 2_592_000 );
+
+        // WHEN
+        underTest.updateServerBackups( form );
+
+        // THEN
+        assertThat( capturedWrite() ).containsOnly(
+                Map.entry( LaunchProperty.SERVER_BACKUP_COUNT, "1" ),
+                Map.entry( LaunchProperty.SERVER_BACKUP_SHORT, "60" ),
+                Map.entry( LaunchProperty.SERVER_BACKUP_LONG, "2592000" ) );
     }
 
     /**
@@ -370,10 +483,10 @@ class LaunchProfileServiceImplTest {
     @Test
     void shouldStoreNormalisedSaveDirectory_whenPathContainsRedundantSegments() {
         // GIVEN
-        ServerSettingsForm form = form( "My server", "", false, "./worlds/../worlds/main" );
+        WorldSaveForm form = worldForm( "./worlds/../worlds/main" );
 
         // WHEN
-        underTest.updateServerSettings( form );
+        underTest.updateWorldSave( form );
 
         // THEN
         assertThat( capturedWrite() ).containsEntry( LaunchProperty.SERVER_SAVE_DIRECTORY, "worlds/main" );
@@ -386,10 +499,11 @@ class LaunchProfileServiceImplTest {
     void shouldKeepStoredPassword_whenPasswordFieldIsEmpty() {
         // GIVEN
         storedValues.put( LaunchProperty.SERVER_PASSWORD, "Stored1" );
-        ServerSettingsForm form = form( "My server", "", false, "valheim-data" );
+        underTest.reload();
+        ServerAccessForm form = accessForm( "", false );
 
         // WHEN
-        underTest.updateServerSettings( form );
+        underTest.updateServerAccess( form );
 
         // THEN
         assertThat( capturedWrite() ).containsEntry( LaunchProperty.SERVER_PASSWORD, "Stored1" );
@@ -402,26 +516,50 @@ class LaunchProfileServiceImplTest {
     void shouldClearPassword_whenRemovalIsRequested() {
         // GIVEN
         storedValues.put( LaunchProperty.SERVER_PASSWORD, "Stored1" );
-        ServerSettingsForm form = form( "My server", "Typed12", true, "valheim-data" );
+        underTest.reload();
+        ServerAccessForm form = accessForm( "Typed12", true );
 
         // WHEN
-        underTest.updateServerSettings( form );
+        underTest.updateServerAccess( form );
 
         // THEN
         assertThat( capturedWrite() ).containsEntry( LaunchProperty.SERVER_PASSWORD, "" );
     }
 
     /**
-     * Verifies that a password contained in the server name is refused regardless of letter case,
-     * because the Valheim server would refuse to start with it.
+     * Verifies that a new password contained in the stored server name is refused regardless of letter
+     * case, because the Valheim server would refuse to start with it.
      */
     @Test
-    void shouldRejectPassword_whenItIsPartOfServerName() {
+    void shouldRejectPassword_whenItIsPartOfStoredServerName() {
         // GIVEN
-        ServerSettingsForm form = form( "Vikings of the North", "viking", false, "valheim-data" );
+        storedValues.put( LaunchProperty.SERVER_NAME, "Vikings of the North" );
+        underTest.reload();
+        ServerAccessForm form = accessForm( "viking", false );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerAccess( form ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class, exception -> {
+            assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME );
+            assertThat( exception.getSubmittedForm() ).isEqualTo( accessForm( null, false ) );
+        } );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+    }
+
+    /**
+     * Verifies that the stored password is checked against a changed server name as well.
+     */
+    @Test
+    void shouldRejectServerName_whenItContainsStoredPassword() {
+        // GIVEN
+        storedValues.put( LaunchProperty.SERVER_PASSWORD, "north" );
+        underTest.reload();
+        ServerIdentityForm form = identityForm( "Vikings of the North" );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateServerIdentity( form ) );
 
         // THEN
         assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
@@ -431,22 +569,21 @@ class LaunchProfileServiceImplTest {
     }
 
     /**
-     * Verifies that a kept stored password is checked against a changed server name as well.
+     * Verifies that removing the password is accepted even when the stored password is part of the
+     * server name, because no password remains to conflict with it.
      */
     @Test
-    void shouldRejectKeptPassword_whenNewServerNameContainsIt() {
+    void shouldAcceptRemoval_whenStoredPasswordIsPartOfServerName() {
         // GIVEN
+        storedValues.put( LaunchProperty.SERVER_NAME, "Vikings of the North" );
         storedValues.put( LaunchProperty.SERVER_PASSWORD, "north" );
-        ServerSettingsForm form = form( "Vikings of the North", "", false, "valheim-data" );
+        underTest.reload();
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
+        underTest.updateServerAccess( accessForm( "", true ) );
 
         // THEN
-        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
-                exception -> assertThat( exception.getMessageKey() )
-                        .isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME ) );
-        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+        assertThat( capturedWrite() ).containsEntry( LaunchProperty.SERVER_PASSWORD, "" );
     }
 
     /**
@@ -484,17 +621,52 @@ class LaunchProfileServiceImplTest {
     }
 
     /**
-     * Verifies that a form missing a required value is rejected, which protects callers that skip the
-     * annotation validation.
+     * Verifies that an identity form missing a required value is rejected, which protects callers that
+     * skip the annotation validation.
      */
     @Test
-    void shouldRejectUpdate_whenRequiredValueIsMissing() {
+    void shouldRejectIdentityUpdate_whenRequiredValueIsMissing() {
         // GIVEN
-        ServerSettingsForm form = new ServerSettingsForm( "My server", null, "Dedicated", null, null, true, false,
-                "", "valheim-data", 1800, 4, 7200, 43200 );
+        ServerIdentityForm form = new ServerIdentityForm( "My server", null, true, false, "" );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerIdentity( form ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT ) );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+    }
+
+    /**
+     * Verifies that a world form missing a required value is rejected before the save directory is
+     * resolved.
+     */
+    @Test
+    void shouldRejectWorldUpdate_whenRequiredValueIsMissing() {
+        // GIVEN
+        WorldSaveForm form = new WorldSaveForm( "Dedicated", null, 1800 );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateWorldSave( form ) );
+
+        // THEN
+        assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
+                exception -> assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.INVALID_INPUT ) );
+        verify( pathService, never() ).getAbsolutePath( any() );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+    }
+
+    /**
+     * Verifies that a backups form missing a required value is rejected and nothing is stored.
+     */
+    @Test
+    void shouldRejectBackupsUpdate_whenRequiredValueIsMissing() {
+        // GIVEN
+        ServerBackupsForm form = new ServerBackupsForm( 4, 7200, null );
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateServerBackups( form ) );
 
         // THEN
         assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
@@ -510,10 +682,10 @@ class LaunchProfileServiceImplTest {
         // GIVEN
         given( pathService.getAbsolutePath( "../outside" ) )
                 .willThrow( new PathResolutionException( "resolves outside the installation directory" ) );
-        ServerSettingsForm form = form( "My server", "", false, "../outside" );
+        WorldSaveForm form = worldForm( "../outside" );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateWorldSave( form ) );
 
         // THEN
         assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
@@ -529,10 +701,10 @@ class LaunchProfileServiceImplTest {
     @Test
     void shouldRejectSaveDirectory_whenItIsInstallationDirectory() {
         // GIVEN
-        ServerSettingsForm form = form( "My server", "", false, "." );
+        WorldSaveForm form = worldForm( "." );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateWorldSave( form ) );
 
         // THEN
         assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class,
@@ -550,16 +722,16 @@ class LaunchProfileServiceImplTest {
         // GIVEN
         UncheckedIOException failure = new UncheckedIOException( "disk full", new IOException( "disk full" ) );
         willThrow( failure ).given( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
-        ServerSettingsForm form = form( "My server", "Secret1", false, "valheim-data" );
+        ServerAccessForm form = accessForm( "Secret1", false );
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( form ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerAccess( form ) );
 
         // THEN
         assertThat( thrown ).isInstanceOfSatisfying( LaunchProfileUpdateException.class, exception -> {
             assertThat( exception.getMessageKey() ).isEqualTo( LaunchProfileMessage.SAVE_FAILED );
             assertThat( exception.getCause() ).isSameAs( failure );
-            assertThat( exception.getSubmittedForm() ).isEqualTo( form.withoutPassword() );
+            assertThat( exception.getSubmittedForm() ).isEqualTo( form.withoutSecrets() );
         } );
     }
 
@@ -586,15 +758,70 @@ class LaunchProfileServiceImplTest {
     }
 
     /**
-     * Verifies that a null form is rejected before anything is read or written.
+     * Verifies that a null identity form is rejected before anything is written.
      */
     @Test
-    void shouldThrowException_whenFormIsNull() {
+    void shouldThrowException_whenIdentityFormIsNull() {
         // GIVEN
         // no form at all
 
         // WHEN
-        Throwable thrown = catchThrowable( () -> underTest.updateServerSettings( null ) );
+        Throwable thrown = catchThrowable( () -> underTest.updateServerIdentity( null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "form must not be null" );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+    }
+
+    /**
+     * Verifies that a null access form is rejected before anything is written.
+     */
+    @Test
+    void shouldThrowException_whenAccessFormIsNull() {
+        // GIVEN
+        // no form at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateServerAccess( null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "form must not be null" );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+    }
+
+    /**
+     * Verifies that a null world form is rejected before anything is resolved or written.
+     */
+    @Test
+    void shouldThrowException_whenWorldFormIsNull() {
+        // GIVEN
+        // no form at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateWorldSave( null ) );
+
+        // THEN
+        assertThat( thrown )
+                .isInstanceOf( NullPointerException.class )
+                .hasMessageContaining( "form must not be null" );
+        verify( pathService, never() ).getAbsolutePath( any() );
+        verify( systemPropertiesService, never() ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
+    }
+
+    /**
+     * Verifies that a null backups form is rejected before anything is written.
+     */
+    @Test
+    void shouldThrowException_whenBackupsFormIsNull() {
+        // GIVEN
+        // no form at all
+
+        // WHEN
+        Throwable thrown = catchThrowable( () -> underTest.updateServerBackups( null ) );
 
         // THEN
         assertThat( thrown )
@@ -646,7 +873,7 @@ class LaunchProfileServiceImplTest {
         var previous = underTest.getConfiguration();
 
         // WHEN
-        underTest.updateServerSettings( form( "Changed", "", true, "worlds" ) );
+        underTest.updateServerAccess( accessForm( "", true ) );
 
         // THEN
         assertThat( underTest.getConfiguration().password() ).isEmpty();
@@ -661,17 +888,18 @@ class LaunchProfileServiceImplTest {
         // GIVEN
         storedValues.put( LaunchProperty.SERVER_PASSWORD, "SyntheticSecret" );
         underTest.reload();
+        var previous = underTest.getConfiguration();
 
         // WHEN
-        underTest.updateServerSettings( form( "Changed", "", false, "worlds" ) );
+        underTest.updateServerAccess( accessForm( "  ", false ) );
 
         // THEN
+        assertThat( underTest.getConfiguration() ).isNotSameAs( previous );
         assertThat( underTest.getConfiguration().password() ).isEqualTo( "SyntheticSecret" );
         assertThat( underTest.getProfile().passwordSet() ).isTrue();
-        assertThat( underTest.getProfile().serverName() ).isEqualTo( "Changed" );
     }
 
-    /** Verifies a failed server write cannot publish the submitted replacement password. */
+    /** Verifies a failed password write cannot publish the submitted replacement password. */
     @Test
     void shouldKeepSecretAndConfiguration_whenServerWriteFails() {
         // GIVEN
@@ -682,8 +910,8 @@ class LaunchProfileServiceImplTest {
         willThrow( failure ).given( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
 
         // WHEN
-        var thrown = catchThrowable( () -> underTest.updateServerSettings(
-                form( "Changed", "ReplacementSyntheticSecret", false, "worlds" ) ) );
+        var thrown = catchThrowable( () -> underTest.updateServerAccess(
+                accessForm( "ReplacementSyntheticSecret", false ) ) );
 
         // THEN
         assertThat( thrown ).isInstanceOf( LaunchProfileUpdateException.class ).hasCause( failure );
@@ -692,13 +920,13 @@ class LaunchProfileServiceImplTest {
     }
 
     /**
-     * Verifies overlapping writes from the two settings screens publish both changes together.
+     * Verifies overlapping writes from two settings panels publish both changes together.
      *
      * @throws Exception
      *         if coordinated writers fail or exceed their bounded waits
      */
     @Test
-    void shouldPreserveBothScreens_whenServerAndGameUpdatesOverlap() throws Exception {
+    void shouldPreserveBothPanels_whenServerAndGameUpdatesOverlap() throws Exception {
         // GIVEN
         storedValues = Collections.synchronizedMap( storedValues );
         underTest.reload();
@@ -717,8 +945,7 @@ class LaunchProfileServiceImplTest {
             return null;
         } ).when( systemPropertiesService ).setValues( eq( LaunchProperty.FILE_NAME ), any() );
         try ( var executor = Executors.newFixedThreadPool( 2 ) ) {
-            var serverUpdate = executor.submit( () -> underTest.updateServerSettings(
-                    form( "New server", "SyntheticSecret", false, "worlds" ) ) );
+            var serverUpdate = executor.submit( () -> underTest.updateServerIdentity( identityForm( "New server" ) ) );
             try {
                 assertThat( writingServer.await( 5, TimeUnit.SECONDS ) ).isTrue();
                 var gameUpdate = executor.submit( () -> {
@@ -735,7 +962,6 @@ class LaunchProfileServiceImplTest {
                 // THEN
                 var result = underTest.getConfiguration();
                 assertThat( result.profile().serverName() ).isEqualTo( "New server" );
-                assertThat( result.password() ).isEqualTo( "SyntheticSecret" );
                 assertThat( result.profile().preset() ).isEqualTo( WorldPreset.HARD );
                 assertThat( result.profile().modifiers() ).containsEntry( WorldModifier.COMBAT, "veryhard" );
                 assertThat( storedValues ).containsEntry( LaunchProperty.SERVER_NAME, "New server" )
@@ -755,13 +981,22 @@ class LaunchProfileServiceImplTest {
     }
 
     /**
-     * Creates valid server settings varying only the fields the tests are about; the server is private,
-     * runs on crossplay and uses port 2457.
+     * Creates a valid server identity varying only the name; the server is private, runs on crossplay and
+     * uses port 2457.
      */
-    private static ServerSettingsForm form( String serverName, String password, boolean clearPassword,
-                                            String saveDirectory ) {
-        return new ServerSettingsForm( serverName, 2457, "Dedicated", password, clearPassword, false, true, "",
-                saveDirectory, 1800, 4, 7200, 43200 );
+    private static ServerIdentityForm identityForm( String serverName ) {
+        return new ServerIdentityForm( serverName, 2457, false, true, "" );
+    }
+
+    private static ServerAccessForm accessForm( String password, boolean clearPassword ) {
+        return new ServerAccessForm( password, clearPassword );
+    }
+
+    /**
+     * Creates valid world and save settings varying only the save directory.
+     */
+    private static WorldSaveForm worldForm( String saveDirectory ) {
+        return new WorldSaveForm( "Dedicated", saveDirectory, 1800 );
     }
 
     /**

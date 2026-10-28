@@ -19,7 +19,7 @@
 // Chromium browser used by Playwright ("msedge" by default, "chrome" also works).
 //
 // Readability on an A4 page drives the shot types: one whole-screen overview per screen, and
-// element shots of single form sections, so the text in the PDF stays legible at the page width.
+// element shots of single form sections or panels, so the text in the PDF stays legible at the page width.
 
 import { chromium } from 'playwright';
 import { DatabaseSync } from 'node:sqlite';
@@ -76,18 +76,20 @@ try {
     await captureAround( page, '.island-stack', 'wyspa-akcji', 24 );
     await clearMarks( page );
 
+    // The "Serwer" branch is expanded, so the shot shows its four panels.
     await page.click( '[data-side-menu-toggle]' );
     await page.waitForSelector( '[data-side-menu-panel][data-state="open"]' );
+    await page.click( '[data-side-menu-branch]' );
     await page.waitForTimeout( 400 );
     await mark( page, [
-        { selector: '.side-menu-entry[href$="/server-settings"]', label: '1' },
+        { selector: '[data-side-menu-branch]', label: '1' },
         { selector: '.side-menu-entry[href$="/game-settings"]', label: '2' },
         { selector: '.side-menu-entry[href$="/console"]', label: '3' }
     ] );
     await captureAround( page, '.side-menu-panel', 'menu-boczne', 16 );
     await clearMarks( page );
 
-    await page.goto( `${baseUrl}/server-settings` );
+    await page.goto( `${baseUrl}/server-settings/server` );
     await capture( page, 'ekran-serwer' );
     // The navigation crop shows the two corner buttons alone, without the form text behind them.
     const hiddenContent = await page.addStyleTag( { content: '.page-content { visibility: hidden !important; }' } );
@@ -100,16 +102,29 @@ try {
     await clearMarks( page );
     await hiddenContent.evaluate( style => style.remove() );
     await page.fill( '#server-name', 'Serwer Wikingów' );
-    await page.fill( '#world-name', 'Midgard' );
-    await page.fill( '#server-password', 'Odyn2026' );
     await submit( page );
     await captureElement( page, '.settings-message', 'serwer-zapisano' );
+    await page.goto( `${baseUrl}/server-settings/access` );
+    await page.fill( '#server-password', 'Odyn2026' );
+    await submit( page );
+    await page.goto( `${baseUrl}/server-settings/world` );
+    await page.fill( '#world-name', 'Midgard' );
+    await submit( page );
 
-    // Form sections are shot in a narrow, tall viewport: the form falls back to one column, so its text
+    // Panel fields are shot in a narrow, tall viewport: the fields fall back to one column, so their text
     // stays large on the page, and hiding the floating island and menu buttons keeps them off the form.
     await page.setViewportSize( { width: 760, height: 1800 } );
-    await hideFloatingControls( page );
-    await captureSections( page, [ 'serwer-sekcja-serwer', 'serwer-sekcja-dostep', 'serwer-sekcja-swiat', 'serwer-sekcja-kopie' ] );
+    const serverPanels = [
+        [ 'server', 'serwer-sekcja-serwer' ],
+        [ 'access', 'serwer-sekcja-dostep' ],
+        [ 'world', 'serwer-sekcja-swiat' ],
+        [ 'backups', 'serwer-sekcja-kopie' ]
+    ];
+    for ( const [ panel, name ] of serverPanels ) {
+        await page.goto( `${baseUrl}/server-settings/${panel}` );
+        await hideFloatingControls( page );
+        await captureElement( page, '.settings-fields', name );
+    }
     await page.locator( '.form-submit' ).scrollIntoViewIfNeeded();
     await mark( page, [ { selector: '.form-submit', label: '' } ] );
     await captureAround( page, '.form-submit', 'serwer-przycisk-zapisz', 24 );
@@ -171,7 +186,7 @@ try {
     const phonePage = await phone.newPage();
     await phonePage.goto( `${baseUrl}/login` );
     await logIn( phonePage, newPassword );
-    await phonePage.goto( `${baseUrl}/server-settings` );
+    await phonePage.goto( `${baseUrl}/server-settings/server` );
     await capture( phonePage, 'telefon-ekran-serwer' );
     await phone.close();
 } finally {

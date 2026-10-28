@@ -2,7 +2,7 @@ package com.github.pplociennik.vdeck.feature.launch.exc;
 
 import com.github.pplociennik.vdeck.feature.launch.LaunchProfileMessage;
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
-import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerAccessForm;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -22,12 +22,12 @@ class LaunchProfileUpdateExceptionTest {
     // =================================================================================================
 
     /**
-     * Verifies that a rejected server form is kept without its password and the exception has no cause.
+     * Verifies that a rejected access form is kept without its password and the exception has no cause.
      */
     @Test
-    void shouldKeepServerFormWithoutPassword_whenServerSettingsAreRejected() {
+    void shouldKeepAccessFormWithoutPassword_whenServerAccessIsRejected() {
         // GIVEN
-        ServerSettingsForm form = serverForm();
+        ServerAccessForm form = accessForm();
 
         // WHEN
         LaunchProfileUpdateException result =
@@ -35,7 +35,7 @@ class LaunchProfileUpdateExceptionTest {
 
         // THEN
         assertThat( result.getMessageKey() ).isEqualTo( LaunchProfileMessage.PASSWORD_PART_OF_NAME );
-        assertThat( result.getSubmittedForm() ).isEqualTo( form.withoutPassword() );
+        assertThat( result.getSubmittedForm() ).isEqualTo( form.withoutSecrets() );
         assertThat( result.isFailure() ).isFalse();
         assertThat( result.getCause() ).isNull();
     }
@@ -59,12 +59,12 @@ class LaunchProfileUpdateExceptionTest {
     }
 
     /**
-     * Verifies that a failed write of the server settings keeps its cause and the form without password.
+     * Verifies that a failed write of the server password keeps its cause and the form without password.
      */
     @Test
-    void shouldKeepCauseAndFormWithoutPassword_whenServerSettingsCannotBeSaved() {
+    void shouldKeepCauseAndFormWithoutPassword_whenServerAccessCannotBeSaved() {
         // GIVEN
-        ServerSettingsForm form = serverForm();
+        ServerAccessForm form = accessForm();
         UncheckedIOException cause = writeFailure();
 
         // WHEN
@@ -74,7 +74,7 @@ class LaunchProfileUpdateExceptionTest {
         assertThat( result.getMessageKey() ).isEqualTo( LaunchProfileMessage.SAVE_FAILED );
         assertThat( result.getCause() ).isSameAs( cause );
         assertThat( result.isFailure() ).isTrue();
-        assertThat( result.getSubmittedForm() ).isEqualTo( form.withoutPassword() );
+        assertThat( result.getSubmittedForm() ).isEqualTo( form.withoutSecrets() );
     }
 
     /**
@@ -103,13 +103,13 @@ class LaunchProfileUpdateExceptionTest {
     void shouldNotRevealSubmittedValues_whenMessageIsRead() {
         // GIVEN
         LaunchProfileUpdateException exception =
-                LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, serverForm() );
+                LaunchProfileUpdateException.rejected( LaunchProfileMessage.INVALID_INPUT, accessForm() );
 
         // WHEN
         String result = exception.getMessage();
 
         // THEN
-        assertThat( result ).contains( "INVALID_INPUT" ).doesNotContain( "Secret1" ).doesNotContain( "vDeck" );
+        assertThat( result ).contains( "INVALID_INPUT" ).doesNotContain( "Secret1" );
     }
 
     /**
@@ -118,7 +118,7 @@ class LaunchProfileUpdateExceptionTest {
     @Test
     void shouldThrowException_whenMessageKeyIsNull() {
         // GIVEN
-        ServerSettingsForm form = serverForm();
+        ServerAccessForm form = accessForm();
 
         // WHEN
         Throwable thrown = catchThrowable( () -> LaunchProfileUpdateException.rejected( null, form ) );
@@ -153,7 +153,7 @@ class LaunchProfileUpdateExceptionTest {
     @Test
     void shouldThrowException_whenCauseIsNull() {
         // GIVEN
-        ServerSettingsForm form = serverForm();
+        ServerAccessForm form = accessForm();
 
         // WHEN
         Throwable thrown = catchThrowable( () -> LaunchProfileUpdateException.saveFailed( form, null ) );
@@ -168,9 +168,8 @@ class LaunchProfileUpdateExceptionTest {
     // HELPER METHODS
     // =================================================================================================
 
-    private static ServerSettingsForm serverForm() {
-        return new ServerSettingsForm( "vDeck", 2456, "Dedicated", "Secret1", false, true, false, "",
-                "valheim-data", 1800, 4, 7200, 43200 );
+    private static ServerAccessForm accessForm() {
+        return new ServerAccessForm( "Secret1", false );
     }
 
     private static GameSettingsForm gameForm() {

@@ -1,7 +1,7 @@
 package com.github.pplociennik.vdeck.feature.launch;
 
 import com.github.pplociennik.vdeck.feature.launch.dto.GameSettingsForm;
-import com.github.pplociennik.vdeck.feature.launch.dto.ServerSettingsForm;
+import com.github.pplociennik.vdeck.feature.launch.dto.ServerAccessForm;
 import com.github.pplociennik.vdeck.feature.launch.exc.LaunchProfileUpdateException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,8 +16,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
- * Verifies that {@link LaunchProfileExceptionHandler} redirects back to the submitted screen with the
- * message and the submitted values as flash attributes, under the names the screens read.
+ * Verifies that {@link LaunchProfileExceptionHandler} redirects back to the submitted panel with the
+ * message and the submitted values as flash attributes, under the names the panels read.
  */
 class LaunchProfileExceptionHandlerTest {
 
@@ -44,24 +44,25 @@ class LaunchProfileExceptionHandlerTest {
     // =================================================================================================
 
     /**
-     * Verifies that a rejected server update returns to the "Serwer" screen with the message and the
+     * Verifies that a rejected password update returns to the "Dostęp" panel with the message and the
      * submitted values, the password excluded.
      */
     @Test
-    void shouldRedirectToServerScreenWithFlashedForm_whenServerSettingsAreRejected() {
+    void shouldRedirectToAccessPanelWithFlashedForm_whenServerAccessIsRejected() {
         // GIVEN
-        ServerSettingsForm form = serverForm();
+        ServerAccessForm form = new ServerAccessForm( "Secret1", false );
         LaunchProfileUpdateException exception =
                 LaunchProfileUpdateException.rejected( LaunchProfileMessage.PASSWORD_PART_OF_NAME, form );
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
 
         // WHEN
-        String result = underTest.handleUpdateNotStored( exception, post( "/server-settings" ), redirectAttributes );
+        String result = underTest.handleUpdateNotStored( exception, post( "/server-settings/access" ),
+                redirectAttributes );
 
         // THEN
-        assertThat( result ).isEqualTo( "redirect:/server-settings" );
+        assertThat( result ).isEqualTo( "redirect:/server-settings/access" );
         assertThat( Map.< String, Object >copyOf( redirectAttributes.getFlashAttributes() ) )
-                .containsEntry( "serverSettingsForm", form.withoutPassword() )
+                .containsEntry( "serverAccessForm", new ServerAccessForm( null, false ) )
                 .containsEntry( "launchProfileErrorKey", LaunchProfileMessage.PASSWORD_PART_OF_NAME.getKey() );
         assertThat( redirectAttributes ).isEmpty();
     }
@@ -94,7 +95,7 @@ class LaunchProfileExceptionHandlerTest {
     @Test
     void shouldThrowException_whenExceptionIsNull() {
         // GIVEN
-        MockHttpServletRequest request = post( "/server-settings" );
+        MockHttpServletRequest request = post( "/server-settings/access" );
 
         // WHEN
         Throwable thrown = catchThrowable(
@@ -112,10 +113,5 @@ class LaunchProfileExceptionHandlerTest {
 
     private static MockHttpServletRequest post( String path ) {
         return new MockHttpServletRequest( "POST", path );
-    }
-
-    private static ServerSettingsForm serverForm() {
-        return new ServerSettingsForm( "vDeck", 2456, "Dedicated", "Secret1", false, true, false, "",
-                "valheim-data", 1800, 4, 7200, 43200 );
     }
 }

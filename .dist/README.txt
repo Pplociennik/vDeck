@@ -24,8 +24,9 @@ PIERWSZE URUCHOMIENIE
    jeżeli się nie otworzy, wpisz ten adres ręcznie.
 4. Zaloguj się: użytkownik admin, hasło początkowe admin.
    Panel od razu wymaga ustawienia własnego hasła.
-5. Uzupełnij ekran „Serwer” i „Ustawienia gry”. Hasło serwera gry jest niezależne
-   od hasła panelu i w dostarczonym profilu pozostaje puste.
+5. Uzupełnij panele menu „Serwer” (Ogólne, Dostęp, Świat i zapis, Kopie automatyczne)
+   oraz ekran „Ustawienia gry”. Hasło serwera gry jest niezależne od hasła panelu
+   i w dostarczonym profilu pozostaje puste.
 6. Uruchom serwer przyciskiem Start. Pozostaw okno panelu otwarte.
 
 USTAWIENIA I DANE

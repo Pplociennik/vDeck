@@ -48,9 +48,14 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   Spring Security's generated login page, and two separate password screens — the forced
   `/initial-password-change` that asks for no current password and the on-demand `/change-password`
   that does) plus a `home` feature serving `/` with the action island only, and a `launch` feature
-  whose two screens — `/server-settings` ("Serwer") and `/game-settings` ("Ustawienia gry", with a
-  hidden-by-default "Zaawansowane" section whose visibility is remembered in `vDeck.properties`) —
-  edit the Valheim launch profile stored in `valheim-server.properties`. The `server` feature starts
+  whose panels edit the Valheim launch profile stored in `valheim-server.properties`: the four
+  panels of the side menu's expandable "Serwer" branch (AD-030) — `/server-settings/server`
+  ("Ogólne"), `/server-settings/access` ("Dostęp"), `/server-settings/world` ("Świat i zapis") and
+  `/server-settings/backups` ("Kopie automatyczne"), one `ServerSettingsController`, one form record
+  each implementing the sealed `dto.LaunchProfileForm`, one shared view `launch/server-settings.html`
+  with per-panel fragments in `launch/server-settings-panels.html` — and `/game-settings`
+  ("Ustawienia gry", with a hidden-by-default "Zaawansowane" section whose visibility is remembered in
+  `vDeck.properties`). Each panel stores only its own settings. The `server` feature starts
   that profile through `POST /server/start`, validates it, prepares per-launch logs and a secret-free
   mirror script, and supplies the action island with runtime status. `LaunchProfileService` publishes an immutable
   `LaunchConfiguration` (secret-free profile plus password) after settings initialization and every

@@ -48,7 +48,7 @@ public record GameSettingsForm(
         @Nullable Boolean noBuildCost,
         @Nullable Boolean playerEvents,
         @Nullable Boolean passiveMobs,
-        @Nullable Boolean noMap ) {
+        @Nullable Boolean noMap ) implements LaunchProfileForm {
 
     /**
      * Creates the form showing a stored profile.

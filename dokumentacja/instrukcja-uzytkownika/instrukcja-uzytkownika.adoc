@@ -127,8 +127,11 @@ nie uruchomi albo nie będzie umiał zatrzymać serwera.
 . Kliknij dwukrotnie `start-vDeck.bat`. Otworzy się czarne okno konsoli. vDeck może najpierw
   sprawdzić, czy jest nowsza wersja (<<aktualizacja>>), a potem uruchomi panel.
 . Poczekaj kilka sekund, aż panel wystartuje. Gdy będzie gotowy, na końcu okna pojawi się napis
-  `Panel vDeck: http://127.0.0.1:8085`.
-. Otwórz w przeglądarce adres `http://127.0.0.1:8085`.
+  `Panel vDeck: http://127.0.0.1:8085`, a domyślna przeglądarka sama otworzy ten adres.
+
+TIP: Jeżeli przeglądarka się nie otworzy albo została zamknięta, wpisz w niej adres z konsoli,
+domyślnie `http://127.0.0.1:8085`. Aby przeglądarka nie otwierała się sama, ustaw
+`panel.open.browser=false` w pliku `.vDeck\config\vDeck.properties` (<<pliki>>).
 
 IMPORTANT: Okno konsoli to działający panel. Nie zamykaj go, dopóki korzystasz z vDeck.
 Jak poprawnie zamknąć panel, opisuje <<zamykanie-panelu>>.
@@ -704,7 +707,8 @@ zostaw domyślny adres `127.0.0.1`.
 | Adres i port panelu oraz włączenie automatycznych aktualizacji (<<adres-i-port>>).
 
 | `.vDeck\config\vDeck.properties`
-| Ustawienia samego panelu.
+| Ustawienia samego panelu, m.in. `panel.open.browser` (`true` albo `false`): czy po starcie
+przeglądarka ma sama otworzyć panel.
 
 | `.vDeck\config\valheim-server.properties`
 | Ustawienia serwera z ekranów *Serwer* i *Ustawienia gry*, w tym hasło serwera.

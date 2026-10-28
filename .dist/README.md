@@ -6,7 +6,7 @@ Skrócony opis, wymagania i opis plików znajdują się w [README.txt](README.tx
 
 Wypakuj całą paczkę obok `valheim_server.exe` i uruchom `start-vDeck.bat`.
 Panel korzysta z dołączonego Eclipse Temurin JRE 25 i jest dostępny pod
-`http://127.0.0.1:8085`. Pierwsze logowanie: `admin` / `admin`, z obowiązkową zmianą hasła.
+`http://127.0.0.1:8085`, który po starcie sam otwiera się w przeglądarce. Pierwsze logowanie: `admin` / `admin`, z obowiązkową zmianą hasła.
 Kolejne wersje vDeck instalują się same przy uruchomieniu, z zachowaniem ustawień, bazy i światów
 (`update.enabled` w `.vDeck/config/vDeck-start.properties`).
 

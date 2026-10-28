@@ -485,7 +485,10 @@ Argumenty skryptu trafiają po `--` do panelu. Brak Javy lub JAR-a daje czytelny
 systemowej Javy. Adres, port i automatyczne aktualizacje ustawia `.vDeck/config/vDeck-start.properties`
 (`panel.address`, `panel.port`, `update.enabled`), czytany przez launcher. Launcher uruchamia panel
 z `--enable-native-access=ALL-UNNAMED`, `-Dvdeck.server-directory`, `-Dvdeck.handoff=<id>`,
-`--server.address` i `--server.port` jako oddzielnymi argumentami procesu.
+`-Dvdeck.open-browser=true`, `--server.address` i `--server.port` jako oddzielnymi argumentami procesu.
+Gotowy panel otwiera wtedy swój adres w domyślnej przeglądarce, chyba że `panel.open.browser` w
+`vDeck.properties` (domyślnie `true`) ma wartość `false`; uruchomienie z IDE i testy nie ustawiają
+`vdeck.open-browser` i niczego nie otwierają.
 Plik BAT ma końce linii CRLF i zawiera wyłącznie ASCII: `cmd.exe` błędnie parsuje wielobajtowe
 znaki UTF-8, dlatego komentarze są angielskie, a polskie komunikaty nie mają znaków diakrytycznych.
 Helper uruchamia `javaw.exe` z tego samego JRE przez `java.home`.

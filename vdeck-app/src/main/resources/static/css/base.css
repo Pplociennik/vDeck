@@ -503,6 +503,34 @@ body::before {
     color: var(--color-success);
 }
 
+/*
+ * Standing warning of a view: a condition the user must know before acting, shown on every visit rather
+ * than after a submission. It shares the shape of the outcome messages in the accent colour; its optional
+ * note is a smaller, muted remark below the warning itself.
+ */
+.form-warning {
+    margin: 0 0 var(--space-md);
+    padding: var(--space-sm) var(--space-md);
+    border-inline-start: 0.1875rem solid var(--color-accent);
+    border-radius: var(--field-radius);
+    background-color: var(--color-inset-surface);
+}
+
+.form-warning__text {
+    margin: 0;
+    color: var(--color-accent);
+    font-size: var(--font-size-lead);
+    font-weight: 600;
+    line-height: 1.45;
+}
+
+.form-warning__note {
+    margin: var(--space-xs) 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-label);
+    line-height: 1.45;
+}
+
 .form-stack {
     display: flex;
     flex-direction: column;

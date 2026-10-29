@@ -54,6 +54,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.11 Konsola](#511-konsola)
   - [5.12 Lista zmian po aktualizacji](#512-lista-zmian-po-aktualizacji)
   - [5.13 Stan serwera](#513-stan-serwera)
+  - [5.14 Listy graczy](#514-listy-graczy)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -414,6 +415,7 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | `feature.server` | Start serwera, walidacja, polecenie startowe, logi, udostępnienie stanu runtime widokom i ekran „Stan serwera” (`ServerStateController`); wiring w `config.ServerRuntimeConfiguration` |
 | `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery paneli gałęzi „Serwer” i ekranu „Ustawienia gry” oraz ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-013) |
 | `feature.logs` | Konsola z logiem bieżącego uruchomienia serwera: `ConsoleController`, `dto.LogChunk`, `service` i `service.impl` |
+| `feature.players` | Panele list graczy serwera Valheim (bany, administratorzy, biała lista): `PlayerListController` i jego `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo listy leżą w plikach serwera |
 | `security` | Przekrojowe filtry i handlery Spring Security, niezwiązane z jednym feature'em |
 | `shared` | Infrastruktura bez logiki biznesowej: kontrakt ustawień, kontrakt kluczy tłumaczeń `TranslationKeyIf`, serwisy ścieżek i properties, wyjątki w `shared.exc`, domyślna obsługa wyjątków w `shared.web` |
 
@@ -841,7 +843,8 @@ vdeck-app/src/main/resources/
 │   ├── css/
 │   │   ├── variables.css        ← wszystkie zmienne CSS panelu
 │   │   ├── base.css             ← baza dokumentu, layout, karta widoku, formularze, panele ustawień, komponenty wspólne
-│   │   └── home.css             ← panel „Co nowego w vDeck” na stronie głównej
+│   │   ├── home.css             ← panel „Co nowego w vDeck” na stronie głównej
+│   │   └── players.css          ← tabela graczy paneli list graczy
 │   ├── icons/icons.svg          ← jeden sprite ze wszystkimi ikonami
 │   ├── img/                     ← page-, config-, panel-, island- i side-menu-background.jpg
 │   └── js/
@@ -859,6 +862,7 @@ vdeck-app/src/main/resources/
     ├── launch/server-settings.html ← wspólny widok czterech paneli gałęzi „Serwer”
     ├── launch/server-settings-panels.html ← pola każdego panelu gałęzi „Serwer” jako fragmenty
     ├── launch/game-settings.html   ← ekran „Ustawienia gry”
+    ├── players/player-list.html    ← wspólny widok trzech paneli gałęzi „Gracze”
     ├── shutdown/panel-shutdown.html ← potwierdzenie i komunikat zamknięcia panelu
     ├── authentication/change-password.html
     └── authentication/initial-password-change.html
@@ -869,7 +873,8 @@ vdeck-app/src/main/resources/
 - `base.css` zawiera bazę dokumentu, wyśrodkowanie widoku (`.page-center`), wspólną powierzchnię
   z ramą i teksturą (`.surface`), kontrakt ikony (`.icon`), style komponentów wspólnych oraz kartę
   widoku i kontrolki formularzy używane przez kilka ekranów: `.view-card` z nagłówkiem
-  (`.view-header`, `.view-title`, `.view-lead`), komunikaty `.form-alert` i `.form-success`, sekcje
+  (`.view-header`, `.view-title`, `.view-lead`), komunikaty `.form-alert` i `.form-success`, stałe
+  ostrzeżenie widoku `.form-warning` (tekst w kolorze akcentu i opcjonalna notka `.form-warning__note`), sekcje
   `.form-section` z tytułem na linii, pola `.form-field`, `.form-input`, `.form-select`,
   `.form-checkbox`, opis pola `.form-hint` i przycisk `.form-submit`. Zawiera też układ paneli
   ustawień wspólny dla paneli gałęzi „Serwer” i ekranu „Ustawienia gry” (`AD-012`): szeroką kartę
@@ -946,7 +951,7 @@ Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są 
 Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
 `icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
 `icon-key`, `icon-logout`, `icon-home` (przycisk strony głównej), `icon-menu` (przycisk menu bocznego), `icon-server` (gałąź menu i panele „Serwer”),
-`icon-sliders` (ekran „Ustawienia gry”), `icon-console` (ekran „Konsola”), `icon-chevron` (stan gałęzi menu i odnośniki ekranu „Stan serwera”), `icon-gear` (przycisk „Admin” menu bocznego) i `icon-gauge` (przycisk i ekran „Stan serwera”). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
+`icon-sliders` (ekran „Ustawienia gry”), `icon-console` (ekran „Konsola”), `icon-players` (gałąź menu i panele „Gracze”), `icon-chevron` (stan gałęzi menu i odnośniki ekranu „Stan serwera”), `icon-gear` (przycisk „Admin” menu bocznego) i `icon-gauge` (przycisk i ekran „Stan serwera”). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
 przyciski tworzą kopię, a nie pobierają pliku.
 
 Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlatego
@@ -978,6 +983,9 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
   bocznym, wypełniona przewijanym oknem logu serwera — opisana w [5.11](#511-konsola).
 - **Stan serwera** (`server/server-state.html`, adres `/server-state`) to szeroka karta pod wyspą
   akcji, z menu bocznym, z grupami wartości tylko do odczytu — opisana w [5.13](#513-stan-serwera).
+- Trzy panele gałęzi **Gracze** (`players/player-list.html`, adresy `/players/bans`, `/players/admins`
+  i `/players/permitted`) to szerokie karty pod wyspą akcji, z menu bocznym, ze stałym ostrzeżeniem,
+  formularzem dodawania gracza i tabelą graczy — opisane w [5.14](#514-listy-graczy).
 - **Zamknięcie panelu** (`shutdown/panel-shutdown.html`, adres `/panel/shutdown`) to wyśrodkowana
   karta bez wyspy i bez menu bocznego: nagłówek z ikoną `icon-power`, opis skutków i przyciski
   „Zamknij panel” oraz „Anuluj”, a po potwierdzeniu komunikat „Panel vDeck się zamyka” — opisana w
@@ -992,7 +1000,7 @@ i `title` pochodzą z tłumaczeń opisanych w [3.5](#35-tłumaczenia-interfejsu)
 
 Menu boczne jest komponentem wspólnym — plik `templates/common/side-menu.html` z fragmentem
 `sideMenu`, osadzanym przez `th:replace="~{common/side-menu :: sideMenu}"` na stronie głównej, na
-ekranie zmiany hasła na życzenie, na panelach gałęzi „Serwer” oraz na ekranach „Ustawienia gry”, „Konsola” i „Stan serwera”. Widok otwierany z menu
+ekranie zmiany hasła na życzenie, na panelach gałęzi „Serwer” i „Gracze” oraz na ekranach „Ustawienia gry”, „Konsola” i „Stan serwera”. Widok otwierany z menu
 przekazuje identyfikator swojej pozycji — np. `~{common/side-menu :: sideMenu(activeEntry='gameSettings')}` —
 dzięki czemu pozycja jest oznaczona jako bieżąca strona. Fragment dołącza własny moduł
 `/js/side-menu.js`, więc widok nie musi o nim pamiętać; style leżą w `base.css`.
@@ -1029,12 +1037,15 @@ Widoczne zachowanie:
   (`/server-settings/access`, `serverSettings.access`), „Świat i zapis” (`/server-settings/world`,
   `serverSettings.world`) i „Kopie automatyczne” (`/server-settings/inner-server-backups`, `serverSettings.innerServerBackups`),
   a pod nią „Ustawienia gry” (odnośnik do `/game-settings`, identyfikator `gameSettings`). Sekcja
-  „Procesy” zawiera „Konsola” (odnośnik do `/console`, identyfikator `console`).
+  „Procesy” zawiera „Konsola” (odnośnik do `/console`, identyfikator `console`), a pod nią gałąź
+  „Gracze” (ikona `icon-players`, opakowanie dzieci `side-menu-children-players`) z trzema pozycjami
+  drugiego poziomu bez ikon: „Bany” (`/players/bans`, identyfikator `players.bans`), „Administratorzy”
+  (`/players/admins`, `players.admins`) i „Biała lista” (`/players/permitted`, `players.permitted`).
   Na swoim ekranie pozycja ma `aria-current="page"` oraz obramowanie i tekst w kolorze akcentu.
 - W obrębie sekcji pozycje mogą tworzyć drzewo o co najwyżej trzech poziomach, działające jak akordeon:
   gałąź rozwija swoje dzieci w miejscu, z wcięciem, a rozwinięcie gałęzi zwija rozwinięte rodzeństwo
-  z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron. Jedyną gałęzią jest
-  obecnie „Serwer”; po otwarciu menu jest zwinięta także na jej własnych panelach.
+  z tej samej listy wraz z jego potomkami. Stan gałęzi pokazuje obracany chevron. Gałęzie to obecnie
+  „Serwer” i „Gracze”; po otwarciu menu są zwinięte także na ich własnych panelach.
 - Rozmiar menu jest ograniczony do widoku, więc strona nie przewija się także na telefonie w poziomie;
   gdy pozycje się nie mieszczą, przewija się sama lista sekcji wewnątrz menu.
 - Pod sekcjami, obok wycięcia na przycisk, leży pas dolny `.side-menu-bottom` o szerokości od
@@ -1738,6 +1749,86 @@ używać poprzednich wartości.
 | `server-state.html` | `templates/server` | Grupy wartości i lokalny fragment `relatedPanelLink( labelKey, href )` |
 | `server-state.js`, `server-state.css` | `static/js`, `static/css` | Odświeżanie list co 5 s, siatka grup i odnośniki |
 
+### 5.14 Listy graczy
+
+Feature `players` pozwala przeglądać i zmieniać trzy listy graczy, które serwer Valheim trzyma w
+katalogu zapisu (`-savedir`, ustawienie `server.save.directory` profilu): `bannedlist.txt` (bany),
+`adminlist.txt` (administratorzy) i `permittedlist.txt` (biała lista). Panel operuje **wyłącznie na
+plikach** (AD-034): nie kontaktuje się z serwerem, a serwer czyta listy przy uruchomieniu, więc zmiana
+obowiązuje od następnego startu. Funkcja jest oznaczona w interfejsie jako rozwijana.
+
+Widoczne zachowanie:
+
+- Gałąź „Gracze” sekcji „Procesy” menu bocznego (patrz [5.5](#55-menu-boczne)) prowadzi do trzech
+  paneli: „Bany” (`/players/bans`), „Administratorzy” (`/players/admins`) i „Biała lista”
+  (`/players/permitted`). Inny ostatni segment adresu daje `404` — mapowanie dopuszcza tylko te trzy.
+- Szeroka karta ma nagłówek z ikoną `icon-players`, opis listy z nazwą jej pliku, a pod nim stałe
+  ostrzeżenie `.form-warning` (`role="note"`): zmiany zaczną obowiązywać po ponownym uruchomieniu
+  serwera, z drobną notką, że funkcja jest w trakcie rozwoju i może się zmienić.
+- Sekcja „Dodaj gracza” ma listę wyboru platformy (Steam albo Xbox, z przedrostkiem zapisywanym w
+  pliku) i pole identyfikatora (same cyfry, do 20 znaków) z opisami pod polami; przycisk „Dodaj do
+  listy” wysyła `POST /players/<lista>/add`.
+- Sekcja „Gracze na liście” pokazuje tabelę w kolejności pliku: platforma, identyfikator (krojem
+  o stałej szerokości, zawijany przy braku miejsca) i przycisk „Usuń”, który wysyła
+  `POST /players/<lista>/remove` z całym wpisem w polu `identifier`. Pusta lista pokazuje tekst
+  „Lista jest pusta.”.
+- Udana zmiana przekierowuje na panel z `?added` albo `?removed` i zielonym komunikatem; odrzucona —
+  na panel z czerwonym komunikatem, a przy dodaniu z wpisanym formularzem.
+
+Format pliku i wpisu. Plik to tekst UTF-8 z jednym wpisem na linię; puste linie i linie zaczynające się
+od `//` (komentarze, np. nagłówek zapisywany przez serwer) są pomijane, a początkowy znacznik BOM jest
+ignorowany. Ponieważ panel zakłada, że crossplay jest zawsze włączony, każdy zapisany wpis ma postać
+`<Platforma>_<identyfikator>`, czyli tę, po której serwer z crossplayem rozpoznaje graczy:
+
+| Platforma (`PlayerPlatform`) | Przedrostek | Dozwolony identyfikator |
+|---|---|---|
+| `STEAM` | `Steam_` | SteamID64: 17 cyfr zaczynających się od `7656119` |
+| `XBOX` | `Xbox_` | XUID: od 1 do 20 cyfr |
+
+Wpis bez znanego przedrostka — np. sam SteamID dopisany ręcznie — `PlayerEntry.parse` zachowuje w
+całości, bez platformy; tabela pokazuje go z platformą „Nieznana” i pozwala go usunąć.
+
+Przebieg zmiany. `PlayerListServiceImpl` przy każdym wywołaniu bierze katalog zapisu z opublikowanego
+`LaunchProfile` i rozwiązuje go przez `PathService.getAbsolutePath`, więc plik nigdy nie leży poza
+instalacją. Dodanie i usunięcie są `synchronized`: odczyt pliku, sprawdzenie i zapis tworzą jedną
+zmianę, więc dwie równoczesne zmiany nie gubią swoich wpisów. Zapis zachowuje wszystkie pozostałe
+linie, także komentarze, kończy każdą linię separatorem systemu i podmienia plik atomowo przez
+`DurableFiles.write`; brakujący katalog i plik są tworzone. Odczyt nie jest serializowany — atomowa
+podmiana zawsze zostawia mu kompletny plik.
+
+![Diagram sekwencji: dodanie i usunięcie gracza na panelu listy graczy](diagramy/players/img/przeplyw-zmiana-listy.svg)
+
+Źródło diagramu: [`diagramy/players/przeplyw-zmiana-listy.mmd`](diagramy/players/przeplyw-zmiana-listy.mmd)
+
+| Warunek | Wynik (`PlayerListMessage`) |
+|---|---|
+| Brak platformy albo identyfikator pusty, dłuższy niż 20 znaków lub nie z samych cyfr (adnotacje) | `INVALID_INPUT` |
+| Identyfikator niepasujący do formatu wybranej platformy | `INVALID_USER_ID` |
+| Wpis już jest na liście | `ALREADY_LISTED` |
+| Usuwanego wpisu nie ma na liście (np. plik zmieniono w międzyczasie) | `NOT_LISTED` |
+| Błąd rozwiązania katalogu, odczytu (także plik większy niż 1 MiB albo niebędący zwykłym plikiem) lub zapisu | `SAVE_FAILED` z przyczyną |
+
+Każde odrzucenie i niepowodzenie kończy `PlayerListUpdateException` (AD-014), obsługiwany przez
+`PlayerListExceptionHandler`: odrzucenie loguje na `INFO`, niepowodzenie na `ERROR` ze stack trace.
+Błąd odczytu przy zwykłym wyświetleniu panelu (`GET`) to `UncheckedIOException`, obsługiwany przez
+`DefaultExceptionHandler` (`500`), tak jak w konsoli — panel nie pokazuje wtedy pustej listy zamiast
+nieczytelnej. Udana zmiana jest logowana na `INFO` z wpisem i nazwą pliku.
+
+Ograniczenia: panel nie wie, czy serwer działa, i nie przeładowuje list w serwerze. Działający serwer
+sam zapisuje listy (np. po poleceniu `ban` w konsoli gry) i może nadpisać zmianę zrobioną w tym czasie
+w panelu, dlatego instrukcja zaleca zmiany przy zatrzymanym serwerze.
+
+| Komponent | Pakiet | Rola |
+|---|---|---|
+| `PlayerListController` | `feature.players` | `GET /players/{lista}`, `POST .../add`, `POST .../remove`; widok `players/player-list` |
+| `PlayerListExceptionHandler`, `PlayerListMessage` | `feature.players` | Przekierowanie z komunikatem i formularzem; zamknięty zbiór komunikatów |
+| `PlayerList`, `PlayerPlatform`, `PlayerEntry` | `feature.players.domain` | Lista z nazwą pliku i segmentem adresu; platforma z przedrostkiem i formatem identyfikatora; wpis odczytany z linii |
+| `PlayerEntryForm` | `feature.players.dto` | Platforma i identyfikator dodawanego gracza |
+| `PlayerListUpdateException` | `feature.players.exc` | Wyjątek procesu zmiany listy |
+| `PlayerListService`, `PlayerListServiceImpl` | `feature.players.service(.impl)` | Odczyt i zmiana list w katalogu zapisu |
+| `PlayerListFile` | `feature.players.service.impl` | Odczyt linii z limitem 1 MiB (`DurableFiles.read`) i zapis atomowy |
+| `player-list.html`, `players.css` | `templates/players`, `static/css` | Wspólny widok trzech paneli i tabela graczy |
+
 ## 6. Bezpieczeństwo
 
 Zaimplementowane mechanizmy przekrojowe:
@@ -1855,9 +1946,10 @@ dwóch wydań.
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
 Ekran zarządzania światami i kopiami, restore, wysyłanie poleceń z konsoli,
-przeglądanie logów wcześniejszych uruchomień, listy graczy, RCON, mody, harmonogramy i aktualizacje
-serwera. Podgląd logu bieżącego uruchomienia opisuje [5.11](#511-konsola), a listę zmian po
-aktualizacji — [5.12](#512-lista-zmian-po-aktualizacji).
+przeglądanie logów wcześniejszych uruchomień, lista połączonych graczy, RCON, mody, harmonogramy i
+aktualizacje serwera. Podgląd logu bieżącego uruchomienia opisuje [5.11](#511-konsola), listę zmian po
+aktualizacji — [5.12](#512-lista-zmian-po-aktualizacji), a edycję list graczy w plikach —
+[5.14](#514-listy-graczy).
 
 Plan realizacji Stop i Kill oraz kontrolowanego zamknięcia panelu znajduje się w
 [planie implementacji zatrzymania serwera](../.docs/plans/server-stop.md).
@@ -1876,7 +1968,10 @@ Znane ograniczenia stanu bieżącego:
   nigdy nie przechodzi automatycznie do Kill — robi to wyłącznie strategia zamknięcia `stop`;
 - zamknięcie okna konsoli może zakończyć panel, zanim strategia zamknięcia skończy pracę;
   przewidywalne zamknięcie daje CTRL+C w konsoli;
-- menu boczne ma gałąź „Serwer” z czterema panelami oraz pozycje „Ustawienia gry” i „Konsola”;
+- menu boczne ma gałąź „Serwer” z czterema panelami, pozycje „Ustawienia gry” i „Konsola” oraz gałąź
+  „Gracze” z trzema panelami;
+- panele list graczy zmieniają tylko pliki: zmiana obowiązuje od następnego startu serwera, a
+  działający serwer może ją nadpisać, gdy sam zapisuje listę;
 - konsola odświeża się przez odpytywanie co sekundę, więc nowe linie pojawiają się z opóźnieniem do
   około sekundy, a każda otwarta karta konsoli wysyła jedno żądanie na sekundę;
 - hasło serwera Valheim leży w pliku ustawień jawnym tekstem, chronione wyłącznie uprawnieniami
@@ -1941,3 +2036,4 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Odzyskiwanie procesu | przepływ | [SVG](diagramy/server/img/przeplyw-odzyskiwanie.svg) | [MMD](diagramy/server/przeplyw-odzyskiwanie.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Odpytywanie logu w konsoli | sekwencja | [`img/przeplyw-konsola.svg`](diagramy/logs/img/przeplyw-konsola.svg) | [`diagramy/logs/przeplyw-konsola.mmd`](diagramy/logs/przeplyw-konsola.mmd) | [5.11](#511-konsola) |
 | Lista zmian po aktualizacji | przepływ | [`img/przeplyw-lista-zmian.svg`](diagramy/releasenotes/img/przeplyw-lista-zmian.svg) | [`diagramy/releasenotes/przeplyw-lista-zmian.mmd`](diagramy/releasenotes/przeplyw-lista-zmian.mmd) | [5.12](#512-lista-zmian-po-aktualizacji) |
+| Zmiana listy graczy | sekwencja | [`img/przeplyw-zmiana-listy.svg`](diagramy/players/img/przeplyw-zmiana-listy.svg) | [`diagramy/players/przeplyw-zmiana-listy.mmd`](diagramy/players/przeplyw-zmiana-listy.mmd) | [5.14](#514-listy-graczy) |

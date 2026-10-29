@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pl" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{${'players.' + playerList.pathSegment + '.title'}}">Gracze · vDeck</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/players.css}">
+    <script type="module" th:src="@{/js/server-status.js}"></script>
+</head>
+<body>
+<!--
+    One panel of the "Gracze" branch of the side menu. The controller names the list - bans, admins or
+    permitted - and the view shows its entries as a table with a removal button in every row, below the
+    form adding a player. The panels change only the list files, which the server reads when it starts, so
+    the warning above the form is always shown. The pattern attribute is a convenience; the server side
+    validates the user id again against the chosen platform.
+-->
+<div th:replace="~{common/island :: island}"></div>
+
+<main class="page-content" th:with="listKey=${'players.' + playerList.pathSegment}">
+    <div class="panel-frame">
+        <div class="surface view-card view-card--wide">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-players}"></use>
+                </svg>
+                <h1 class="view-title" th:text="#{${listKey + '.heading'}}">Gracze</h1>
+            </div>
+            <p class="view-lead" th:text="#{${listKey + '.lead'}(${playerList.fileName})}"></p>
+
+            <!-- Shown on every list: the panel only edits files, and the feature may still change. -->
+            <div class="form-warning" role="note">
+                <p class="form-warning__text" th:text="#{players.warning.restart}"></p>
+                <p class="form-warning__note" th:text="#{players.warning.inProgress}"></p>
+            </div>
+
+            <p class="form-success settings-message" role="status"
+               th:if="${param.added != null and playerListErrorKey == null}" th:text="#{players.added}"></p>
+            <p class="form-success settings-message" role="status"
+               th:if="${param.removed != null and playerListErrorKey == null}" th:text="#{players.removed}"></p>
+            <p class="form-alert settings-message" role="alert"
+               th:if="${playerListErrorKey}" th:text="#{${playerListErrorKey}}"></p>
+
+            <div class="form-stack settings-form">
+                <form class="form-stack" method="post" th:action="@{${playerList.path + '/add'}}"
+                      th:with="form=${playerEntryForm}">
+                    <fieldset class="form-section">
+                        <legend class="form-section__title" th:text="#{players.section.add}"></legend>
+                        <div class="settings-fields">
+                            <div class="form-field">
+                                <label class="form-label" for="player-platform" th:text="#{players.field.platform}"></label>
+                                <select class="form-input form-select" id="player-platform" name="platform" required
+                                        aria-describedby="player-platform-hint">
+                                    <option th:each="platform : ${platforms}" th:value="${platform}"
+                                            th:selected="${platform == form.platform()}"
+                                            th:text="#{${'players.platform.' + platform}}"></option>
+                                </select>
+                                <p class="form-hint" id="player-platform-hint" th:text="#{players.hint.platform}"></p>
+                            </div>
+                            <div class="form-field">
+                                <label class="form-label" for="player-user-id" th:text="#{players.field.userId}"></label>
+                                <input class="form-input" id="player-user-id" name="userId" type="text"
+                                       inputmode="numeric" maxlength="20" pattern="[0-9]+" required autocomplete="off"
+                                       aria-describedby="player-user-id-hint" th:value="${form.userId()}">
+                                <p class="form-hint" id="player-user-id-hint" th:text="#{players.hint.userId}"></p>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="settings-footer">
+                        <button class="form-submit" type="submit" th:text="#{players.action.add}"></button>
+                    </div>
+                </form>
+
+                <section class="form-section" aria-labelledby="player-list-title">
+                    <h2 class="form-section__title" id="player-list-title" th:text="#{players.section.list}"></h2>
+                    <p class="player-list-empty" th:if="${entries.isEmpty()}" th:text="#{players.list.empty}"></p>
+                    <!-- Entries in the order of the file; an entry without a known platform prefix is shown whole. -->
+                    <table class="player-table" th:unless="${entries.isEmpty()}">
+                        <thead>
+                        <tr>
+                            <th scope="col" th:text="#{players.table.platform}"></th>
+                            <th scope="col" th:text="#{players.table.userId}"></th>
+                            <th class="player-table__action" scope="col" th:text="#{players.table.action}"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="entry : ${entries}">
+                            <td th:text="${entry.platform() != null} ? #{${'players.platform.' + entry.platform() + '.short'}} : #{players.platform.unknown}"></td>
+                            <td class="player-table__identifier" th:text="${entry.userId()}"></td>
+                            <td class="player-table__action">
+                                <form method="post" th:action="@{${playerList.path + '/remove'}}">
+                                    <input type="hidden" name="identifier" th:value="${entry.identifier()}">
+                                    <button class="form-submit player-table__remove" type="submit"
+                                            th:attr="aria-label=#{players.action.removeEntry(${entry.identifier()})}"
+                                            th:text="#{players.action.remove}"></button>
+                                </form>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{common/home-button :: homeButton}"></div>
+<div th:replace="~{common/side-menu :: sideMenu(activeEntry=${'players.' + playerList.pathSegment})}"></div>
+</body>
+</html>

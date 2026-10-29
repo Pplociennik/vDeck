@@ -59,6 +59,7 @@ Panel pozwala:
 
 * ustawić nazwę serwera, port, hasło, świat i automatyczne kopie zapisu gry;
 * wybrać poziom trudności świata i jego zasady;
+* prowadzić listy zbanowanych graczy, administratorów i białą listę;
 * uruchamiać i bezpiecznie zatrzymywać serwer, obserwując jego stan;
 * przed każdym zatrzymaniem wykonać kopię plików świata;
 * w razie potrzeby wymusić zakończenie zawieszonego serwera.
@@ -186,7 +187,7 @@ image::ekran-glowny.jpg[Ekran główny z wyspą akcji, stanem serwera i przycisk
 [horizontal]
 1:: *Wyspa akcji* — przyciski sterowania serwerem i panelem, widoczne na każdym ekranie.
 2:: *Stan serwera* — kropka w kolorze stanu i jego nazwa.
-3:: *Menu* — otwiera menu boczne z ekranami ustawień i konsolą.
+3:: *Menu* — otwiera menu boczne z ekranami ustawień, konsolą i listami graczy.
 
 Po aktualizacji vDeck strona główna pokazuje pod wyspą listę zmian w nowej wersji, dopóki jej nie zamkniesz (<<co-nowego>>).
 
@@ -223,10 +224,10 @@ niedostępne są wyszarzone zawsze.
 
 Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Na jego górze jest przycisk *Stan
 serwera*, sekcja *Konfiguracja* prowadzi do ekranów ustawień, a sekcja *Procesy* — do konsoli
-serwera.
+serwera i list graczy.
 
 .Menu boczne
-image::menu-boczne.jpg[Menu boczne z przyciskiem Stan serwera, rozwiniętą pozycją Serwer, pozycjami Ustawienia gry i Konsola, przyciskami Admin i Zamknij vDeck oraz wersją panelu,pdfwidth=40%]
+image::menu-boczne.jpg[Menu boczne z przyciskiem Stan serwera, rozwiniętą pozycją Serwer, pozycjami Ustawienia gry, Konsola i Gracze, przyciskami Admin i Zamknij vDeck oraz wersją panelu,pdfwidth=40%]
 
 [horizontal]
 1:: *Stan serwera* — skrót najważniejszych informacji o serwerze i jego ustawieniach
@@ -235,10 +236,12 @@ image::menu-boczne.jpg[Menu boczne z przyciskiem Stan serwera, rozwiniętą pozy
 oraz *Kopie automatyczne* (<<ekran-serwer>>). Ponowne kliknięcie zwija listę.
 3:: *Ustawienia gry* — poziom trudności i zasady świata.
 4:: *Konsola* — log działającego serwera (<<konsola>>).
-5:: *Admin* — ustawienia systemu vDeck. Jeszcze niedostępny, dlatego jest wyszarzony.
-6:: *Zamknij vDeck* — kwadratowy przycisk z ikoną zasilania; zamyka panel po potwierdzeniu
+5:: *Gracze* — rozwija listę trzech paneli list graczy: *Bany*, *Administratorzy* i *Biała lista*
+(<<gracze>>).
+6:: *Admin* — ustawienia systemu vDeck. Jeszcze niedostępny, dlatego jest wyszarzony.
+7:: *Zamknij vDeck* — kwadratowy przycisk z ikoną zasilania; zamyka panel po potwierdzeniu
 (<<zamykanie-panelu>>).
-7:: Numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
+8:: Numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
 
 Pozycja otwartego ekranu jest wyróżniona złotą ramką.
 
@@ -492,6 +495,67 @@ przy uruchomieniu serwera.
 
 Ustawienia zapisujesz przyciskiem btn:[Zapisz ustawienia]. Jak na panelach menu *Serwer*, obowiązują
 od następnego uruchomienia serwera.
+
+[#gracze]
+== Listy graczy
+
+Serwer Valheim prowadzi trzy listy graczy. Każdą zmieniasz na osobnym panelu. Otworzysz je z menu
+bocznego: *Procesy* → *Gracze*, a potem jedna z pozycji:
+
+[cols="1,1,3",options="header"]
+|===
+| Panel | Plik | Działanie listy
+
+| Bany | `bannedlist.txt` | Serwer nie wpuszcza wymienionych graczy.
+| Administratorzy | `adminlist.txt` | Wymienieni gracze mogą w konsoli gry (klawisz F5) używać poleceń
+administratora, np. `kick`, `ban` i `unban`.
+| Biała lista | `permittedlist.txt` | Gdy lista ma choć jeden wpis, serwer wpuszcza tylko wymienionych
+graczy. Pusta lista wpuszcza każdego, kto zna hasło serwera.
+|===
+
+Pliki leżą w katalogu zapisu ustawionym na panelu *Świat i zapis* (<<panel-swiat>>). Przed pierwszym
+uruchomieniem serwera ich jeszcze nie ma — panel pokazuje wtedy pustą listę i tworzy plik przy
+dodaniu pierwszego gracza.
+
+.Panel „Bany” z dwoma graczami
+image::gracze-lista.jpg[Panel Bany z ostrzeżeniem, formularzem dodawania gracza i listą dwóch graczy,pdfwidth=65%]
+
+[horizontal]
+1:: Ostrzeżenie o ponownym uruchomieniu serwera i notka, że funkcja jest w trakcie rozwoju.
+2:: Formularz dodawania gracza.
+3:: Lista graczy z przyciskiem btn:[Usuń] w każdym wierszu.
+
+IMPORTANT: Panel zmienia tylko pliki list. Serwer czyta je przy uruchomieniu, więc zmiana zacznie
+obowiązywać dopiero po ponownym uruchomieniu serwera (<<restart>>). Funkcja jest w trakcie rozwoju
+i jej działanie może się zmienić w kolejnych wersjach vDeck.
+
+=== Dodawanie gracza
+
+. Wybierz *Platformę*: *Steam* albo *Xbox* (także Game Pass i Microsoft Store na komputerze).
+. Wpisz *Identyfikator gracza* — same cyfry, bez nazwy platformy:
+** Steam: 17-cyfrowy SteamID64 zaczynający się od `7656119`, np. `76561198012345678`;
+** Xbox: identyfikator XUID, do 20 cyfr.
+. Naciśnij btn:[Dodaj do listy].
+
+Panel zapisuje gracza w pliku razem z nazwą platformy, np. `Steam_76561198012345678`. W takiej postaci
+serwer z włączonym crossplayem rozpoznaje graczy, dlatego panel zawsze dopisuje nazwę platformy.
+
+Gracza, który już jest na liście, panel nie doda drugi raz. Identyfikator niepasujący do wybranej
+platformy panel odrzuca i pokazuje czerwony komunikat z przyczyną.
+
+TIP: SteamID64 gracza widać w adresie jego profilu Steam (`steamcommunity.com/profiles/…`), o ile nie
+ustawił on własnego adresu profilu.
+
+=== Usuwanie gracza
+
+Naciśnij btn:[Usuń] w wierszu gracza. Panel od razu usuwa wpis z pliku, bez dodatkowego potwierdzenia.
+
+Wpis, który nie zaczyna się od `Steam_` ani `Xbox_` — na przykład sam SteamID dopisany ręcznie — lista
+pokazuje w całości, z platformą *Nieznana*. Taki wpis też możesz usunąć.
+
+WARNING: Działający serwer sam zapisuje listy, np. po zbanowaniu gracza poleceniem `ban` w konsoli
+gry, i może przy tym nadpisać zmianę zrobioną w panelu. Najbezpieczniej zmieniaj listy przy
+zatrzymanym serwerze.
 
 [#praca-z-serwerem]
 == Uruchamianie i zatrzymywanie serwera

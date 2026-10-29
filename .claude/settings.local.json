@@ -95,7 +95,11 @@
       "Bash(./mvnw -q -pl vdeck-app test -Dtest=ServerServiceImplTest)",
       "Bash(./mvnw -q package -DskipTests)",
       "Bash(VDECK_NEW_PASSWORD='Zrzuty-Testowe-2026!' VDECK_INSTALLATION='C:\\\\Users\\\\Pszemko\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\5a45a101-fe88-4c8e-a638-f36d33ae2a5b\\\\scratchpad\\\\zrzuty-instalacja' npm run zrzuty)",
-      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\server\\\\klasy-komponenty.mmd -o dokumentacja\\\\diagramy\\\\server\\\\img\\\\klasy-komponenty.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json 2>&1)"
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\server\\\\klasy-komponenty.mmd -o dokumentacja\\\\diagramy\\\\server\\\\img\\\\klasy-komponenty.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json 2>&1)",
+      "PowerShell(.\\\\mvnw.cmd -q -pl vdeck-app -am compile 2>&1)",
+      "Bash(npx -y @mermaid-js/mermaid-cli -i dokumentacja/diagramy/players/przeplyw-zmiana-listy.mmd -o dokumentacja/diagramy/players/img/przeplyw-zmiana-listy.svg -b white -c dokumentacja/diagramy/mermaid-config.json)",
+      "Bash(mkdir -p dokumentacja/diagramy/players/img)",
+      "Bash(npx -y @mermaid-js/mermaid-cli -i dokumentacja/diagramy/players/przeplyw-zmiana-listy.mmd -o \"C:/Users/Pszemko/AppData/Local/Temp/claude/d--DEV-PROJECTS-vDeck-vdeck/05ea7c50-8479-4a45-afb5-011568ae085a/scratchpad/diagram.png\" -b white -c dokumentacja/diagramy/mermaid-config.json)"
     ]
   }
 }

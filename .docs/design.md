@@ -335,6 +335,12 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │       ├── LogService
         │   │   │       └── impl/
         │   │   │           └── LogServiceImpl
+        │   │   ├── shutdown/                    ← zamknięcie panelu z menu bocznego
+        │   │   │   ├── PanelShutdownController
+        │   │   │   └── service/
+        │   │   │       ├── PanelShutdownService
+        │   │   │       └── impl/
+        │   │   │           └── PanelShutdownServiceImpl
         │   │   └── mods/                        ← BepInEx i RCON
         │   │       ├── ModController
         │   │       └── service/
@@ -358,7 +364,8 @@ vdeck/                                           ← parent i agregator Maven
         │       ├── lock/
         │       │   └── InstallationLockService  ← przejęcie blokady od launchera przed Springiem
         │       ├── web/
-        │       │   └── DefaultExceptionHandler  ← domyślna obsługa wyjątków (AD-014)
+        │       │   ├── DefaultExceptionHandler  ← domyślna obsługa wyjątków (AD-014)
+        │       │   └── PanelVersionAdvice       ← wersja panelu w stopce menu bocznego
         │       └── service/
         │           ├── PathService
         │           ├── SystemPropertiesService
@@ -776,6 +783,9 @@ błąd zapisu tokenu zachowuje własność, `onExit()` i timer, więc Stop oraz 
 Panel udostępnia również Kill realizowany przez `ProcessHandle.destroyForcibly()`. Użycie tej
 możliwości podlega zasadom bezpieczeństwa danych opisanym niżej.
 
+Panel zamyka się przez CTRL+C w oknie konsoli albo akcją „Zamknij vDeck” z menu bocznego
+(`feature.shutdown`): po potwierdzeniu `POST /panel/shutdown` uruchamia na osobnym wątku
+nie-demonie `SpringApplication.exit`, a potem `System.exit`. Obie drogi zamykają ten sam kontekst.
 Los zarządzanego serwera przy zamknięciu panelu wybiera `panel.close.strategy` w `vDeck.properties`
 (AD-031). `config.ServerShutdownCoordinator` w metodzie `@PreDestroy`, a nie we własnym shutdown hooku,
 czyta ustawienie, wybiera jedyną `PanelCloseStrategy` o danym `PanelCloseMode` i blokuje do jej

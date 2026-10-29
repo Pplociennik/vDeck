@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pl" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{panelShutdown.title}">vDeck</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <script type="module" th:src="@{/js/panel-shutdown.js}"></script>
+</head>
+<body>
+<!--
+    Shutdown of the panel requested from the side menu. The screen carries no island and no side menu: the
+    island would keep polling a panel that is about to stop. It holds both states - the confirmation and the
+    closing message - and the closing attribute selects the one shown. panel-shutdown.js sends the request in
+    the background and reveals the closing message already on the page, because once the panel stops, a new
+    page could no longer load its stylesheet.
+-->
+<main class="page-center">
+    <div class="surface view-card view-card--dialog" data-panel-shutdown>
+        <section th:hidden="${closing}" data-panel-shutdown-confirmation aria-labelledby="panel-shutdown-title">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                </svg>
+                <h1 class="view-title" id="panel-shutdown-title" th:text="#{panelShutdown.title}"></h1>
+            </div>
+            <p class="view-lead" th:text="#{panelShutdown.lead}"></p>
+            <form class="settings-footer" method="post" th:action="@{/panel/shutdown}" data-panel-shutdown-form>
+                <button class="form-submit" type="submit" th:text="#{panelShutdown.submit}"></button>
+                <a class="form-submit" th:href="@{/}" th:text="#{panelShutdown.cancel}"></a>
+            </form>
+        </section>
+
+        <section th:hidden="${!closing}" data-panel-shutdown-closing role="status" tabindex="-1"
+                 aria-labelledby="panel-shutdown-closing-title">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                </svg>
+                <h1 class="view-title" id="panel-shutdown-closing-title"
+                    th:text="#{panelShutdown.closing.title}"></h1>
+            </div>
+            <p class="view-lead" th:text="#{panelShutdown.closing.lead}"></p>
+        </section>
+    </div>
+</main>
+</body>
+</html>

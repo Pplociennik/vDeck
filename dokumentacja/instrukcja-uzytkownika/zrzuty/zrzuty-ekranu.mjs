@@ -84,7 +84,10 @@ try {
     await mark( page, [
         { selector: '[data-side-menu-branch]', label: '1' },
         { selector: '.side-menu-entry[href$="/game-settings"]', label: '2' },
-        { selector: '.side-menu-entry[href$="/console"]', label: '3' }
+        { selector: '.side-menu-entry[href$="/console"]', label: '3' },
+        { selector: '.side-menu-admin', label: '4' },
+        { selector: '.side-menu-close', label: '5' },
+        { selector: '.side-menu-footer', label: '6' }
     ] );
     await captureAround( page, '.side-menu-panel', 'menu-boczne', 16 );
     await clearMarks( page );
@@ -154,6 +157,15 @@ try {
     await page.goto( `${baseUrl}/change-password` );
     await captureElement( page, '.view-card', 'zmiana-hasla' );
     await page.setViewportSize( { width: 1280, height: 800 } );
+
+    // Only the confirmation is shot: confirming would close the panel the rest of the script needs. The card
+    // fills the panel frame, so the shot ends below its buttons.
+    await page.goto( `${baseUrl}/panel/shutdown` );
+    const shutdownCard = await page.locator( '.view-card' ).boundingBox();
+    const shutdownFooter = await page.locator( '[data-panel-shutdown-form]' ).boundingBox();
+    await page.screenshot( { path: imagePath( 'zamkniecie-panelu', 'jpg' ), type: 'jpeg', quality: 85,
+        clip: { x: shutdownCard.x, y: shutdownCard.y, width: shutdownCard.width,
+            height: shutdownFooter.y + shutdownFooter.height + 24 - shutdownCard.y } } );
 
     await page.goto( `${baseUrl}/` );
     await page.click( 'form[action$="/server/start"] button' );

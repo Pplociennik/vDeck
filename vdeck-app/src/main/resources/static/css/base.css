@@ -680,6 +680,14 @@ body::before {
     max-inline-size: var(--card-max-inline-size-wide);
 }
 
+/*
+ * Confirmation card: placed outside the panel frame, so it takes only the height of its content and
+ * stays a small horizontal rectangle in the middle of the page.
+ */
+.view-card--dialog {
+    max-inline-size: var(--card-max-inline-size-dialog);
+}
+
 /* Sections are set further apart than the fields inside them, so each group reads as one unit. */
 .settings-form {
     gap: var(--space-xl);
@@ -891,14 +899,12 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 /*
  * Textured body of the menu. Its corners are only slightly rounded, and a circle centred on the
  * toggle - the toggle depth in from the bottom-left corner - is masked out, leaving an even gap
- * around the button.
+ * around the button. The body stacks the scrolling sections over the bottom strip, which stays in place.
  */
 .side-menu-surface {
+    display: flex;
+    flex-direction: column;
     block-size: 100%;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-width: thin;
-    scrollbar-color: var(--side-menu-scrollbar-color);
     border-radius: var(--side-menu-radius);
     box-shadow: var(--surface-inner-shadow);
     -webkit-mask-image: radial-gradient(
@@ -939,15 +945,149 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 }
 
 /*
- * Sections grouping the entries, kept further apart than the entries inside them. The bottom padding
- * keeps the last entry clear of the cut-out corner and the toggle inside it.
+ * Sections grouping the entries, kept further apart than the entries inside them. They take the height
+ * left above the bottom strip and scroll inside it when the entries do not fit.
  */
 .side-menu-sections {
     display: flex;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: var(--space-md);
+    min-block-size: 0;
     padding: var(--space-sm);
-    padding-block-end: calc(var(--side-menu-notch-radius) + var(--side-menu-toggle-depth) + var(--space-xs));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--side-menu-scrollbar-color);
+}
+
+/*
+ * Bottom strip of the menu, filling the width beside the cut-out corner. It is never shorter than the
+ * cut-out, so the sections above always end clear of the toggle, and its content sits at the bottom edge.
+ */
+.side-menu-bottom {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: var(--space-xs);
+    min-block-size: var(--side-menu-notch-extent);
+    padding: 0 var(--space-sm) var(--space-xs);
+    padding-left: calc(var(--side-menu-notch-extent) + var(--space-xs));
+}
+
+/*
+ * Row of panel actions directly above the footer, spanning the same width: the wide "Admin" action and,
+ * on its right, the square "Zamknij vDeck" action. Both stay as compact as the touch floor allows.
+ */
+.side-menu-actions {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.side-menu-actions__icon {
+    inline-size: var(--side-menu-action-icon-size);
+    block-size: var(--side-menu-action-icon-size);
+}
+
+/* "Admin" action: the look of the other panel buttons - a black face with a light rim - with an icon and label. */
+.side-menu-admin {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-xs);
+    min-inline-size: 0;
+    min-block-size: var(--control-touch-size);
+    padding: var(--space-xs) var(--space-sm);
+    -webkit-tap-highlight-color: transparent;
+    border: 0.0625rem solid var(--color-control-border);
+    border-radius: var(--field-radius);
+    font-family: inherit;
+    font-size: var(--side-menu-action-font-size);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--color-text);
+    background-color: var(--color-control-surface);
+    box-shadow: inset 0 0.0625rem 0 var(--color-edge-highlight);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .side-menu-admin:hover:not(:disabled) {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+.side-menu-admin:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.side-menu-admin:active:not(:disabled) {
+    background-color: var(--color-control-surface-active);
+}
+
+/* Like a disabled form button: the black face stays, the dimmed label and the cursor carry the state. */
+.side-menu-admin:disabled {
+    color: var(--color-text-disabled);
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+}
+
+/*
+ * "Zamknij vDeck" action: a square holding only the power icon. Its accent rim and icon make it read as a
+ * control rather than a footnote; the accessible name comes from aria-label.
+ */
+.side-menu-close {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--control-touch-size);
+    block-size: var(--control-touch-size);
+    -webkit-tap-highlight-color: transparent;
+    border: 0.0625rem solid var(--side-menu-close-border);
+    border-radius: var(--field-radius);
+    text-decoration: none;
+    color: var(--side-menu-close-color);
+    background-color: var(--side-menu-entry-surface);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .side-menu-close:hover {
+        border-color: var(--side-menu-close-color);
+        background-color: var(--color-control-surface-hover);
+    }
+}
+
+.side-menu-close:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.side-menu-close:active {
+    border-color: var(--side-menu-close-color);
+    background-color: var(--color-control-surface-active);
+}
+
+/* Footer with the panel version: a faint centred line of text below a separator. */
+.side-menu-footer {
+    padding-block-start: var(--space-xs);
+    border-block-start: var(--side-menu-section-line-width) solid var(--side-menu-section-line-color);
+    text-align: center;
+}
+
+.side-menu-footer__version {
+    margin: 0;
+    font-size: var(--side-menu-footer-font-size);
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    opacity: var(--side-menu-footer-opacity);
 }
 
 /* A section has no frame of its own; only its title, centred on a horizontal line, sets it apart. */
@@ -1156,7 +1296,9 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
     .side-menu-children,
     .side-menu-entry--branch[aria-expanded="true"] + .side-menu-children,
     .side-menu-entry,
-    .side-menu-entry__chevron {
+    .side-menu-entry__chevron,
+    .side-menu-admin,
+    .side-menu-close {
         transition: none;
     }
 

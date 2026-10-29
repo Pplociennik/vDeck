@@ -20,6 +20,11 @@
     page; other views embed the fragment without it. The "Serwer" branch holds one entry per panel of the
     server settings, with ids serverSettings.server, serverSettings.access, serverSettings.world and
     serverSettings.innerServerBackups.
+
+    Below the scrolling sections, beside the cut-out corner, a row holds the "Admin" action - disabled
+    until the system settings panel exists - and the square icon-only "Zamknij vDeck" action opening the
+    panel shutdown confirmation. Below them a footer shows the panel version from the panelVersion model
+    attribute; the footer is left out when the version is unknown.
 -->
 <div class="side-menu" th:fragment="sideMenu" data-side-menu>
     <button class="side-menu-toggle round-button" type="button" aria-expanded="false" aria-controls="side-menu-panel"
@@ -70,6 +75,28 @@
                         </li>
                     </ul>
                 </section>
+            </div>
+
+            <!-- Strip beside the cut-out corner, always at least as tall as the cut-out. -->
+            <div class="side-menu-bottom">
+                <div class="side-menu-actions">
+                    <!-- Will open the vDeck system settings; disabled until that panel exists. -->
+                    <button class="side-menu-admin" type="button" disabled>
+                        <svg class="icon side-menu-actions__icon" aria-hidden="true" focusable="false">
+                            <use th:href="@{/icons/icons.svg#icon-gear}"></use>
+                        </svg>
+                        <span th:text="#{sideMenu.action.admin}"></span>
+                    </button>
+                    <a class="side-menu-close" th:href="@{/panel/shutdown}"
+                       th:attr="aria-label=#{sideMenu.action.close},title=#{sideMenu.action.close}">
+                        <svg class="icon side-menu-actions__icon" aria-hidden="true" focusable="false">
+                            <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                        </svg>
+                    </a>
+                </div>
+                <footer class="side-menu-footer" th:if="${panelVersion != null}">
+                    <p class="side-menu-footer__version" th:text="#{sideMenu.footer.version(${panelVersion})}"></p>
+                </footer>
             </div>
         </div>
         <span class="side-menu-notch-frame" aria-hidden="true"></span>

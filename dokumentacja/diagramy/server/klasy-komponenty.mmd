@@ -5,6 +5,7 @@ classDiagram
         class ServerController
         class ServerExceptionHandler
         class ServerStatusAdvice
+        class ServerStateController
         class ServerService {
             <<interface>>
             start()
@@ -79,6 +80,8 @@ classDiagram
     ServerController --> ServerService : akcje launchId
     ServerExceptionHandler ..> ServerController : obsługa błędu
     ServerStatusAdvice --> ServerService : stan widoku
+    ServerStateController ..> ServerStatusAdvice : migawka z modelu
+    ServerStateController --> LaunchProfileService : profil bez sekretów
     ServerServiceImpl ..|> ServerService
     ServerServiceImpl --> ServerStartValidator : walidacja
     ServerServiceImpl --> LaunchProfileService : gotowa konfiguracja

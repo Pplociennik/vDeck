@@ -1,0 +1,141 @@
+@import url("variables.css");
+
+/*
+ * "Stan serwera" screen: groups of read-only values, each closed by a text link to the panel changing them.
+ * Built from the narrowest screen up: one column on a phone, as many columns as fit on a wider card.
+ */
+
+.server-state-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--server-state-group-min-inline-size)), 1fr));
+    gap: var(--space-lg) var(--space-xl);
+    align-items: start;
+}
+
+.server-state-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+    min-inline-size: 0;
+}
+
+.server-state-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+/* One value per row: the name on the left, the value on the right, wrapping below it when space runs out. */
+.server-state-item {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0 var(--space-sm);
+    padding-block: var(--space-xs);
+    border-block-end: var(--side-menu-section-line-width) solid var(--color-divider);
+}
+
+.server-state-item dt {
+    font-size: var(--font-size-label);
+    color: var(--color-text-muted);
+}
+
+.server-state-item dd {
+    margin: 0;
+    font-size: var(--font-size-lead);
+    font-weight: 600;
+    text-align: end;
+    overflow-wrap: anywhere;
+}
+
+/* Paths and file names are read character by character, so they use the console's fixed-width type. */
+.server-state-value--path {
+    font-family: var(--font-family-console);
+    font-weight: 400;
+}
+
+/* Process state: a dot in the state colour beside the state in words, as in the island's status badge. */
+.server-state-status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.server-state-status__indicator {
+    flex: 0 0 auto;
+    inline-size: var(--island-status-dot-size);
+    block-size: var(--island-status-dot-size);
+    border-radius: 50%;
+    background-color: currentColor;
+}
+
+.server-state-status.is-starting,
+.server-state-status.is-stopping {
+    color: var(--server-state-color-pending);
+}
+
+.server-state-status.is-running {
+    color: var(--server-state-color-running);
+}
+
+.server-state-status.is-start-failed,
+.server-state-status.is-crashed,
+.server-state-status.is-stop-failed,
+.server-state-status.is-recovery-required {
+    color: var(--server-state-color-failed);
+}
+
+/*
+ * Text link to a related panel: accent text with a chevron, aligned to the end of the group. Its height keeps
+ * the touch floor although it looks like a line of text.
+ */
+.server-state-link {
+    display: inline-flex;
+    align-self: flex-end;
+    align-items: center;
+    gap: var(--space-xs);
+    min-block-size: var(--control-touch-size);
+    padding-inline: var(--space-xs);
+    -webkit-tap-highlight-color: transparent;
+    border-radius: var(--field-radius);
+    font-size: var(--font-size-label);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 0.2em;
+    transition: text-decoration-color var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .server-state-link:hover {
+        text-decoration-color: currentColor;
+    }
+}
+
+.server-state-link:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.server-state-link:active {
+    text-decoration-color: currentColor;
+}
+
+.server-state-link__icon {
+    inline-size: var(--side-menu-action-icon-size);
+    block-size: var(--side-menu-action-icon-size);
+}
+
+@media (max-height: 44rem) {
+    .server-state-groups {
+        gap: var(--space-md) var(--space-lg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .server-state-link {
+        transition: none;
+    }
+}

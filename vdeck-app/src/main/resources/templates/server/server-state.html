@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="pl" th:lang="${#locale.language}" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="#{serverState.title}">Stan serwera · vDeck</title>
+    <link rel="stylesheet" th:href="@{/css/base.css}">
+    <link rel="stylesheet" th:href="@{/css/server-state.css}">
+    <script type="module" th:src="@{/js/server-status.js}"></script>
+    <script type="module" th:src="@{/js/server-state.js}"></script>
+</head>
+<body>
+<!--
+    "Stan serwera" screen, opened from the top of the side menu: a read-only summary of the managed process
+    and of the stored launch profile, one group per panel that changes it, each ending with a text link to
+    that panel. The server password is only stated as set or not set.
+
+    Every value list carries data-server-state-values and an id; server-state.js re-reads the page every few
+    seconds and swaps only those lists, so the state, the uptime and the profile stay current while the
+    links - the only focusable elements - are never replaced under the keyboard focus.
+-->
+<div th:replace="~{common/island :: island}"></div>
+
+<main class="page-content">
+    <div class="panel-frame">
+        <div class="surface view-card view-card--wide" data-server-state
+             th:attr="data-state-url=@{/server-state}"
+             th:with="none=#{serverState.value.none},yes=#{serverState.value.yes},no=#{serverState.value.no}">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-gauge}"></use>
+                </svg>
+                <h1 class="view-title" th:text="#{serverState.heading}">Stan serwera</h1>
+            </div>
+            <p class="view-lead" th:text="#{serverState.lead}"></p>
+
+            <div class="server-state-groups">
+                <section class="server-state-group" aria-labelledby="server-state-title-process">
+                    <h2 class="form-section__title" id="server-state-title-process"
+                        th:text="#{serverState.group.process}"></h2>
+                    <dl class="server-state-list" id="server-state-values-process" data-server-state-values>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.state}"></dt>
+                            <!-- The dot only repeats the state the label names, so colour is never the only cue. -->
+                            <dd class="server-state-status"
+                                th:classappend="'is-' + ${#strings.replace( #strings.toLowerCase( serverStatus.state ), '_', '-' )}">
+                                <span class="server-state-status__indicator" aria-hidden="true"></span>
+                                <span th:text="#{${'server.state.' + serverStatus.state}}"></span>
+                            </dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.startedAt}"></dt>
+                            <dd th:text="${startedAt != null} ? ${#temporals.format( startedAt, 'dd.MM.yyyy HH:mm:ss' )} : ${none}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.uptime}"></dt>
+                            <dd th:text="${uptime != null} ? #{serverState.value.uptime( ${uptime.toDays()}, ${uptime.toHoursPart()}, ${uptime.toMinutesPart()} )} : ${none}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.pid}"></dt>
+                            <dd th:text="${serverStatus.pid != null} ? ${serverStatus.pid} : ${none}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.logFile}"></dt>
+                            <dd th:classappend="${logFileName != null} ? 'server-state-value--path'"
+                                th:text="${logFileName != null} ? ${logFileName} : ${none}"></dd>
+                        </div>
+                    </dl>
+                    <a th:replace="~{server/server-state :: relatedPanelLink('serverState.link.console', '/console')}"></a>
+                </section>
+
+                <section class="server-state-group" aria-labelledby="server-state-title-server">
+                    <h2 class="form-section__title" id="server-state-title-server"
+                        th:text="#{launchProfile.section.server}"></h2>
+                    <dl class="server-state-list" id="server-state-values-server" data-server-state-values>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.serverName}"></dt>
+                            <dd th:text="${launchProfile.serverName}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.ports}"></dt>
+                            <dd th:text="#{serverState.value.ports( ${launchProfile.port}, ${launchProfile.port + 1} )}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.publicServer}"></dt>
+                            <dd th:text="${launchProfile.publicServer} ? ${yes} : ${no}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.crossplay}"></dt>
+                            <dd th:text="${launchProfile.crossplay} ? ${yes} : ${no}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.instanceId}"></dt>
+                            <dd th:text="${#strings.isEmpty( launchProfile.instanceId )} ? ${none} : ${launchProfile.instanceId}"></dd>
+                        </div>
+                    </dl>
+                    <a th:replace="~{server/server-state :: relatedPanelLink('serverState.link.server', '/server-settings/server')}"></a>
+                </section>
+
+                <section class="server-state-group" aria-labelledby="server-state-title-access">
+                    <h2 class="form-section__title" id="server-state-title-access"
+                        th:text="#{launchProfile.section.access}"></h2>
+                    <dl class="server-state-list" id="server-state-values-access" data-server-state-values>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.password}"></dt>
+                            <dd th:text="${launchProfile.passwordSet} ? #{serverState.value.passwordSet} : #{serverState.value.passwordNotSet}"></dd>
+                        </div>
+                    </dl>
+                    <a th:replace="~{server/server-state :: relatedPanelLink('serverState.link.access', '/server-settings/access')}"></a>
+                </section>
+
+                <section class="server-state-group" aria-labelledby="server-state-title-world">
+                    <h2 class="form-section__title" id="server-state-title-world"
+                        th:text="#{launchProfile.section.world}"></h2>
+                    <dl class="server-state-list" id="server-state-values-world" data-server-state-values>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.worldName}"></dt>
+                            <dd th:text="${launchProfile.worldName}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.saveDirectory}"></dt>
+                            <dd class="server-state-value--path" th:text="${launchProfile.saveDirectory}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.saveInterval}"></dt>
+                            <dd th:text="${launchProfile.saveInterval}"></dd>
+                        </div>
+                    </dl>
+                    <a th:replace="~{server/server-state :: relatedPanelLink('serverState.link.world', '/server-settings/world')}"></a>
+                </section>
+
+                <section class="server-state-group" aria-labelledby="server-state-title-backups">
+                    <h2 class="form-section__title" id="server-state-title-backups"
+                        th:text="#{launchProfile.section.innerServerBackups}"></h2>
+                    <dl class="server-state-list" id="server-state-values-backups" data-server-state-values>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.backupCount}"></dt>
+                            <dd th:text="${launchProfile.backupCount}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.backupShort}"></dt>
+                            <dd th:text="${launchProfile.backupShort}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.backupLong}"></dt>
+                            <dd th:text="${launchProfile.backupLong}"></dd>
+                        </div>
+                    </dl>
+                    <a th:replace="~{server/server-state :: relatedPanelLink('serverState.link.innerServerBackups', '/server-settings/inner-server-backups')}"></a>
+                </section>
+
+                <section class="server-state-group" aria-labelledby="server-state-title-game">
+                    <h2 class="form-section__title" id="server-state-title-game"
+                        th:text="#{serverState.group.gameSettings}"></h2>
+                    <dl class="server-state-list" id="server-state-values-game" data-server-state-values>
+                        <div class="server-state-item">
+                            <dt th:text="#{launchProfile.field.preset}"></dt>
+                            <dd th:text="${launchProfile.preset != null} ? #{${'launchProfile.preset.' + launchProfile.preset.cliValue}} : #{launchProfile.option.noPreset}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.modifiers}"></dt>
+                            <dd th:text="${launchProfile.modifiers.size()}"></dd>
+                        </div>
+                        <div class="server-state-item">
+                            <dt th:text="#{serverState.field.keys}"></dt>
+                            <dd th:text="${launchProfile.enabledKeys.size()}"></dd>
+                        </div>
+                    </dl>
+                    <a th:replace="~{server/server-state :: relatedPanelLink('serverState.link.gameSettings', '/game-settings')}"></a>
+                </section>
+            </div>
+        </div>
+    </div>
+</main>
+
+<div th:replace="~{common/home-button :: homeButton}"></div>
+<div th:replace="~{common/side-menu :: sideMenu(activeEntry='serverState')}"></div>
+
+<!-- Fragments used only by this view; the block itself is never rendered. -->
+<th:block th:remove="all">
+    <!-- Text link closing a group: leads to the panel that changes the values listed above it. -->
+    <a class="server-state-link" th:fragment="relatedPanelLink(labelKey, href)" th:href="@{${href}}">
+        <span th:text="#{${labelKey}}"></span>
+        <svg class="icon server-state-link__icon" aria-hidden="true" focusable="false">
+            <use th:href="@{/icons/icons.svg#icon-chevron}"></use>
+        </svg>
+    </a>
+</th:block>
+</body>
+</html>

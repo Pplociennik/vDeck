@@ -53,6 +53,7 @@ i wyraźnie oznaczone jako niezrealizowane.
   - [5.10 Zatrzymanie, snapshoty i odzyskiwanie](#510-zatrzymanie-snapshoty-i-odzyskiwanie)
   - [5.11 Konsola](#511-konsola)
   - [5.12 Lista zmian po aktualizacji](#512-lista-zmian-po-aktualizacji)
+  - [5.13 Stan serwera](#513-stan-serwera)
 - [6. Bezpieczeństwo](#6-bezpieczeństwo)
 - [7. Persystencja](#7-persystencja)
 - [8. Logowanie zdarzeń](#8-logowanie-zdarzeń)
@@ -410,7 +411,7 @@ Bazowy pakiet to `com.github.pplociennik.vdeck`. Istnieją wyłącznie pakiety z
 | `feature.authentication` | Pionowy feature uwierzytelniania: kontrolery i ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `persistence`, `service` i `service.impl` |
 | `feature.home` | Strona główna panelu: `HomeController` |
 | `feature.releasenotes` | Panel „Co nowego w vDeck” na stronie głównej: `ReleaseNotesController` i jego `@ControllerAdvice`, `domain`, `exc`, `persistence`, `service` i `service.impl` |
-| `feature.server` | Start serwera, walidacja, polecenie startowe, logi i udostępnienie stanu runtime widokom; wiring w `config.ServerRuntimeConfiguration` |
+| `feature.server` | Start serwera, walidacja, polecenie startowe, logi, udostępnienie stanu runtime widokom i ekran „Stan serwera” (`ServerStateController`); wiring w `config.ServerRuntimeConfiguration` |
 | `feature.launch` | Pionowy feature profilu uruchomieniowego: kontrolery paneli gałęzi „Serwer” i ekranu „Ustawienia gry” oraz ich `@ControllerAdvice`, `domain`, `dto`, `exc`, `service` i `service.impl`; bez `persistence`, bo profil leży w pliku ustawień (AD-013) |
 | `feature.logs` | Konsola z logiem bieżącego uruchomienia serwera: `ConsoleController`, `dto.LogChunk`, `service` i `service.impl` |
 | `security` | Przekrojowe filtry i handlery Spring Security, niezwiązane z jednym feature'em |
@@ -945,7 +946,7 @@ Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są 
 Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
 `icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
 `icon-key`, `icon-logout`, `icon-home` (przycisk strony głównej), `icon-menu` (przycisk menu bocznego), `icon-server` (gałąź menu i panele „Serwer”),
-`icon-sliders` (ekran „Ustawienia gry”), `icon-console` (ekran „Konsola”), `icon-chevron` (stan gałęzi menu) i `icon-gear` (przycisk „Admin” menu bocznego). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
+`icon-sliders` (ekran „Ustawienia gry”), `icon-console` (ekran „Konsola”), `icon-chevron` (stan gałęzi menu i odnośniki ekranu „Stan serwera”), `icon-gear` (przycisk „Admin” menu bocznego) i `icon-gauge` (przycisk i ekran „Stan serwera”). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
 przyciski tworzą kopię, a nie pobierają pliku.
 
 Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlatego
@@ -975,6 +976,8 @@ Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlate
   osadzone pod wyspą akcji, z menu bocznym — opisane w [5.6](#56-serwer-i-ustawienia-gry).
 - **Konsola** (`logs/console.html`, adres `/console`) to szeroka karta pod wyspą akcji, z menu
   bocznym, wypełniona przewijanym oknem logu serwera — opisana w [5.11](#511-konsola).
+- **Stan serwera** (`server/server-state.html`, adres `/server-state`) to szeroka karta pod wyspą
+  akcji, z menu bocznym, z grupami wartości tylko do odczytu — opisana w [5.13](#513-stan-serwera).
 - **Zamknięcie panelu** (`shutdown/panel-shutdown.html`, adres `/panel/shutdown`) to wyśrodkowana
   karta bez wyspy i bez menu bocznego: nagłówek z ikoną `icon-power`, opis skutków i przyciski
   „Zamknij panel” oraz „Anuluj”, a po potwierdzeniu komunikat „Panel vDeck się zamyka” — opisana w
@@ -989,7 +992,7 @@ i `title` pochodzą z tłumaczeń opisanych w [3.5](#35-tłumaczenia-interfejsu)
 
 Menu boczne jest komponentem wspólnym — plik `templates/common/side-menu.html` z fragmentem
 `sideMenu`, osadzanym przez `th:replace="~{common/side-menu :: sideMenu}"` na stronie głównej, na
-ekranie zmiany hasła na życzenie, na panelach gałęzi „Serwer” oraz na ekranach „Ustawienia gry” i „Konsola”. Widok otwierany z menu
+ekranie zmiany hasła na życzenie, na panelach gałęzi „Serwer” oraz na ekranach „Ustawienia gry”, „Konsola” i „Stan serwera”. Widok otwierany z menu
 przekazuje identyfikator swojej pozycji — np. `~{common/side-menu :: sideMenu(activeEntry='gameSettings')}` —
 dzięki czemu pozycja jest oznaczona jako bieżąca strona. Fragment dołącza własny moduł
 `/js/side-menu.js`, więc widok nie musi o nim pamiętać; style leżą w `base.css`.
@@ -1011,6 +1014,12 @@ Widoczne zachowanie:
   oraz ikonę w kolorze akcentu.
 - Menu zamyka ponowne kliknięcie przycisku, klawisz Escape albo wciśnięcie w dowolnym miejscu poza
   menu i przyciskiem. Zamknięcie zwija wszystkie gałęzie, a fokus z wnętrza menu wraca na przycisk.
+- Nad sekcjami leży pas górny `.side-menu-top`, który nie przewija się razem z nimi. Zawiera akcję
+  „Stan serwera” (`.side-menu-state`, ikona `icon-gauge`, tekst `sideMenu.action.serverState`) na całą
+  szerokość menu: odnośnik do `/server-state` w stylu akcji „Zamknij vDeck” — ramka i tekst w kolorze
+  akcentu na ciemnym tle pozycji — nieco wyższy (`--side-menu-state-block-size`, 3,25 rem) i z większym
+  tekstem niż pozycje sekcji. Wspólny wygląd obu akcji jest zapisany raz, w jednej grupie selektorów.
+  Na ekranie „Stan serwera” (identyfikator `serverState`) akcja ma `aria-current="page"` i pełną ramkę.
 - Pozycje są pogrupowane w sekcje. Sekcja nie ma własnej ramy — wyróżnia ją jedynie tytuł: przygaszony
   tekst na środku poziomej linii. Sekcje dzielą większe odstępy niż pozycje wewnątrz nich. Sekcje to
   „Konfiguracja” i „Procesy”.
@@ -1326,7 +1335,7 @@ wyjątek suppressed do pierwotnej awarii przypisania. Zamknięty job nie jest za
 
 Przycisk strony głównej jest osobnym komponentem wspólnym, niezależnym od menu bocznego — plik
 `templates/common/home-button.html` z fragmentem `homeButton`. Osadzają go te same widoki co menu
-boczne (strona główna, panele gałęzi „Serwer”, „Ustawienia gry”, „Konsola” i zmiana hasła na żądanie), każdy osobnym
+boczne (strona główna, panele gałęzi „Serwer”, „Ustawienia gry”, „Konsola”, „Stan serwera” i zmiana hasła na żądanie), każdy osobnym
 `th:replace`. To zwykły odnośnik do `/` bez własnego skryptu; jego jedynym działaniem jest przejście na
 stronę główną. Nazwę dostępną i podpowiedź daje klucz `homeButton.label` („Strona główna”), a ikonę —
 `icon-home`.
@@ -1674,6 +1683,60 @@ z utworzeniem konta `admin` (sekcja [4.3](#43-domyślne-konto-administratora)).
 | `ReleaseNotesService` / `ReleaseNotesServiceImpl` | `feature.releasenotes.service` / `.impl` | Wybór list do pokazania i zapis potwierdzenia |
 | `ReleaseNotesReader`, `ReleaseNotesParser` | `feature.releasenotes.service.impl` | Odczyt plików z classpath i parsowanie formatu |
 | `HomeController` | `feature.home` | Dodaje do modelu strony głównej listy do pokazania |
+
+### 5.13 Stan serwera
+
+Ekran „Stan serwera” zbiera w jednym miejscu informacje, które panel już ma w pamięci: migawkę
+procesu z runtime i zapisany profil uruchomieniowy. Służy do szybkiego sprawdzenia, co działa i z jakimi
+ustawieniami, oraz jako punkt wyjścia do paneli, które te ustawienia zmieniają. Niczego nie zmienia.
+
+Widoczne zachowanie:
+
+- Ekran `/server-state` otwiera akcja „Stan serwera” z pasa górnego menu bocznego (patrz
+  [5.5](#55-menu-boczne)). Szeroka karta pod wyspą akcji ma nagłówek z ikoną `icon-gauge`, opis i
+  sześć grup ułożonych w siatce — w jednej kolumnie na telefonie, w tylu kolumnach, ile się mieści, na
+  szerszym ekranie. Karta przewija się wewnątrz ramy panelu, strona nie.
+- Każda grupa ma tytuł w stylu tytułów sekcji formularzy, listę definicji `dl` (nazwa po lewej,
+  wartość po prawej, zawijana pod nazwę przy braku miejsca) i kończy się tekstowym odnośnikiem w
+  kolorze akcentu z ikoną `icon-chevron`, prowadzącym do panelu zmieniającego wartości grupy:
+
+| Grupa | Wartości | Odnośnik |
+|---|---|---|
+| Proces serwera | stan (kropka w kolorze stanu i nazwa stanu), data i godzina utworzenia procesu, czas działania (`d h min`), PID, nazwa pliku logu ostatniego uruchomienia | `/console` |
+| Ogólne | nazwa serwera, para portów `port–port+1`, serwer publiczny, crossplay, identyfikator instancji | `/server-settings/server` |
+| Dostęp | czy hasło serwera jest ustawione | `/server-settings/access` |
+| Świat i zapis | nazwa świata, katalog zapisu, interwał zapisu | `/server-settings/world` |
+| Kopie automatyczne | liczba kopii, interwał pierwszej i kolejnych kopii | `/server-settings/inner-server-backups` |
+| Ustawienia gry | zestaw ustawień świata, liczba ustawionych modyfikatorów i włączonych kluczy świata | `/game-settings` |
+
+- Brakująca wartość — np. PID i czas działania zatrzymanego serwera albo pusty identyfikator instancji
+  — jest pokazywana jako kreska (`serverState.value.none`).
+- `server-state.js` co 5 s (oraz po powrocie karty przeglądarki na pierwszy plan) pobiera ponownie
+  `/server-state` i podmienia wyłącznie elementy `[data-server-state-values]` o tych samych
+  identyfikatorach. Odnośniki — jedyne elementy przyjmujące fokus — nie są podmieniane, więc fokus
+  klawiatury nie ginie. Nieudane pobranie zostawia ostatnie wartości. Wyspa nad kartą odświeża się
+  niezależnie, co 2 s (`server-status.js`).
+
+Przebieg żądania: `ServerStatusAdvice` dodaje do modelu migawkę `serverStatus` (patrz [5.2](#52-wyspa-akcji)).
+`ServerStateController.showServerState` przyjmuje ją jako `@ModelAttribute(binding = false)` — ta sama
+migawka zasila wyspę i kartę, a parametry żądania nie są na nią wiązane. Kontroler dodaje
+`launchProfile` z `LaunchProfileService.getProfile()` oraz, gdy migawka je ma, `startedAt` (czas
+utworzenia procesu w strefie zegara systemowego), `uptime` (`Duration` od utworzenia do teraz, nigdy
+ujemne — zegar cofnięty po starcie daje zero) i `logFileName` (sama nazwa pliku logu). Czas działania
+liczy się więc od utworzenia procesu, także adoptowanego, a nie od gotowości serwera dla graczy.
+
+Bezpieczeństwo: ekran wymaga roli `ADMIN` jak każdy inny i jest zwykłym `GET` bez skutków ubocznych.
+`LaunchProfile` nie zawiera hasła serwera — ekran podaje tylko, czy jest ustawione. Z pliku logu
+pokazywana jest wyłącznie nazwa, bez ścieżki instalacji; Spring EL w szablonach i tak nie ma dostępu
+do obiektów `Path`. Ekran nie czyta dysku i nie kontaktuje się z serwerem gry. Ustawienia pokazują
+zapisany profil: obowiązuje on od następnego uruchomienia, więc działający serwer może jeszcze
+używać poprzednich wartości.
+
+| Komponent | Pakiet | Rola |
+|---|---|---|
+| `ServerStateController` | `feature.server` | `GET /server-state` (widok `server/server-state`), czas utworzenia, czas działania i nazwa logu |
+| `server-state.html` | `templates/server` | Grupy wartości i lokalny fragment `relatedPanelLink( labelKey, href )` |
+| `server-state.js`, `server-state.css` | `static/js`, `static/css` | Odświeżanie list co 5 s, siatka grup i odnośniki |
 
 ## 6. Bezpieczeństwo
 

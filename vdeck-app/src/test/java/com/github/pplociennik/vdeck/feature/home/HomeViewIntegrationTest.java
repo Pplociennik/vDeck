@@ -91,8 +91,7 @@ class HomeViewIntegrationTest {
     }
 
     /**
-     * Verifies that the island renders restart and both backup actions disabled, because they are not
-     * implemented yet.
+     * Verifies that the island renders both backup actions disabled, because they are not implemented yet.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request
@@ -107,7 +106,6 @@ class HomeViewIntegrationTest {
 
         // THEN
         result.andExpect( status().isOk() )
-                .andExpect( content().string( matchesRegex( disabledActionButton( "icon-restart" ) ) ) )
                 .andExpect( content().string( matchesRegex( disabledActionButton( "icon-world-backup" ) ) ) )
                 .andExpect( content().string( matchesRegex( disabledActionButton( "icon-server-backup" ) ) ) );
     }

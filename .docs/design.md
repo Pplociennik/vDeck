@@ -1,6 +1,6 @@
 # vDeck — główne założenia projektowe
 
-> Data: 2026-08-17 · Aktualizacja: 2026-10-28 · Status: żywy opis uzgodnionej architektury
+> Data: 2026-08-17 · Aktualizacja: 2026-10-29 · Status: żywy opis uzgodnionej architektury
 
 vDeck jest lokalnym panelem webowym do zarządzania dedykowanym serwerem Valheim. Aplikacja jest
 dystrybuowana razem z instalacją serwera, uruchamiana lokalnie, a następnie obsługiwana z poziomu
@@ -451,7 +451,7 @@ Implementacja zatrzymania rozszerza powyższe poddrzewa o:
 - app/feature/server/service: `PanelCloseStrategy`, `PanelCloseMode`; impl: `StopPanelCloseStrategy`,
   `GracefulPanelCloseStrategy`, `LeavePanelCloseStrategy`, `StopCompletion` (AD-031);
 - app/feature/backup: `service.BackupPathService` i `service.impl.BackupPathServiceImpl`;
-- app/feature/server/exc: `ServerStopException`, `ServerKillException`;
+- app/feature/server/exc: `ServerStopException`, `ServerKillException`, `ServerRestartException` (AD-033);
 - templates/server: `kill-confirmation.html`; static/js: `server-status.js`.
 
 Konsola (feature `logs`, opisany w drzewie powyżej) dodaje szablon `templates/logs/console.html`,
@@ -783,6 +783,17 @@ błąd zapisu tokenu zachowuje własność, `onExit()` i timer, więc Stop oraz 
 Panel udostępnia również Kill realizowany przez `ProcessHandle.destroyForcibly()`. Użycie tej
 możliwości podlega zasadom bezpieczeństwa danych opisanym niżej.
 
+Restart (AD-033) to `POST /server/restart` z `launchId` z wyspy, dostępny w tych samych stanach co
+Stop (`RUNNING`, `STOP_FAILED`). `ServerService.restart` przyjmuje `StopRequest.graceful`, więc
+zatrzymanie przebiega dokładnie jak zwykły Stop (pełny snapshot, CTRL+C, bez wymuszania), a żądanie
+HTTP kończy się po przyjęciu. Po zakończeniu Stopu osobny wątek `vdeck-server-restart` wywołuje zwykłe
+`start()`: profil jest czytany w tej chwili i przechodzi wszystkie sprawdzenia, łącznie z portami.
+Restart nie sprawdza profilu przed zatrzymaniem, więc błędny profil zostawia serwer zatrzymany.
+Nieudany Stop kończy restart bez startu (`STOP_FAILED`, AD-017). Odmowę lub błąd startu po zatrzymaniu
+widać tylko w stanie wyspy i logu panelu. Start nie może działać na wątku kolejki runtime, bo
+`start()` czeka na tę kolejkę. Zamknięcie panelu w trakcie restartu dołącza do jego Stopu, a następujący
+start jest odrzucany przez runtime w trybie zamykania.
+
 Panel zamyka się przez CTRL+C w oknie konsoli albo akcją „Zamknij vDeck” z menu bocznego
 (`feature.shutdown`): po potwierdzeniu `POST /panel/shutdown` uruchamia na osobnym wątku
 nie-demonie `SpringApplication.exit`, a potem `System.exit`. Obie drogi zamykają ten sam kontekst.
@@ -948,6 +959,10 @@ Ręcznie potwierdzony Kill:
 1. weryfikacja tożsamości i uprawnienia          PID, rzeczywisty czas utworzenia i exe
 2. destroyForcibly                              bez CTRL+C i bez czekania na próby łagodne
 3. oczekiwanie na obserwację wyjścia             do 10 s
+
+Restart (AD-033):
+0–4. jak Stop                                   STOP_FAILED kończy restart bez startu
+5. zwykły Start po zakończeniu Stopu             pełne sprawdzenia; błąd zostawia serwer zatrzymany
 ```
 
 Każda operacja podlega jednemu monotonicznemu deadline 5 minut, obejmującemu próbę kopii.
@@ -998,6 +1013,9 @@ historycznymi kopiami pozostają przyszłym zakresem.
 Stan zmienia wyłącznie kolejka; snapshot i helper wykonuje jeden worker z ograniczoną kolejką.
 Worker otrzymuje niezmienny kontekst, deadline i cancellation guard. Stare wyniki są odrzucane,
 dalsze etapy anulowane po wyjściu, a nowy Start czeka na opróżnienie zaległego workera.
+Gdy wyjście procesu przyjdzie przed wynikiem workera (np. helpera CTRL+C), stan od razu staje się
+STOPPED, ale `CompletionStage` Stopu kończy się dopiero po zgłoszeniu ostatniego workera albo przy
+`close()`. Start zlecony po zakończeniu Stopu, jak w restarcie, jest więc przyjmowany.
 Timery operacji są anulowane po wyniku i usuwane z kolejki. Odświeżanie recovery współdzieli
 jeden znacznik pending, aby odczyty nie tworzyły nieograniczonej kolejki skanów.
 

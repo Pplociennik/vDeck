@@ -95,6 +95,29 @@ class ServerController {
     }
 
     /**
+     * Admits a restart from the launch-specific island form: a graceful stop followed by a start once the
+     * process exit is observed. A refused admission leaves this method as a
+     * {@link com.github.pplociennik.vdeck.feature.server.exc.ServerRestartException}.
+     *
+     * @param launchId
+     *         hidden launch identifier
+     * @param redirectAttributes
+     *         acceptance flash attributes
+     * @return home redirect without waiting for the stop or the start
+     * @throws NullPointerException
+     *         if an argument is null
+     */
+    @PostMapping( "/server/restart" )
+    @Nonnull
+    String restartServer( @RequestParam( defaultValue = "" ) @Nonnull String launchId,
+                          @Nonnull RedirectAttributes redirectAttributes ) {
+        requireNonNull( redirectAttributes, "redirectAttributes must not be null" );
+        serverService.restart( requireNonNull( launchId, "launchId must not be null" ) );
+        redirectAttributes.addFlashAttribute( "serverRestarting", true );
+        return HOME_REDIRECT;
+    }
+
+    /**
      * Presents data-loss risk without changing process state or copying a world.
      *
      * @param launchId

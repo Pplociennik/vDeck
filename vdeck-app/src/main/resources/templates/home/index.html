@@ -22,6 +22,8 @@
        th:if="${serverErrorKey}" th:text="#{${serverErrorKey}}"></p>
     <p class="form-success settings-message" role="status"
        th:if="${serverStopping}" th:text="#{server.stopping}"></p>
+    <p class="form-success settings-message" role="status"
+       th:if="${serverRestarting}" th:text="#{server.restarting}"></p>
     <section th:if="${serverStatus.state.name() == 'RECOVERY_REQUIRED'}" class="settings-message">
         <p class="form-alert" th:text="#{server.recovery.required}"></p>
         <form th:if="${serverStatus.launchId != null}" th:action="@{/server/adopt}" method="post">

@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.feature.server.service;
 
 import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerRestartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import com.github.pplociennik.vdeck.runtime.api.ServerStatus;
@@ -59,6 +60,33 @@ public interface ServerService {
      *         if admission fails or the form is stale
      */
     void stop( @Nonnull String launchId );
+
+    /**
+     * Admits a restart: an asynchronous graceful stop without force permission, followed by an ordinary
+     * {@link #start()} once the runtime has observed the process exit.
+     *
+     * <pre>
+     * admit graceful stop ---------------------------&gt; ServerRestartException, server untouched
+     *    | accepted, this call returns
+     *    v
+     * complete snapshot, CTRL+C, observed exit ----&gt; STOP_FAILED, process retained, no start
+     *    |
+     *    v
+     * start() on the restart thread ----------------&gt; refusal or failure logged, server stays stopped
+     * </pre>
+     *
+     * <p>The start reads the launch profile stored at that moment and runs every pre-start check, ports
+     * included. Its outcome reaches the administrator only through the runtime status and the panel log,
+     * because the request that admitted the restart has already ended.
+     *
+     * @param launchId
+     *         launch selected in the submitted island
+     * @throws NullPointerException
+     *         if the identifier is null
+     * @throws ServerRestartException
+     *         if the stop beginning the restart is refused or cannot be admitted
+     */
+    void restart( @Nonnull String launchId );
 
     /**
      * Admits immediate Kill after explicit acceptance of data-loss risk for this launch.

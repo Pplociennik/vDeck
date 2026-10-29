@@ -61,8 +61,12 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   mirror script, and supplies the action island with runtime status. `LaunchProfileService` publishes an immutable
   `LaunchConfiguration` (secret-free profile plus password) after settings initialization and every
   successful profile save. Start captures it once for validation and command generation. The builder
-  returns `LaunchSpec` directly; the mirror script is rendered from that same specification. Start, Stop and manually confirmed Kill are wired to the island.
-  Restart is not implemented. `server-status.js` polls the island every two seconds while visible.
+  returns `LaunchSpec` directly; the mirror script is rendered from that same specification. Start, Stop, Restart and manually confirmed Kill are wired
+  to the island. Restart (AD-033, `POST /server/restart`) admits a graceful Stop and, once its completion
+  arrives, runs the ordinary `start()` on a `vdeck-server-restart` thread (never on the runtime queue thread);
+  a failed Stop starts nothing and a failed start is only logged and visible in the island state. Runtime
+  completes a Stop only after the observed exit and the last stop worker, so that start is admitted.
+  `server-status.js` polls the island every two seconds while visible.
   The `logs` feature serves `/console` ("Konsola", in the side menu's "Procesy" section): `console.js`
   polls `GET /console/log?offset=N` every second and `LogServiceImpl` reads the log file named by
   `ServerStatus.getLogFile()` from that byte (at most 256 KiB, cut at the last line break; the last

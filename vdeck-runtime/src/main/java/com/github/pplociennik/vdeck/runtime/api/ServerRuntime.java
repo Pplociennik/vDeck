@@ -84,7 +84,8 @@ public interface ServerRuntime {
      * Success -&gt; STOPPED; failure with a live process -&gt; STOP_FAILED
      * </pre>
      * The total deadline is five minutes. Rejection is synchronous; accepted work completes only
-     * after observed exit, or exceptionally while retaining a live process. Shutdown never grants force.
+     * after observed exit and after every stop worker has finished, so a start requested on completion is
+     * admitted, or exceptionally while retaining a live process. Shutdown never grants force.
      * Confirmed Kill tolerates snapshot failures but never bypasses cancellation, deadline or identity checks.
      * After {@link #shutdown()} only shutdown requests are accepted, including
      * {@link StopRequest#shutdownKill(String)} for a process left alive by failed graceful shutdown.

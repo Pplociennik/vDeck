@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerRestartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import org.junit.jupiter.api.BeforeEach;
@@ -191,6 +192,58 @@ class ServerExceptionHandlerTest {
         assertThat( noKill ).isInstanceOf( NullPointerException.class );
         assertThat( noKillFlash ).isInstanceOf( NullPointerException.class );
         assertThat( noRequest ).isInstanceOf( NullPointerException.class );
+        assertThat( attributes.getFlashAttributes() ).isEmpty();
+    }
+
+    /** A refused restart returns home with its own key, leaving the running server untouched. */
+    @Test
+    void shouldReturnHome_whenRestartIsRejected() {
+        // GIVEN
+        var rejection = new ServerRestartException( ServerMessage.RESTART_REJECTED, null );
+        var attributes = new RedirectAttributesModelMap();
+
+        // WHEN
+        var result = underTest.handleRestartNotPerformed( rejection, attributes );
+
+        // THEN
+        assertThat( result ).isEqualTo( "redirect:/" );
+        assertThat( attributes.getFlashAttributes() ).containsOnlyKeys( "serverErrorKey" );
+        assertThat( attributes.getFlashAttributes().get( "serverErrorKey" ) )
+                .isEqualTo( ServerMessage.RESTART_REJECTED.getKey() );
+    }
+
+    /** A restart admission failure publishes its key without disclosing the technical cause. */
+    @Test
+    void shouldReturnHome_whenRestartFailsAdmission() {
+        // GIVEN
+        var failure = new ServerRestartException(
+                ServerMessage.RESTART_FAILED, new IllegalArgumentException( "Technical" ) );
+        var attributes = new RedirectAttributesModelMap();
+
+        // WHEN
+        var result = underTest.handleRestartNotPerformed( failure, attributes );
+
+        // THEN
+        assertThat( result ).isEqualTo( "redirect:/" );
+        assertThat( attributes.getFlashAttributes() ).containsOnlyKeys( "serverErrorKey" );
+        assertThat( attributes.getFlashAttributes().get( "serverErrorKey" ) )
+                .isEqualTo( ServerMessage.RESTART_FAILED.getKey() );
+    }
+
+    /** The restart advice rejects null before publishing a flash. */
+    @Test
+    void shouldRejectNull_whenRestartAdviceReceivesNull() {
+        // GIVEN
+        var attributes = new RedirectAttributesModelMap();
+        var rejection = new ServerRestartException( ServerMessage.RESTART_REJECTED, null );
+
+        // WHEN
+        var noException = catchThrowable( () -> underTest.handleRestartNotPerformed( null, attributes ) );
+        var noFlash = catchThrowable( () -> underTest.handleRestartNotPerformed( rejection, null ) );
+
+        // THEN
+        assertThat( noException ).isInstanceOf( NullPointerException.class );
+        assertThat( noFlash ).isInstanceOf( NullPointerException.class );
         assertThat( attributes.getFlashAttributes() ).isEmpty();
     }
 

@@ -104,6 +104,14 @@ public final class ServerStateMachine implements ServerRuntime, AutoCloseable {
 
     private ActiveStop activeStop;
 
+    /**
+     * Completion of a stop whose process exit was observed while a worker had not reported back yet, or
+     * {@code null} when there is none. It completes once the last worker finishes, because a new start is
+     * refused until then and a caller of {@link #stop(StopRequest)} may start right after completion.
+     * Confined to the event-queue thread.
+     */
+    private CompletableFuture< Void > stopAwaitingWorkers;
+
     private boolean shuttingDown;
 
     private boolean invalidRecoveryReported;
@@ -320,6 +328,8 @@ public final class ServerStateMachine implements ServerRuntime, AutoCloseable {
                         failStop( activeStop, StopFailure.DEADLINE,
                                 new IllegalStateException( "Runtime resources are closing" ) );
                     }
+                    // The exit was observed; closing ends the wait for the workers.
+                    completeStopAwaitingWorkers();
                     return status;
                 } );
             }
@@ -449,7 +459,10 @@ public final class ServerStateMachine implements ServerRuntime, AutoCloseable {
                     completed.cancelled = true;
                     completed.cancelTimers();
                     activeStop = null;
-                    completed.completion.complete( null );
+                    stopAwaitingWorkers = completed.completion;
+                    if ( pendingWorkers == 0 ) {
+                        completeStopAwaitingWorkers();
+                    }
                 }
                 log.info( "Observed stopped server process, state {}", ServerState.STOPPED );
             }
@@ -584,6 +597,9 @@ public final class ServerStateMachine implements ServerRuntime, AutoCloseable {
                 RuntimeException outcome = problem;
                 submit( () -> {
                     pendingWorkers--;
+                    if ( pendingWorkers == 0 ) {
+                        completeStopAwaitingWorkers();
+                    }
                     if ( !isActive( operation ) ) {
                         return;
                     }
@@ -600,6 +616,16 @@ public final class ServerStateMachine implements ServerRuntime, AutoCloseable {
             pendingWorkers--;
             failStop( operation, failure, exception );
         }
+    }
+
+    /** Completes the stop whose observed exit was waiting for the workers, if there is one. */
+    private void completeStopAwaitingWorkers() {
+        if ( stopAwaitingWorkers == null ) {
+            return;
+        }
+        CompletableFuture< Void > completion = stopAwaitingWorkers;
+        stopAwaitingWorkers = null;
+        completion.complete( null );
     }
 
     private boolean isActive( ActiveStop operation ) {

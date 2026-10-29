@@ -19,6 +19,7 @@ import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import com.github.pplociennik.vdeck.feature.server.ServerMessage;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerRestartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import com.github.pplociennik.vdeck.feature.server.service.LaunchCommandService;
@@ -48,6 +49,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Verifies start orchestration without creating processes or touching installation files. */
@@ -88,11 +91,11 @@ class ServerServiceImplTest {
     // BEFORE METHODS
     // =================================================================================================
 
-    /** Creates the service with strict mocks and no shared stubbing. */
+    /** Creates the service with strict mocks, no shared stubbing and a restart start on the calling thread. */
     @BeforeEach
     void setUp() {
         underTest = new ServerServiceImpl( serverRuntime, launchProfileService, launchCommandService,
-                serverLogService, validator, pathService, backupPaths );
+                serverLogService, validator, pathService, backupPaths, Runnable::run );
     }
 
     // =================================================================================================
@@ -262,10 +265,10 @@ class ServerServiceImplTest {
      */
     @ParameterizedTest( name = "[{index}] missing {0}" )
     @ValueSource( strings = { "serverRuntime", "launchProfileService", "launchCommandService",
-            "serverLogService", "validator", "pathService", "backupPaths" } )
+            "serverLogService", "validator", "pathService", "backupPaths", "restartExecutor" } )
     void shouldThrowException_whenDependencyIsNull( String dependency ) {
         // GIVEN
-        // Exactly one dependency is omitted.
+        Executor restartExecutor = Runnable::run;
 
         // WHEN
         var thrown = catchThrowable( () -> new ServerServiceImpl(
@@ -275,7 +278,8 @@ class ServerServiceImplTest {
                 dependency.equals( "serverLogService" ) ? null : serverLogService,
                 dependency.equals( "validator" ) ? null : validator,
                 dependency.equals( "pathService" ) ? null : pathService,
-                dependency.equals( "backupPaths" ) ? null : backupPaths ) );
+                dependency.equals( "backupPaths" ) ? null : backupPaths,
+                dependency.equals( "restartExecutor" ) ? null : restartExecutor ) );
 
         // THEN
         assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( dependency );
@@ -441,13 +445,144 @@ class ServerServiceImplTest {
         // No selected token.
         // WHEN
         var stop = catchThrowable( () -> underTest.stop( null ) );
+        var restart = catchThrowable( () -> underTest.restart( null ) );
         var kill = catchThrowable( () -> underTest.kill( null, true ) );
         var adopt = catchThrowable( () -> underTest.adopt( null ) );
         // THEN
         assertThat( stop ).isInstanceOf( NullPointerException.class );
+        assertThat( restart ).isInstanceOf( NullPointerException.class );
         assertThat( kill ).isInstanceOf( NullPointerException.class );
         assertThat( adopt ).isInstanceOf( NullPointerException.class );
         verifyNoInteractions( serverRuntime );
+    }
+
+    /** Restart begins with a graceful stop without force and starts the server again once that stop completes. */
+    @Test
+    void shouldStartAgain_whenRestartStopCompletes() {
+        // GIVEN
+        var request = ArgumentCaptor.forClass( StopRequest.class );
+        given( serverRuntime.stop( request.capture() ) ).willReturn( CompletableFuture.completedFuture( null ) );
+        var command = givenPreparedCommand();
+        given( serverRuntime.start( eq( command ), any() ) ).willReturn( runningStatus() );
+
+        // WHEN
+        underTest.restart( "selected-launch" );
+
+        // THEN
+        assertThat( request.getValue().isForceConfirmed() ).isFalse();
+        assertThat( request.getValue().getLaunchId() ).isEqualTo( "selected-launch" );
+        verify( serverRuntime ).start( eq( command ), any() );
+    }
+
+    /** Admission returns while the stop is still running, before any setting is read or any process is created. */
+    @Test
+    void shouldNotStartYet_whenRestartStopIsStillRunning() {
+        // GIVEN
+        given( serverRuntime.stop( any() ) ).willReturn( new CompletableFuture<>() );
+
+        // WHEN
+        underTest.restart( "selected-launch" );
+
+        // THEN
+        verify( serverRuntime, never() ).start( any(), any() );
+        verifyNoInteractions( launchProfileService, validator, serverLogService, launchCommandService );
+    }
+
+    /** A failed stop retains the process and abandons the restart without reading settings or starting. */
+    @Test
+    void shouldNotStartAgain_whenRestartStopFails() {
+        // GIVEN
+        var stopFailure = new IllegalStateException( "Both CTRL+C attempts exhausted" );
+        given( serverRuntime.stop( any() ) ).willReturn( CompletableFuture.failedFuture( stopFailure ) );
+
+        // WHEN
+        underTest.restart( "selected-launch" );
+
+        // THEN
+        verify( serverRuntime, never() ).start( any(), any() );
+        verifyNoInteractions( launchProfileService, validator, serverLogService, launchCommandService );
+    }
+
+    /** A start refused after the stop ends the restart quietly; the refusal never escapes the restart thread. */
+    @Test
+    void shouldLeaveServerStopped_whenRestartStartIsRejected() {
+        // GIVEN
+        given( serverRuntime.stop( any() ) ).willReturn( CompletableFuture.completedFuture( null ) );
+        given( serverRuntime.status() ).willReturn( runningStatus() );
+
+        // WHEN
+        var thrown = catchThrowable( () -> underTest.restart( "selected-launch" ) );
+
+        // THEN
+        assertThat( thrown ).isNull();
+        verify( serverRuntime, never() ).start( any(), any() );
+    }
+
+    /** A process creation failure after the stop is logged on the restart thread instead of reaching the caller. */
+    @Test
+    void shouldLeaveServerStopped_whenRestartStartFails() {
+        // GIVEN
+        given( serverRuntime.stop( any() ) ).willReturn( CompletableFuture.completedFuture( null ) );
+        var command = givenPreparedCommand();
+        given( serverRuntime.start( eq( command ), any() ) )
+                .willThrow( new UncheckedIOException( new IOException( "Cannot create process" ) ) );
+
+        // WHEN
+        var thrown = catchThrowable( () -> underTest.restart( "selected-launch" ) );
+
+        // THEN
+        assertThat( thrown ).isNull();
+        verify( serverRuntime ).start( eq( command ), any() );
+    }
+
+    /** A busy or stale runtime refuses the restart as a rejection carrying no technical cause. */
+    @Test
+    void shouldTranslateRestartRejection_whenRuntimeIsBusy() {
+        // GIVEN
+        given( serverRuntime.stop( any() ) ).willThrow( new IllegalStateException( "Busy" ) );
+
+        // WHEN
+        var failure = catchThrowable( () -> underTest.restart( "selected-launch" ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOfSatisfying(
+                ServerRestartException.class,
+                rejection -> assertThat( rejection.getMessageKey() ).isEqualTo( ServerMessage.RESTART_REJECTED ) );
+        assertThat( failure ).hasNoCause();
+        verify( serverRuntime, never() ).start( any(), any() );
+    }
+
+    /** A malformed identifier refused by the stop request is a rejection, not a technical failure. */
+    @Test
+    void shouldRejectRestart_whenLaunchIdentifierIsMalformed() {
+        // GIVEN
+        // An identifier the stop request refuses.
+
+        // WHEN
+        var failure = catchThrowable( () -> underTest.restart( "../launch" ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOfSatisfying(
+                ServerRestartException.class,
+                rejection -> assertThat( rejection.getMessageKey() ).isEqualTo( ServerMessage.RESTART_REJECTED ) );
+        verifyNoInteractions( serverRuntime );
+    }
+
+    /** A technical admission failure keeps its cause and uses the restart-specific message. */
+    @Test
+    void shouldReportRestartFailure_whenRuntimeAdmissionFails() {
+        // GIVEN
+        var cause = new UncheckedIOException( new IOException( "Unavailable" ) );
+        given( serverRuntime.stop( any() ) ).willThrow( cause );
+
+        // WHEN
+        var failure = catchThrowable( () -> underTest.restart( "selected-launch" ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOfSatisfying(
+                ServerRestartException.class,
+                rejection -> assertThat( rejection.getMessageKey() ).isEqualTo( ServerMessage.RESTART_FAILED ) );
+        assertThat( failure ).hasCause( cause );
     }
 
     private LaunchConfiguration givenValidatedProfile() {

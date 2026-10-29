@@ -77,7 +77,8 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   `PanelShutdownService` run `SpringApplication.exit` then `System.exit` on a non-daemon thread built by
   `config.PanelShutdownConfiguration` (so the close strategy of AD-031 applies); `panel-shutdown.js` posts in the
   background because the stopping panel can no longer serve a new page. The side menu's bottom strip beside the
-  toggle cut-out holds that action and a footer with the build version (`shared.web.PanelVersionAdvice`).
+  toggle cut-out holds a row with a disabled "Admin" button (future system settings panel) and the square
+  icon-only close action, and below it a footer with the build version (`shared.web.PanelVersionAdvice`).
   Integration tests must mock `PanelShutdownService`, or a POST ends the test JVM. Views with navigation embed the side menu
   (`templates/common/side-menu.html` + `static/js/side-menu.js`) and, as a separate fragment, the round
   home button next to its toggle (`templates/common/home-button.html`); `static/js/game-settings.js` controls the advanced settings section.

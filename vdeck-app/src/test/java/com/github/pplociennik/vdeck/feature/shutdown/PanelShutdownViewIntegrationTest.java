@@ -59,13 +59,14 @@ class PanelShutdownViewIntegrationTest {
     // =================================================================================================
 
     /**
-     * Verifies that the side menu offers the action opening the shutdown confirmation.
+     * Verifies that the side menu offers the icon-only action opening the shutdown confirmation, named by its
+     * translated accessible label, next to the "Admin" action that stays disabled for now.
      *
      * @throws Exception
      *         if MockMvc cannot execute the request
      */
     @Test
-    void shouldRenderCloseActionInSideMenu_whenAdministratorOpensPanelRoot() throws Exception {
+    void shouldRenderCloseAndDisabledAdminActionsInSideMenu_whenAdministratorOpensPanelRoot() throws Exception {
         // GIVEN
         // an authenticated administrator opening the panel root
 
@@ -75,8 +76,11 @@ class PanelShutdownViewIntegrationTest {
         // THEN
         result.andExpect( status().isOk() )
                 .andExpect( content().string( containsString(
-                        "<a class=\"side-menu-close\" href=\"/panel/shutdown\">" ) ) )
-                .andExpect( content().string( not( containsString( "sideMenu.action.close" ) ) ) );
+                        "<a class=\"side-menu-close\" href=\"/panel/shutdown\" aria-label=" ) ) )
+                .andExpect( content().string( containsString(
+                        "<button class=\"side-menu-admin\" type=\"button\" disabled>" ) ) )
+                .andExpect( content().string( containsString( "/icons/icons.svg#icon-gear" ) ) )
+                .andExpect( content().string( not( containsString( "sideMenu.action." ) ) ) );
     }
 
     /**

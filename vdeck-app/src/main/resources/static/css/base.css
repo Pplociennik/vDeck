@@ -969,22 +969,80 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 }
 
 /*
- * "Zamknij vDeck" action directly above the footer. It spans the same width and stays as compact as the
- * touch floor allows, but its accent rim and text make it read as a control rather than a footnote.
+ * Row of panel actions directly above the footer, spanning the same width: the wide "Admin" action and,
+ * on its right, the square "Zamknij vDeck" action. Both stay as compact as the touch floor allows.
  */
-.side-menu-close {
+.side-menu-actions {
     display: flex;
+    gap: var(--space-xs);
+}
+
+.side-menu-actions__icon {
+    inline-size: var(--side-menu-action-icon-size);
+    block-size: var(--side-menu-action-icon-size);
+}
+
+/* "Admin" action: the look of the other panel buttons - a black face with a light rim - with an icon and label. */
+.side-menu-admin {
+    display: flex;
+    flex: 1 1 auto;
     align-items: center;
     justify-content: center;
     gap: var(--space-xs);
+    min-inline-size: 0;
     min-block-size: var(--control-touch-size);
     padding: var(--space-xs) var(--space-sm);
     -webkit-tap-highlight-color: transparent;
-    border: 0.0625rem solid var(--side-menu-close-border);
+    border: 0.0625rem solid var(--color-control-border);
     border-radius: var(--field-radius);
-    font-size: var(--side-menu-close-font-size);
+    font-family: inherit;
+    font-size: var(--side-menu-action-font-size);
     font-weight: 600;
     letter-spacing: 0.04em;
+    color: var(--color-text);
+    background-color: var(--color-control-surface);
+    box-shadow: inset 0 0.0625rem 0 var(--color-edge-highlight);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+@media (hover: hover) {
+    .side-menu-admin:hover:not(:disabled) {
+        background-color: var(--color-control-surface-hover);
+        color: var(--color-accent);
+    }
+}
+
+.side-menu-admin:focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-accent);
+    outline-offset: calc(-1 * var(--focus-ring-width));
+}
+
+.side-menu-admin:active:not(:disabled) {
+    background-color: var(--color-control-surface-active);
+}
+
+/* Like a disabled form button: the black face stays, the dimmed label and the cursor carry the state. */
+.side-menu-admin:disabled {
+    color: var(--color-text-disabled);
+    border-color: rgba(255, 255, 255, 0.04);
+    cursor: not-allowed;
+}
+
+/*
+ * "Zamknij vDeck" action: a square holding only the power icon. Its accent rim and icon make it read as a
+ * control rather than a footnote; the accessible name comes from aria-label.
+ */
+.side-menu-close {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--control-touch-size);
+    block-size: var(--control-touch-size);
+    -webkit-tap-highlight-color: transparent;
+    border: 0.0625rem solid var(--side-menu-close-border);
+    border-radius: var(--field-radius);
     text-decoration: none;
     color: var(--side-menu-close-color);
     background-color: var(--side-menu-entry-surface);
@@ -1007,11 +1065,6 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 .side-menu-close:active {
     border-color: var(--side-menu-close-color);
     background-color: var(--color-control-surface-active);
-}
-
-.side-menu-close__icon {
-    inline-size: var(--side-menu-close-icon-size);
-    block-size: var(--side-menu-close-icon-size);
 }
 
 /* Footer with the panel version: a faint centred line of text below a separator. */
@@ -1236,6 +1289,7 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
     .side-menu-entry--branch[aria-expanded="true"] + .side-menu-children,
     .side-menu-entry,
     .side-menu-entry__chevron,
+    .side-menu-admin,
     .side-menu-close {
         transition: none;
     }

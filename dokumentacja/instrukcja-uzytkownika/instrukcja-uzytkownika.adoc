@@ -225,15 +225,17 @@ Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Sekcja *Konfiguracja
 ekranów ustawień, a sekcja *Procesy* — do konsoli serwera.
 
 .Menu boczne
-image::menu-boczne.jpg[Menu boczne z rozwiniętą pozycją Serwer, pozycjami Ustawienia gry i Konsola, przyciskiem Zamknij vDeck i wersją panelu,pdfwidth=40%]
+image::menu-boczne.jpg[Menu boczne z rozwiniętą pozycją Serwer, pozycjami Ustawienia gry i Konsola, przyciskami Admin i Zamknij vDeck oraz wersją panelu,pdfwidth=40%]
 
 [horizontal]
 1:: *Serwer* — rozwija listę czterech paneli ustawień serwera: *Ogólne*, *Dostęp*, *Świat i zapis*
 oraz *Kopie automatyczne* (<<ekran-serwer>>). Ponowne kliknięcie zwija listę.
 2:: *Ustawienia gry* — poziom trudności i zasady świata.
 3:: *Konsola* — log działającego serwera (<<konsola>>).
-4:: *Zamknij vDeck* — zamyka panel po potwierdzeniu (<<zamykanie-panelu>>).
-5:: Numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
+4:: *Admin* — ustawienia systemu vDeck. Jeszcze niedostępny, dlatego jest wyszarzony.
+5:: *Zamknij vDeck* — kwadratowy przycisk z ikoną zasilania; zamyka panel po potwierdzeniu
+(<<zamykanie-panelu>>).
+6:: Numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
 
 Pozycja otwartego ekranu jest wyróżniona złotą ramką.
 
@@ -570,7 +572,8 @@ NOTE: Konsola służy tylko do czytania. Nie można w niej wpisywać poleceń dl
 === Zamykanie panelu
 
 . Najlepiej najpierw zatrzymaj serwer (<<zatrzymywanie>>).
-. Otwórz menu boczne i naciśnij btn:[Zamknij vDeck] na samym dole menu.
+. Otwórz menu boczne i naciśnij kwadratowy przycisk z ikoną zasilania (*Zamknij vDeck*) w prawym
+  dolnym rogu menu.
 . Na ekranie *Zamknięcie panelu vDeck* naciśnij btn:[Zamknij panel]. btn:[Anuluj] wraca na stronę
   główną bez zamykania.
 +

@@ -945,7 +945,7 @@ Wszystkie ikony pochodzą z jednego lokalnego sprite'a `/icons/icons.svg` i są 
 Symbole są monochromatyczne i dziedziczą kolor komponentu przez `currentColor`; sprite zawiera
 `icon-play`, `icon-stop`, `icon-restart`, `icon-power`, `icon-world-backup`, `icon-server-backup`,
 `icon-key`, `icon-logout`, `icon-home` (przycisk strony głównej), `icon-menu` (przycisk menu bocznego), `icon-server` (gałąź menu i panele „Serwer”),
-`icon-sliders` (ekran „Ustawienia gry”), `icon-console` (ekran „Konsola”) i `icon-chevron` (stan gałęzi menu). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
+`icon-sliders` (ekran „Ustawienia gry”), `icon-console` (ekran „Konsola”), `icon-chevron` (stan gałęzi menu) i `icon-gear` (przycisk „Admin” menu bocznego). Obie ikony kopii bezpieczeństwa mają ten sam znacznik duplikatu, ponieważ
 przyciski tworzą kopię, a nie pobierają pliku.
 
 Sprite musi być osiągalny również na ekranie wymuszonej zmiany hasła, dlatego
@@ -1031,10 +1031,14 @@ Widoczne zachowanie:
 - Pod sekcjami, obok wycięcia na przycisk, leży pas dolny `.side-menu-bottom` o szerokości od
   wycięcia do prawej krawędzi menu. Jest co najmniej tak wysoki jak wycięcie (token
   `--side-menu-notch-extent`), więc przewijana lista zawsze kończy się nad przyciskiem. W pasie leży
-  najpierw akcja „Zamknij vDeck” (`.side-menu-close`, ikona `icon-power`): odnośnik do ekranu
-  potwierdzenia `/panel/shutdown` (patrz [Zamknięcie panelu z menu bocznego](#zamknięcie-panelu-z-menu-bocznego)),
-  na całą szerokość pasa, z wysokością obszaru dotykowego 2,75 rem, drobnym tekstem i ramką w kolorze
-  akcentu, więc czyta się jako przycisk, a nie przypis. Na samym dole pasa leży stopka `.side-menu-footer`: drobny, przygaszony, wyśrodkowany tekst „vDeck <wersja>”
+  najpierw wiersz akcji `.side-menu-actions` na całą szerokość pasa, o wysokości obszaru dotykowego
+  2,75 rem. Po lewej szeroki przycisk „Admin” (`.side-menu-admin`, ikona `icon-gear`) w stylu
+  pozostałych przycisków panelu — czarne lico i jasny rant. Docelowo otworzy panel ustawień systemu,
+  a do tego czasu ma atrybut `disabled` i przygaszony tekst. Po prawej kwadratowa akcja „Zamknij vDeck”
+  (`.side-menu-close`) z samą ikoną `icon-power` i ramką w kolorze akcentu: odnośnik do ekranu
+  potwierdzenia `/panel/shutdown` (patrz [Zamknięcie panelu z menu bocznego](#zamknięcie-panelu-z-menu-bocznego)).
+  Jej nazwę dostępną i podpowiedź daje `sideMenu.action.close` w `aria-label` i `title`. Na samym dole
+  pasa leży stopka `.side-menu-footer`: drobny, przygaszony, wyśrodkowany tekst „vDeck <wersja>”
   oddzielony od góry poziomą linią. Wersję dostarcza wszystkim widokom `shared.web.PanelVersionAdvice`
   jako atrybut modelu `panelVersion` — dokładnie tak, jak zapisał ją build w `BuildProperties`, więc
   wersja rozwojowa zachowuje sufiks `-SNAPSHOT`. Bez informacji o buildzie (uruchomienie z IDE bez

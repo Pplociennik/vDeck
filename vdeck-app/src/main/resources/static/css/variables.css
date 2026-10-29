@@ -186,6 +186,8 @@
     /* The same card on a landscape screen, where its sections are placed side by side in columns */
     --card-max-inline-size-landscape: 76rem;
     --card-max-inline-size-landscape-wide: 118rem;
+    /* Short confirmation card, wider than tall, for example the panel shutdown confirmation */
+    --card-max-inline-size-dialog: 36rem;
     /* Width of the centred save button of such a form; it never grows wider than the screen allows */
     --settings-submit-min-inline-size: 16rem;
     /* Narrowest column of such a form before it falls back to a single column */

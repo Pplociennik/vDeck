@@ -680,6 +680,14 @@ body::before {
     max-inline-size: var(--card-max-inline-size-wide);
 }
 
+/*
+ * Confirmation card: placed outside the panel frame, so it takes only the height of its content and
+ * stays a small horizontal rectangle in the middle of the page.
+ */
+.view-card--dialog {
+    max-inline-size: var(--card-max-inline-size-dialog);
+}
+
 /* Sections are set further apart than the fields inside them, so each group reads as one unit. */
 .settings-form {
     gap: var(--space-xl);

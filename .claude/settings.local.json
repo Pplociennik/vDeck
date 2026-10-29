@@ -81,7 +81,13 @@
       "Bash(./mvnw -q package -pl vdeck-app -Dtest='PanelRunLogTest' -Dsurefire.failIfNoSpecifiedTests=false)",
       "Bash(./mvnw -q test -pl vdeck-app -Dtest='ReleaseNotesFilesTest,DistributionTemplatesTest')",
       "Bash(echo \"tests rc=$?\")",
-      "Bash(./mvnw -q -pl .dist -am package -DskipTests)"
+      "Bash(./mvnw -q -pl .dist -am package -DskipTests)",
+      "Bash(perl \"C:/Users/Pszemko/AppData/Local/Temp/claude/d--DEV-PROJECTS-vDeck-vdeck/66ed3129-737a-4bae-8cc5-1b3b53b0cccc/scratchpad/shutdown-messages.pl\" vdeck-app/src/main/resources/messages.properties)",
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\shutdown\\\\przeplyw-zamkniecie-z-menu.mmd -o dokumentacja\\\\diagramy\\\\shutdown\\\\img\\\\przeplyw-zamkniecie-z-menu.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json 2>&1)",
+      "PowerShell(New-Item -ItemType Directory -Force dokumentacja\\\\diagramy\\\\shutdown\\\\img)",
+      "PowerShell(npx -y @mermaid-js/mermaid-cli -i dokumentacja\\\\diagramy\\\\shutdown\\\\przeplyw-zamkniecie-z-menu.mmd -o dokumentacja\\\\diagramy\\\\shutdown\\\\img\\\\przeplyw-zamkniecie-z-menu.svg -b white -c dokumentacja\\\\diagramy\\\\mermaid-config.json 2>$null)",
+      "PowerShell(.\\\\mvnw.cmd -q package -DskipTests 2>&1 | Select-String -Pattern \"ERROR\" | Select-Object -First 10; $dst = \"C:\\\\Users\\\\Pszemko\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\66ed3129-737a-4bae-8cc5-1b3b53b0cccc\\\\scratchpad\\\\vdeck-screens\"; Remove-Item -Recurse -Force $dst; Expand-Archive -Path target\\\\vDeck-dist-0.1.0-SNAPSHOT.zip -DestinationPath $dst; \\(Get-Content \"$dst\\\\.vDeck\\\\config\\\\vDeck.properties\"\\) -replace 'panel.open.browser=true','panel.open.browser=false' | Set-Content -Encoding ascii \"$dst\\\\.vDeck\\\\config\\\\vDeck.properties\"; Select-String -Path \"$dst\\\\.vDeck\\\\config\\\\vDeck.properties\" -Pattern \"open.browser\")",
+      "PowerShell(.\\\\mvnw.cmd -q package -DskipTests 2>&1 | Select-String -Pattern \"ERROR\" | Select-Object -First 5; $dst = \"C:\\\\Users\\\\Pszemko\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--DEV-PROJECTS-vDeck-vdeck\\\\66ed3129-737a-4bae-8cc5-1b3b53b0cccc\\\\scratchpad\\\\vdeck-screens\"; Remove-Item -Recurse -Force $dst; Expand-Archive -Path target\\\\vDeck-dist-0.1.0-SNAPSHOT.zip -DestinationPath $dst; \\(Get-Content \"$dst\\\\.vDeck\\\\config\\\\vDeck.properties\"\\) -replace 'panel.open.browser=true','panel.open.browser=false' | Set-Content -Encoding ascii \"$dst\\\\.vDeck\\\\config\\\\vDeck.properties\"; Select-String -Path \"$dst\\\\.vDeck\\\\config\\\\vDeck.properties\" -Pattern \"open.browser\")"
     ]
   }
 }

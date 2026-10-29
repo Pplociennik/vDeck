@@ -16,34 +16,32 @@
     page could no longer load its stylesheet.
 -->
 <main class="page-center">
-    <div class="panel-frame">
-        <div class="surface view-card" data-panel-shutdown>
-            <section th:hidden="${closing}" data-panel-shutdown-confirmation aria-labelledby="panel-shutdown-title">
-                <div class="view-header">
-                    <svg class="icon icon--large" aria-hidden="true" focusable="false">
-                        <use th:href="@{/icons/icons.svg#icon-power}"></use>
-                    </svg>
-                    <h1 class="view-title" id="panel-shutdown-title" th:text="#{panelShutdown.title}"></h1>
-                </div>
-                <p class="view-lead" th:text="#{panelShutdown.lead}"></p>
-                <form class="settings-footer" method="post" th:action="@{/panel/shutdown}" data-panel-shutdown-form>
-                    <button class="form-submit" type="submit" th:text="#{panelShutdown.submit}"></button>
-                    <a class="form-submit" th:href="@{/}" th:text="#{panelShutdown.cancel}"></a>
-                </form>
-            </section>
+    <div class="surface view-card view-card--dialog" data-panel-shutdown>
+        <section th:hidden="${closing}" data-panel-shutdown-confirmation aria-labelledby="panel-shutdown-title">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                </svg>
+                <h1 class="view-title" id="panel-shutdown-title" th:text="#{panelShutdown.title}"></h1>
+            </div>
+            <p class="view-lead" th:text="#{panelShutdown.lead}"></p>
+            <form class="settings-footer" method="post" th:action="@{/panel/shutdown}" data-panel-shutdown-form>
+                <button class="form-submit" type="submit" th:text="#{panelShutdown.submit}"></button>
+                <a class="form-submit" th:href="@{/}" th:text="#{panelShutdown.cancel}"></a>
+            </form>
+        </section>
 
-            <section th:hidden="${!closing}" data-panel-shutdown-closing role="status" tabindex="-1"
-                     aria-labelledby="panel-shutdown-closing-title">
-                <div class="view-header">
-                    <svg class="icon icon--large" aria-hidden="true" focusable="false">
-                        <use th:href="@{/icons/icons.svg#icon-power}"></use>
-                    </svg>
-                    <h1 class="view-title" id="panel-shutdown-closing-title"
-                        th:text="#{panelShutdown.closing.title}"></h1>
-                </div>
-                <p class="view-lead" th:text="#{panelShutdown.closing.lead}"></p>
-            </section>
-        </div>
+        <section th:hidden="${!closing}" data-panel-shutdown-closing role="status" tabindex="-1"
+                 aria-labelledby="panel-shutdown-closing-title">
+            <div class="view-header">
+                <svg class="icon icon--large" aria-hidden="true" focusable="false">
+                    <use th:href="@{/icons/icons.svg#icon-power}"></use>
+                </svg>
+                <h1 class="view-title" id="panel-shutdown-closing-title"
+                    th:text="#{panelShutdown.closing.title}"></h1>
+            </div>
+            <p class="view-lead" th:text="#{panelShutdown.closing.lead}"></p>
+        </section>
     </div>
 </main>
 </body>

@@ -915,7 +915,7 @@ Wyspa dzieli się na trzy grupy akcji rozdzielone pionowymi liniami o wysokości
 
 | Grupa | Szerokość | Akcje | Stan |
 |---|---|---|---|
-| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Start: `POST /server/start`; Stop: `POST /server/stop`; Kill: potwierdzenie i `POST /server/kill`; Restart jest zawsze wyłączony (`disabled`) — funkcjonalność nie jest zaimplementowana |
+| Sterowanie serwerem | najszersza | start, zatrzymanie, restart, wymuszone zatrzymanie | Start: `POST /server/start`; Stop: `POST /server/stop`; Restart: `POST /server/restart` (Stop, a po nim Start); Kill: potwierdzenie i `POST /server/kill` |
 | Kopie bezpieczeństwa | nieco węższa | utworzenie kopii świata, utworzenie kopii serwera | Oba przyciski są zawsze wyłączone (`disabled`) — funkcjonalność nie jest zaimplementowana |
 | Zarządzanie panelem | wąska | zmiana hasła, wylogowanie | Działa: odnośnik do `/change-password` oraz formularz `POST /logout` obsługiwany przez domyślne wylogowanie Spring Security |
 
@@ -931,11 +931,11 @@ zapisana zmiana na panelu „Ogólne” gałęzi „Serwer” pojawia się przy 
 
 Pod wyspą znajduje się znacznik stanu (`island-status`). `ServerStatusAdvice` dostarcza aktualny
 `serverStatus` przy każdym renderowaniu. Start jest dostępny tylko w STOPPED, START_FAILED i CRASHED;
-Stop i Kill tylko w RUNNING lub STOP_FAILED. `server-status.js` co 2 sekundy pobiera fragment
+Stop, Restart i Kill tylko w RUNNING lub STOP_FAILED. `server-status.js` co 2 sekundy pobiera fragment
 `GET /server/status`, gdy strona jest widoczna. Jedno żądanie naraz, timeout 5 s i zachowanie
 poprzedniego widoku przy błędzie; aktywny fokus w wyspie zapobiega utracie fokusu przy wymianie.
 
-Formularze Start, Stop, Kill i wylogowania korzystają z `th:action`, więc Thymeleaf dokłada do nich ukryty token CSRF
+Formularze Start, Stop, Restart, Kill i wylogowania korzystają z `th:action`, więc Thymeleaf dokłada do nich ukryty token CSRF
 wymagany przez łańcuch bezpieczeństwa. Wyspa nie jest osadzana na ekranie wymuszonej zmiany hasła
 początkowego — konto przed zmianą hasła nie może wykonać żadnej z jej akcji.
 
@@ -1411,6 +1411,38 @@ wysyła tylko strategia zamknięcia `stop`. RCON nie jest brany pod uwagę.
 
 Źródło: [przeplyw-zatrzymanie-serwera.mmd](diagramy/server/przeplyw-zatrzymanie-serwera.mmd).
 
+Gdy wyjście procesu nadejdzie przed wynikiem workera (np. helpera CTRL+C), stan od razu staje się
+STOPPED, ale `CompletionStage` zwrócony przez `ServerRuntime.stop` kończy się dopiero po zgłoszeniu
+ostatniego workera albo przy `close()` runtime. Do tego czasu `doStart` odrzuca nowy start, więc
+dopiero zakończenie Stopu oznacza, że start zostanie przyjęty — z tego korzysta restart.
+
+#### Restart serwera
+
+Restart (AD-033) wysyła z wyspy `POST /server/restart` z ukrytym `launchId`; obowiązują ADMIN, CSRF i
+wymuszona zmiana hasła jak dla Start. `ServerController.restartServer` wywołuje
+`ServerService.restart(launchId)` i wraca na `/` z komunikatem `server.restarting`, nie czekając na
+zatrzymanie. `ServerServiceImpl.restart` zleca `ServerRuntime.stop(StopRequest.graceful(launchId))`, więc
+zatrzymanie przebiega dokładnie jak Stop opisany wyżej, bez zgody na wymuszenie. Odmowę przyjęcia
+(nieaktualny `launchId`, zły stan, inna operacja, błędny identyfikator) zgłasza `ServerRestartException`
+z kluczem `RESTART_REJECTED`, a błąd techniczny — z `RESTART_FAILED` i przyczyną; obsługuje je
+`ServerExceptionHandler`, a serwer działa dalej.
+
+Po zakończeniu Stopu `whenCompleteAsync` przekazuje dalszy ciąg na krótkotrwały wątek demona
+`vdeck-server-restart` — nigdy na wątek kolejki runtime, bo `start()` czeka na tę kolejkę. Zakończenie
+wyjątkiem (STOP_FAILED, deadline, zamknięcie) daje WARN i żadnego startu; proces pozostaje zarządzany
+zgodnie z AD-017. Normalne zakończenie wywołuje zwykłe `start()`: profil jest czytany w tej chwili i
+przechodzi wszystkie sprawdzenia `ServerStartValidator`, łącznie z wolnymi portami, a log dostaje nowy
+plik. Profilu nie sprawdza się przed zatrzymaniem, bo dwa porty zajmuje wtedy jeszcze działający
+serwer; błędny profil zostawia więc serwer zatrzymany. Odmowa startu jest logowana na WARN, a błąd na
+ERROR z przyczyną — administrator widzi wynik tylko w stanie wyspy i w logu panelu, bo żądanie HTTP
+już się zakończyło. Między STOPPED a STARTING przycisk Start jest dostępny; start, który wygra wyścig,
+sprawia, że start restartu zostaje odrzucony jako „już uruchomiony”. Zamknięcie panelu w trakcie
+restartu dołącza do jego Stopu, a następujący start runtime odrzuca w trybie zamykania.
+
+![Diagram przepływu: restart serwera z wyspy akcji](diagramy/server/img/przeplyw-restart-serwera.svg)
+
+Źródło diagramu: [`diagramy/server/przeplyw-restart-serwera.mmd`](diagramy/server/przeplyw-restart-serwera.mmd)
+
 #### Strategia zamknięcia panelu
 
 Los zarządzanego serwera przy zamknięciu panelu wybiera `panel.close.strategy` w `vDeck.properties`
@@ -1759,7 +1791,7 @@ testowych, a pierwszej aktualizacji z prawdziwego wydania GitHuba nie można spr
 dwóch wydań.
 
 **Niezaimplementowane** — wymienione wyłącznie jako kontekst, żaden z tych obszarów nie działa:
-Restart z GUI, ekran zarządzania światami i kopiami, restore, wysyłanie poleceń z konsoli,
+Ekran zarządzania światami i kopiami, restore, wysyłanie poleceń z konsoli,
 przeglądanie logów wcześniejszych uruchomień, listy graczy, RCON, mody, harmonogramy i aktualizacje
 serwera. Podgląd logu bieżącego uruchomienia opisuje [5.11](#511-konsola), a listę zmian po
 aktualizacji — [5.12](#512-lista-zmian-po-aktualizacji).
@@ -1775,7 +1807,8 @@ Znane ograniczenia stanu bieżącego:
 - panel nie ma własnej strony błędu — odpowiedź `500` z `DefaultExceptionHandler` renderuje domyślna
   strona błędu Spring Boota, bez treści wyjątku;
 - strona główna pokazuje wyspę, komunikaty operacji i ewentualną adopcję; status wyspy odświeża polling;
-- Restart i przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji, dlatego są stale wyłączone;
+- przyciski kopii bezpieczeństwa nie wykonują jeszcze akcji, dlatego są stale wyłączone;
+- wynik startu po zatrzymaniu w ramach restartu widać tylko w stanie wyspy i logu panelu;
 - serwer może przeżyć zamknięcie panelu przy strategii `graceful` albo `leave`; nieudany ręczny Stop
   nigdy nie przechodzi automatycznie do Kill — robi to wyłącznie strategia zamknięcia `stop`;
 - zamknięcie okna konsoli może zakończyć panel, zanim strategia zamknięcia skończy pracę;
@@ -1838,6 +1871,7 @@ Konfiguracja `mermaid-config.json` wyłącza etykiety HTML — bez tego napisy t
 | Feature server i runtime | klasy | [`img/klasy-komponenty.svg`](diagramy/server/img/klasy-komponenty.svg) | [`diagramy/server/klasy-komponenty.mmd`](diagramy/server/klasy-komponenty.mmd) | [5.7](#57-uruchamianie-serwera) |
 | Techniczny helper CTRL+C | przepływ | [`img/przeplyw-helper-ctrl-c.svg`](diagramy/server/img/przeplyw-helper-ctrl-c.svg) | [`diagramy/server/przeplyw-helper-ctrl-c.mmd`](diagramy/server/przeplyw-helper-ctrl-c.mmd) | [5.9](#59-techniczny-helper-ctrlc) |
 | Zatrzymanie serwera | przepływ | [SVG](diagramy/server/img/przeplyw-zatrzymanie-serwera.svg) | [MMD](diagramy/server/przeplyw-zatrzymanie-serwera.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
+| Restart serwera | sekwencja | [`img/przeplyw-restart-serwera.svg`](diagramy/server/img/przeplyw-restart-serwera.svg) | [`diagramy/server/przeplyw-restart-serwera.mmd`](diagramy/server/przeplyw-restart-serwera.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Strategia zamknięcia panelu | przepływ | [SVG](diagramy/server/img/przeplyw-zamkniecie-panelu.svg) | [MMD](diagramy/server/przeplyw-zamkniecie-panelu.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Zamknięcie panelu z menu bocznego | sekwencja | [`img/przeplyw-zamkniecie-z-menu.svg`](diagramy/shutdown/img/przeplyw-zamkniecie-z-menu.svg) | [`diagramy/shutdown/przeplyw-zamkniecie-z-menu.mmd`](diagramy/shutdown/przeplyw-zamkniecie-z-menu.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |
 | Snapshot świata | przepływ | [SVG](diagramy/backup/img/przeplyw-snapshot.svg) | [MMD](diagramy/backup/przeplyw-snapshot.mmd) | [5.10](#510-zatrzymanie-snapshoty-i-odzyskiwanie) |

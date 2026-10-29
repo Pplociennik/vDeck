@@ -1,0 +1,35 @@
+%% Diagram przepływu: restart serwera z wyspy akcji
+sequenceDiagram
+    actor Admin as Administrator
+    participant C as ServerController
+    participant S as ServerServiceImpl
+    participant R as ServerRuntime
+    participant T as wątek vdeck-server-restart
+
+    Admin->>C: POST /server/restart (launchId, CSRF)
+    C->>S: restart(launchId)
+    S->>R: stop(StopRequest.graceful)
+    alt nieaktualny launchId, zły stan lub inna operacja
+        R-->>S: IllegalStateException
+        S-->>C: ServerRestartException (RESTART_REJECTED)
+        C-->>Admin: przekierowanie na / z komunikatem, serwer działa dalej
+    else Stop przyjęty
+        R-->>S: CompletionStage Stopu
+        S-->>C: powrót bez czekania
+        C-->>Admin: przekierowanie na / („Rozpoczęto ponowne uruchamianie”)
+        Note over R: snapshot PRE_STOP, CTRL+C, obserwacja wyjścia,<br/>zakończenie po ostatnim workerze
+        alt Stop nieudany
+            R-->>T: zakończenie wyjątkiem
+            Note over T: WARN, brak startu,<br/>proces zostaje w STOP_FAILED
+        else wyjście procesu zaobserwowane
+            R-->>T: zakończenie normalne (STOPPED)
+            T->>S: start()
+            Note over S: profil zapisany w tej chwili,<br/>wszystkie sprawdzenia łącznie z portami
+            alt start przyjęty
+                S->>R: start(LaunchSpec, WorldContext)
+                Note over R: STARTING, potem RUNNING
+            else odmowa lub błąd startu
+                Note over T: wpis w logu panelu,<br/>wyspa pokazuje stan serwera
+            end
+        end
+    end

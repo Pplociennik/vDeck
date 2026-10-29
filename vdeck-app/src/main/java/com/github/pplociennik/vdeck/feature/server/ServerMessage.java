@@ -73,7 +73,11 @@ public enum ServerMessage implements TranslationKeyIf {
     /** Adoption admission failed technically. */
     ADOPT_FAILED( "server.error.adoptFailed" ),
     /** Runtime stop admission failed technically. */
-    STOP_FAILED( "server.error.stopFailed" );
+    STOP_FAILED( "server.error.stopFailed" ),
+    /** Stale launch, invalid state, or concurrent work refused the stop that begins a restart. */
+    RESTART_REJECTED( "server.error.restartRejected" ),
+    /** The stop that begins a restart could not be admitted for a technical reason. */
+    RESTART_FAILED( "server.error.restartFailed" );
 
     private final String key;
 

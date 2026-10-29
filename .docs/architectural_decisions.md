@@ -441,3 +441,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** Każde uruchomienie panelu zapisuje log w `.vDeck/logs/panel/<dzień>/`, a logi panelu i gry czyszczą pary `panel|game.log.retention.enabled` i `.days`, gdzie `0` dni zachowuje wszystko.
 - **Powód:** Log panelu znikał razem z oknem konsoli.
 - **Konsekwencja:** Oba rodzaje logów stosują tę samą regułę `LogRetention`; `0` dni nie oznacza już samego bieżącego dnia gry.
+
+## AD-033 — Restart serwera jako Stop i Start
+
+- **Status:** obowiązująca (2026-10-29)
+- **Decyzja:** `POST /server/restart` przyjmuje `StopRequest.graceful`, a po zakończeniu Stopu wywołuje `ServerService.start()` ze wszystkimi sprawdzeniami.
+- **Powód:** Restart nie może wymuszać zakończenia ani pomijać snapshotu i walidacji startu.
+- **Konsekwencja:** Nieudany Stop zostawia `STOP_FAILED` bez startu, a `ServerRuntime.stop` kończy się po wyjściu procesu i workerów.

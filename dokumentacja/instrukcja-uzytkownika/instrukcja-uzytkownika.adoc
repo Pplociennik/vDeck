@@ -204,7 +204,7 @@ image::wyspa-akcji.jpg[Wyspa akcji z ponumerowanymi przyciskami]
 
 | 1 | Uruchom serwer | Uruchamia serwer z bieżącymi ustawieniami (<<uruchamianie>>).
 | 2 | Zatrzymaj serwer | Bezpiecznie zatrzymuje serwer, wcześniej robiąc kopię świata (<<zatrzymywanie>>).
-| 3 | Uruchom serwer ponownie | _Jeszcze niedostępne._
+| 3 | Uruchom serwer ponownie | Zatrzymuje serwer jak *Zatrzymaj serwer*, a potem uruchamia go z bieżącymi ustawieniami (<<restart>>).
 | 4 | Wymuś zatrzymanie serwera | Kill — siłowo kończy serwer po potwierdzeniu (<<kill>>).
 | 5 | Utwórz kopię świata | _Jeszcze niedostępne._
 | 6 | Utwórz kopię serwera | _Jeszcze niedostępne._
@@ -385,7 +385,7 @@ Po udanym zapisie u góry formularza pojawi się zielony komunikat:
 image::serwer-zapisano.jpg[Komunikat Ustawienia zostały zapisane,pdfwidth=90%]
 
 IMPORTANT: Nowe ustawienia obowiązują od *następnego* uruchomienia serwera. Działający serwer
-nie jest zatrzymywany — zatrzymaj go i uruchom ponownie, aby zmiany zadziałały.
+nie jest zatrzymywany — naciśnij *Uruchom serwer ponownie* (<<restart>>), aby zmiany zadziałały.
 
 Jeżeli któreś pole ma niedozwoloną wartość, panel nic nie zapisuje i pokazuje czerwony
 komunikat z przyczyną. Popraw wartość według opisu pod polem i zapisz ponownie.
@@ -501,6 +501,29 @@ wynik i nie zamykaj panelu.
 IMPORTANT: Nieudane zatrzymanie *nie wyłącza* serwera. Jeżeli kopia świata się nie uda albo
 serwer nie zakończy pracy na czas, serwer dalej działa, a pod wyspą akcji pojawia się
 komunikat z przyczyną. Usuń przyczynę (np. zwolnij miejsce na dysku) i ponów zatrzymanie.
+
+[#restart]
+=== Ponowne uruchamianie
+
+Naciśnij przycisk *Uruchom serwer ponownie* (3 na wyspie akcji), np. po zmianie ustawień. Panel
+pokazuje komunikat _Rozpoczęto ponowne uruchamianie serwera: panel zatrzyma serwer, a po jego
+wyjściu uruchomi go ponownie._ i wykonuje dwa kroki:
+
+. Zatrzymuje serwer dokładnie tak jak *Zatrzymaj serwer* — z kopią świata (<<zatrzymywanie>>).
+  Stan to *Zatrzymywanie*.
+. Gdy serwer zakończy pracę, uruchamia go z ustawieniami zapisanymi w tej chwili — tak jak
+  *Uruchom serwer* (<<uruchamianie>>). Stan zmienia się na *Uruchamianie*, a potem na *Uruchomiony*.
+
+Przycisk działa tylko wtedy, gdy serwer jest uruchomiony albo jest w stanie *Błąd zatrzymania*.
+
+IMPORTANT: Jeżeli zatrzymanie się nie uda, panel *nie uruchamia* serwera ponownie — serwer dalej
+działa, a pod wyspą akcji pojawia się przyczyna, jak przy zwykłym zatrzymaniu.
+
+Ustawienia są sprawdzane dopiero przy ponownym uruchomieniu, już po zatrzymaniu serwera. Jeżeli
+na przykład hasło serwera jest za krótkie, serwer zostanie zatrzymany, ale się nie uruchomi — stan
+pozostanie *Zatrzymany* albo zmieni się na *Błąd*. Przyczynę zapisuje log panelu
+(`.vDeck\logs\panel`). Popraw ustawienia i naciśnij *Uruchom serwer*; komunikat z przyczyną pojawi
+się wtedy pod wyspą akcji.
 
 [#kill]
 === Wymuszone zatrzymanie (Kill)

@@ -746,6 +746,43 @@ class ServerStateMachineTest {
             verify( store ).clear();
         }
 
+        /**
+         * An exit observed while the signal helper has not reported back reports STOPPED at once, but completes
+         * the stop only after that worker finishes, so a start requested on completion is admitted.
+         */
+        @Test
+        void shouldCompleteStopAfterWorkerFinishes_whenExitPrecedesWorkerResult() {
+            // GIVEN
+            var result = underTest.stop( StopRequest.graceful( id ) ).toCompletableFuture();
+            worker.runNext();
+            alive.set( false );
+            exitFuture.complete( processHandle );
+            assertThat( underTest.status().getState() ).isEqualTo( ServerState.STOPPED );
+            assertThat( result ).isNotDone();
+            // WHEN
+            worker.runNext();
+            // THEN
+            assertThat( result ).isCompleted();
+            // The launcher fixture returns the same handle, which now stands for the new process.
+            alive.set( true );
+            assertThat( catchThrowable( () -> underTest.start( spec, world ) ) ).isNull();
+            verify( launcher, times( 2 ) ).launch( spec );
+        }
+
+        /** Closing the runtime ends the wait for workers of a stop whose exit was already observed. */
+        @Test
+        void shouldCompleteStop_whenRuntimeClosesBeforeWorkerFinishes() {
+            // GIVEN
+            var result = underTest.stop( StopRequest.graceful( id ) ).toCompletableFuture();
+            worker.runNext();
+            alive.set( false );
+            exitFuture.complete( processHandle );
+            // WHEN
+            underTest.close();
+            // THEN
+            assertThat( result ).isCompleted();
+        }
+
         /** Both failed graceful attempts preserve the process and never authorize Kill. */
         @Test
         void shouldRetainProcess_whenBothGracefulAttemptsExpire() {

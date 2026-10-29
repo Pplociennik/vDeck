@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.feature.server;
 
 import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerRestartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import jakarta.annotation.Nonnull;
@@ -76,6 +77,25 @@ class ServerExceptionHandler {
     @Nonnull
     String handleStopNotPerformed( @Nonnull ServerStopException exception,
                                    @Nonnull RedirectAttributes redirectAttributes ) {
+        requireNonNull( exception, "exception must not be null" );
+        return reportControlFailure( exception.getMessageKey(), exception, redirectAttributes );
+    }
+
+    /**
+     * Reports a refused or failed restart admission on the island's home page; the server keeps running.
+     *
+     * @param exception
+     *         restart process exception
+     * @param redirectAttributes
+     *         safe error flash attributes
+     * @return home redirect
+     * @throws NullPointerException
+     *         if an argument is null
+     */
+    @ExceptionHandler( ServerRestartException.class )
+    @Nonnull
+    String handleRestartNotPerformed( @Nonnull ServerRestartException exception,
+                                      @Nonnull RedirectAttributes redirectAttributes ) {
         requireNonNull( exception, "exception must not be null" );
         return reportControlFailure( exception.getMessageKey(), exception, redirectAttributes );
     }

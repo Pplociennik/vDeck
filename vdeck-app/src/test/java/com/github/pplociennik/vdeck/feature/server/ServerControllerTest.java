@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.github.pplociennik.vdeck.feature.server.exc.ServerRestartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
 import com.github.pplociennik.vdeck.feature.server.service.ServerService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.servlet.mvc.support.RedirectAttributesModelMap;
 
 /**
- * Verifies start delegation, confirmation and propagation of process exceptions to the advice.
+ * Verifies start and restart delegation, confirmation and propagation of process exceptions to the advice.
  */
 @ExtendWith( MockitoExtension.class )
 class ServerControllerTest {
@@ -86,6 +87,54 @@ class ServerControllerTest {
 
         // THEN
         assertThat( thrown ).isInstanceOf( NullPointerException.class ).hasMessageContaining( "redirectAttributes" );
+        verifyNoInteractions( serverService );
+    }
+
+    /** Verifies that an admitted restart returns home with its confirmation, without waiting for the stop. */
+    @Test
+    void shouldRestartServerAndConfirm_whenRequestIsAccepted() {
+        // GIVEN
+        var attributes = new RedirectAttributesModelMap();
+
+        // WHEN
+        var result = underTest.restartServer( "selected-launch", attributes );
+
+        // THEN
+        assertThat( result ).isEqualTo( "redirect:/" );
+        assertThat( attributes.getFlashAttributes() ).containsOnlyKeys( "serverRestarting" );
+        assertThat( attributes.getFlashAttributes().get( "serverRestarting" ) ).isEqualTo( true );
+        verify( serverService ).restart( "selected-launch" );
+    }
+
+    /** Verifies that a refused restart reaches the advice unchanged and produces no confirmation. */
+    @Test
+    void shouldNotCatchException_whenRestartIsRefused() {
+        // GIVEN
+        var attributes = new RedirectAttributesModelMap();
+        var rejection = new ServerRestartException( ServerMessage.RESTART_REJECTED, null );
+        doThrow( rejection ).when( serverService ).restart( "selected-launch" );
+
+        // WHEN
+        var thrown = catchThrowable( () -> underTest.restartServer( "selected-launch", attributes ) );
+
+        // THEN
+        assertThat( thrown ).isSameAs( rejection );
+        assertThat( attributes.getFlashAttributes() ).isEmpty();
+    }
+
+    /** Verifies that a restart without an identifier or flash storage is refused before the service is used. */
+    @Test
+    void shouldThrowException_whenRestartArgumentIsNull() {
+        // GIVEN
+        var attributes = new RedirectAttributesModelMap();
+
+        // WHEN
+        var noLaunch = catchThrowable( () -> underTest.restartServer( null, attributes ) );
+        var noFlash = catchThrowable( () -> underTest.restartServer( "selected-launch", null ) );
+
+        // THEN
+        assertThat( noLaunch ).isInstanceOf( NullPointerException.class ).hasMessageContaining( "launchId" );
+        assertThat( noFlash ).isInstanceOf( NullPointerException.class ).hasMessageContaining( "redirectAttributes" );
         verifyNoInteractions( serverService );
     }
 

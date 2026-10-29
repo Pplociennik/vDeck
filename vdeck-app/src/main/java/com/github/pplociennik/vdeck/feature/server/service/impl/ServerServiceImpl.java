@@ -6,6 +6,7 @@ import com.github.pplociennik.vdeck.feature.launch.service.LaunchProfileService;
 import com.github.pplociennik.vdeck.feature.server.ServerMessage;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerAdoptException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerKillException;
+import com.github.pplociennik.vdeck.feature.server.exc.ServerRestartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStartException;
 import com.github.pplociennik.vdeck.feature.server.exc.ServerStopException;
 import com.github.pplociennik.vdeck.feature.server.service.LaunchCommandService;
@@ -20,6 +21,7 @@ import com.github.pplociennik.vdeck.shared.service.PathService;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -27,6 +29,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.Executor;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -34,7 +38,7 @@ import static java.util.Objects.requireNonNull;
 
 /**
  * Captures the launch configuration and world context before creating a process, and admits launch-specific
- * Stop, confirmed Kill and recovery requests through the single runtime lifecycle owner.
+ * Stop, Restart, confirmed Kill and recovery requests through the single runtime lifecycle owner.
  *
  * <p>This class holds no state of its own. The lifecycle state lives in the runtime and is read from
  * it every time, because a copy kept here would go stale the moment the server exited on its own.
@@ -42,6 +46,12 @@ import static java.util.Objects.requireNonNull;
 @Log4j2
 @Service
 class ServerServiceImpl implements ServerService {
+
+    /**
+     * Name of the short-lived thread starting the server again after the stop of a restart, visible in the
+     * panel log.
+     */
+    private static final String RESTART_THREAD_NAME = "vdeck-server-restart";
 
     private final ServerRuntime serverRuntime;
 
@@ -58,7 +68,13 @@ class ServerServiceImpl implements ServerService {
     private final BackupPathService backupPaths;
 
     /**
-     * Creates the service controlling the Valheim server.
+     * Runs the start that follows the stop of a restart. The stop completes on the runtime's event-queue
+     * thread, which a start must never block, so the start always runs elsewhere.
+     */
+    private final Executor restartExecutor;
+
+    /**
+     * Creates the service controlling the Valheim server, starting each restart on its own daemon thread.
      *
      * @param serverRuntime
      *         runtime owning the managed process and its state
@@ -75,12 +91,46 @@ class ServerServiceImpl implements ServerService {
      * @param backupPaths
      *         resolver for the authorized snapshot root outside the installation
      */
+    @Autowired
     ServerServiceImpl( @Nonnull ServerRuntime serverRuntime,
                        @Nonnull LaunchProfileService launchProfileService,
                        @Nonnull LaunchCommandService launchCommandService,
                        @Nonnull ServerLogService serverLogService,
                        @Nonnull ServerStartValidator validator,
                        @Nonnull PathService pathService, @Nonnull BackupPathService backupPaths ) {
+        this( serverRuntime, launchProfileService, launchCommandService, serverLogService, validator, pathService,
+                backupPaths, task -> Thread.ofPlatform().name( RESTART_THREAD_NAME ).daemon( true ).start( task ) );
+    }
+
+    /**
+     * Creates the service with an explicit executor for the start that follows the stop of a restart.
+     *
+     * @param serverRuntime
+     *         runtime owning the managed process and its state
+     * @param launchProfileService
+     *         service reading the stored launch profile
+     * @param launchCommandService
+     *         service turning the profile into a command line and its mirror script
+     * @param serverLogService
+     *         service deciding where this launch writes its log
+     * @param validator
+     *         pre-start checks refusing a launch that would fail anyway
+     * @param pathService
+     *         service resolving the executable and the mirror script inside the installation
+     * @param backupPaths
+     *         resolver for the authorized snapshot root outside the installation
+     * @param restartExecutor
+     *         executor running the start of a restart; must not run it on the calling thread in production
+     * @throws NullPointerException
+     *         if any dependency is null
+     */
+    ServerServiceImpl( @Nonnull ServerRuntime serverRuntime,
+                       @Nonnull LaunchProfileService launchProfileService,
+                       @Nonnull LaunchCommandService launchCommandService,
+                       @Nonnull ServerLogService serverLogService,
+                       @Nonnull ServerStartValidator validator,
+                       @Nonnull PathService pathService, @Nonnull BackupPathService backupPaths,
+                       @Nonnull Executor restartExecutor ) {
         this.serverRuntime = requireNonNull( serverRuntime, "serverRuntime must not be null" );
         this.launchProfileService = requireNonNull( launchProfileService,
                 "launchProfileService must not be null" );
@@ -90,6 +140,7 @@ class ServerServiceImpl implements ServerService {
         this.validator = requireNonNull( validator, "validator must not be null" );
         this.pathService = requireNonNull( pathService, "pathService must not be null" );
         this.backupPaths = requireNonNull( backupPaths, "backupPaths must not be null" );
+        this.restartExecutor = requireNonNull( restartExecutor, "restartExecutor must not be null" );
     }
 
     /** {@inheritDoc} */
@@ -119,6 +170,24 @@ class ServerServiceImpl implements ServerService {
         } catch ( RuntimeException exception ) {
             throw new ServerStopException( ServerMessage.STOP_FAILED, exception );
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void restart( @Nonnull String launchId ) {
+        requireNonNull( launchId, "launchId must not be null" );
+        log.info( "Server restart requested" );
+
+        CompletionStage< Void > stopped;
+        try {
+            stopped = serverRuntime.stop( StopRequest.graceful( launchId ) );
+        } catch ( IllegalArgumentException | IllegalStateException exception ) {
+            throw new ServerRestartException( ServerMessage.RESTART_REJECTED, null );
+        } catch ( RuntimeException exception ) {
+            throw new ServerRestartException( ServerMessage.RESTART_FAILED, exception );
+        }
+        stopped.whenCompleteAsync( ( ignored, stopFailure ) -> startAfterRestartStop( stopFailure ),
+                restartExecutor );
     }
 
     /** {@inheritDoc} */
@@ -156,6 +225,30 @@ class ServerServiceImpl implements ServerService {
     @Override
     public @Nonnull ServerStatus getStatus() {
         return serverRuntime.status();
+    }
+
+    /**
+     * Ends a restart on the restart thread: starts the server when its stop completed, and otherwise leaves the
+     * process retained by the failed stop untouched. No controller advice runs here, so this method is the
+     * boundary logging the outcome of the start.
+     */
+    private void startAfterRestartStop( @Nullable Throwable stopFailure ) {
+        if ( stopFailure != null ) {
+            log.warn( "Server restart abandoned: the stop did not complete, so the server is not started again" );
+            return;
+        }
+        log.info( "Server stopped for restart, starting it again" );
+        try {
+            start();
+        } catch ( ServerStartException exception ) {
+            if ( exception.isFailure() ) {
+                log.error( "Server restart could not start the server: {}", exception.getMessageKey(), exception );
+            } else {
+                log.warn( "Server restart could not start the server: {}", exception.getMessageKey() );
+            }
+        } catch ( RuntimeException exception ) {
+            log.error( "Server restart could not start the server", exception );
+        }
     }
 
     private WorldContext captureWorld( LaunchConfiguration configuration ) {

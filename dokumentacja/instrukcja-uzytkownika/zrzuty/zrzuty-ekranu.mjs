@@ -6,7 +6,7 @@
 //   set JAVA_TOOL_OPTIONS=-Dvdeck.server-file-check=false
 //   start-vDeck.bat
 // The script changes the administrator password, edits the launch profile with sample values,
-// toggles the advanced game settings and clears the acknowledged release notes in vdeck.db, so never
+// toggles the advanced game settings, writes two sample players to bannedlist.txt and clears the acknowledged release notes in vdeck.db, so never
 // point it at a real installation.
 //
 // Usage:
@@ -86,9 +86,10 @@ try {
         { selector: '[data-side-menu-branch]', label: '2' },
         { selector: '.side-menu-entry[href$="/game-settings"]', label: '3' },
         { selector: '.side-menu-entry[href$="/console"]', label: '4' },
-        { selector: '.side-menu-admin', label: '5' },
-        { selector: '.side-menu-close', label: '6' },
-        { selector: '.side-menu-footer', label: '7' }
+        { selector: '[data-side-menu-branch][aria-controls="side-menu-children-players"]', label: '5' },
+        { selector: '.side-menu-admin', label: '6' },
+        { selector: '.side-menu-close', label: '7' },
+        { selector: '.side-menu-footer', label: '8' }
     ] );
     await captureAround( page, '.side-menu-panel', 'menu-boczne', 16 );
     await clearMarks( page );
@@ -148,6 +149,28 @@ try {
     await clearMarks( page );
     await captureElement( page, '#game-settings-advanced', 'gra-sekcja-zaawansowane' );
     await page.uncheck( '[data-advanced-toggle]' );
+
+    // Two sample players fill the bans list; the panel is shot in the same narrow, tall viewport.
+    const samplePlayers = [ [ 'STEAM', '76561198012345678' ], [ 'XBOX', '2535412345678901' ] ];
+    for ( const [ platform, userId ] of samplePlayers ) {
+        await page.goto( `${baseUrl}/players/bans` );
+        await page.selectOption( '#player-platform', platform );
+        await page.fill( '#player-user-id', userId );
+        await submit( page );
+    }
+    await hideFloatingControls( page );
+    await mark( page, [
+        { selector: '.form-warning', label: '1' },
+        { selector: 'fieldset.form-section', label: '2' },
+        { selector: '.player-table', label: '3' }
+    ] );
+    // The card fills the panel frame, so the shot ends below the table instead of at the card's bottom.
+    const playersCard = await page.locator( '.view-card' ).boundingBox();
+    const playersTable = await page.locator( '.player-table' ).boundingBox();
+    await page.screenshot( { path: imagePath( 'gracze-lista', 'jpg' ), type: 'jpeg', quality: 85,
+        clip: { x: playersCard.x, y: playersCard.y, width: playersCard.width,
+            height: playersTable.y + playersTable.height + 24 - playersCard.y } } );
+    await clearMarks( page );
     await page.setViewportSize( { width: 1280, height: 800 } );
 
     // The summary shows the sample profile saved above; without valheim_server.exe the server stays stopped.

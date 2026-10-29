@@ -19,7 +19,8 @@
     ~{common/side-menu :: sideMenu(activeEntry='gameSettings')}, so the entry is marked as the current
     page; other views embed the fragment without it. The "Serwer" branch holds one entry per panel of the
     server settings, with ids serverSettings.server, serverSettings.access, serverSettings.world and
-    serverSettings.innerServerBackups.
+    serverSettings.innerServerBackups. Likewise the "Gracze" branch of the "Procesy" section holds one entry
+    per player list, with ids players.bans, players.admins and players.permitted.
 
     Above the sections, the "Stan serwera" action opens the server state summary; its entry id is
     serverState. It is slightly larger than the entries and shares the accent look of the close action.
@@ -86,6 +87,22 @@
                     <ul class="side-menu-list side-menu-list--level-1">
                         <li class="side-menu-item">
                             <a th:replace="~{common/side-menu :: link('sideMenu.entry.console', 'icon-console', '/console', 'console')}"></a>
+                        </li>
+                        <li class="side-menu-item">
+                            <button th:replace="~{common/side-menu :: branchToggle('sideMenu.entry.players', 'icon-players', 'side-menu-children-players')}"></button>
+                            <div class="side-menu-children" id="side-menu-children-players" inert>
+                                <ul class="side-menu-list side-menu-list--level-2">
+                                    <li class="side-menu-item">
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.players.bans', null, '/players/bans', 'players.bans')}"></a>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.players.admins', null, '/players/admins', 'players.admins')}"></a>
+                                    </li>
+                                    <li class="side-menu-item">
+                                        <a th:replace="~{common/side-menu :: link('sideMenu.entry.players.permitted', null, '/players/permitted', 'players.permitted')}"></a>
+                                    </li>
+                                </ul>
+                            </div>
                         </li>
                     </ul>
                 </section>

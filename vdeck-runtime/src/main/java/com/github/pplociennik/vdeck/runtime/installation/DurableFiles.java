@@ -60,6 +60,28 @@ public final class DurableFiles {
      */
     public static @Nonnull Properties readProperties( @Nonnull Path file, int maxBytes ) throws IOException {
         requireNonNull( file, "file must not be null" );
+        byte[] contents = read( file, maxBytes );
+        Properties properties = new Properties();
+        properties.load( new InputStreamReader( new ByteArrayInputStream( contents ), StandardCharsets.UTF_8 ) );
+        return properties;
+    }
+
+    /**
+     * Reads a small file whole, rejecting links and anything larger than the limit. At most one byte more
+     * than the limit is read, so an oversized file never fills memory.
+     *
+     * @param file
+     *         absolute file to read
+     * @param maxBytes
+     *         largest accepted size in bytes
+     * @return complete contents of the file
+     * @throws NullPointerException
+     *         if the file is null
+     * @throws IOException
+     *         if the file is missing, redirected, too large or unreadable
+     */
+    public static @Nonnull byte[] read( @Nonnull Path file, int maxBytes ) throws IOException {
+        requireNonNull( file, "file must not be null" );
         if ( !Files.isRegularFile( file, NOFOLLOW_LINKS ) ) {
             throw new IOException( "Not a regular file: " + file.getFileName() );
         }
@@ -70,9 +92,7 @@ public final class DurableFiles {
         if ( contents.length > maxBytes ) {
             throw new IOException( "File exceeds its size limit: " + file.getFileName() );
         }
-        Properties properties = new Properties();
-        properties.load( new InputStreamReader( new ByteArrayInputStream( contents ), StandardCharsets.UTF_8 ) );
-        return properties;
+        return contents;
     }
 
     /**

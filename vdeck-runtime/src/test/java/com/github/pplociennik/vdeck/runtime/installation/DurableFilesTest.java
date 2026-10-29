@@ -112,6 +112,51 @@ class DurableFilesTest {
     }
 
     /**
+     * Verifies that a file exactly at the limit is read whole.
+     */
+    @Test
+    void shouldReturnContents_whenFileIsAtLimit() throws Exception {
+        // GIVEN
+        Path file = Files.writeString( root.resolve( "list.txt" ), "x".repeat( 50 ) );
+
+        // WHEN
+        byte[] contents = DurableFiles.read( file, 50 );
+
+        // THEN
+        assertThat( contents ).hasSize( 50 );
+    }
+
+    /**
+     * Verifies that a bounded read rejects a file one byte above the limit.
+     */
+    @Test
+    void shouldThrowException_whenReadFileExceedsLimit() throws Exception {
+        // GIVEN
+        Path file = Files.writeString( root.resolve( "list.txt" ), "x".repeat( 51 ) );
+
+        // WHEN
+        var failure = catchThrowable( () -> DurableFiles.read( file, 50 ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOf( IOException.class ).hasMessageContaining( "size limit" );
+    }
+
+    /**
+     * Verifies that a bounded read refuses a missing file instead of returning nothing.
+     */
+    @Test
+    void shouldThrowException_whenReadFileIsMissing() {
+        // GIVEN
+        Path file = root.resolve( "missing.txt" );
+
+        // WHEN
+        var failure = catchThrowable( () -> DurableFiles.read( file, 50 ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOf( IOException.class ).hasMessageContaining( "Not a regular file" );
+    }
+
+    /**
      * Verifies that a copy returns the digest of the copied bytes and keeps the source.
      */
     @Test
@@ -255,12 +300,14 @@ class DurableFilesTest {
 
         // WHEN
         var missingFile = catchThrowable( () -> DurableFiles.sha256( null ) );
+        var missingReadFile = catchThrowable( () -> DurableFiles.read( null, 50 ) );
         var missingContents = catchThrowable( () -> DurableFiles.write( file, null ) );
         var missingTree = catchThrowable( () -> DurableFiles.deleteTree( root, null ) );
         var missingForcedTree = catchThrowable( () -> DurableFiles.forceTree( null ) );
 
         // THEN
         assertThat( missingFile ).isInstanceOf( NullPointerException.class );
+        assertThat( missingReadFile ).isInstanceOf( NullPointerException.class );
         assertThat( missingContents ).isInstanceOf( NullPointerException.class );
         assertThat( missingTree ).isInstanceOf( NullPointerException.class );
         assertThat( missingForcedTree ).isInstanceOf( NullPointerException.class );

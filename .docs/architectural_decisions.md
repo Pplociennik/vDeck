@@ -448,3 +448,10 @@ przez dodanie nowej i oznaczenie starej jako wycofanej. Szczegóły architektury
 - **Decyzja:** `POST /server/restart` przyjmuje `StopRequest.graceful`, a po zakończeniu Stopu wywołuje `ServerService.start()` ze wszystkimi sprawdzeniami.
 - **Powód:** Restart nie może wymuszać zakończenia ani pomijać snapshotu i walidacji startu.
 - **Konsekwencja:** Nieudany Stop zostawia `STOP_FAILED` bez startu, a `ServerRuntime.stop` kończy się po wyjściu procesu i workerów.
+
+## AD-034 — Listy graczy edytowane w plikach z przedrostkiem platformy
+
+- **Status:** obowiązująca (2026-10-30), na polecenie użytkownika
+- **Decyzja:** Panele gałęzi „Gracze” zmieniają tylko `bannedlist.txt`, `adminlist.txt` i `permittedlist.txt` w katalogu `-savedir`, zakładając zawsze włączony crossplay, więc każdy nowy wpis ma postać `Steam_<SteamID64>` albo `Xbox_<XUID>`.
+- **Powód:** Serwer z crossplayem rozpoznaje graczy po identyfikatorze z platformą, a panel nie ma jeszcze kanału do działającego serwera.
+- **Konsekwencja:** Zmiana obowiązuje od następnego startu serwera, co każdy panel pokazuje jako stałe ostrzeżenie wraz z notką, że funkcja jest w trakcie rozwoju.

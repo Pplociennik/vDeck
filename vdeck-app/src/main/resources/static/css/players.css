@@ -1,0 +1,53 @@
+@import url("variables.css");
+
+/*
+ * Player list panels: the players of one list as a table, one row per entry with its removal button.
+ * The table never pushes the card wider than the screen: a long identifier wraps at any character, so even
+ * a 320 px phone keeps all three columns in view.
+ */
+
+.player-list-empty {
+    margin: 0;
+    text-align: center;
+    font-size: var(--font-size-lead);
+    color: var(--color-text-muted);
+}
+
+.player-table {
+    inline-size: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-lead);
+}
+
+.player-table th {
+    padding: var(--space-xs) var(--space-sm);
+    border-block-end: var(--side-menu-section-line-width) solid var(--side-menu-section-line-color);
+    font-size: var(--font-size-label);
+    font-weight: 600;
+    text-align: start;
+    color: var(--color-text-muted);
+}
+
+.player-table td {
+    padding: var(--space-xs) var(--space-sm);
+    border-block-end: var(--side-menu-section-line-width) solid var(--color-divider-highlight);
+    vertical-align: middle;
+}
+
+/* Fixed-width digits are easier to compare between rows; a long identifier wraps instead of overflowing. */
+.player-table__identifier {
+    font-family: var(--font-family-console);
+    overflow-wrap: anywhere;
+}
+
+.player-table__action {
+    inline-size: 1%;
+    text-align: end;
+    white-space: nowrap;
+}
+
+/* The removal button keeps the touch height of a form button without its top margin inside a table row. */
+.player-table__remove {
+    margin-block-start: 0;
+    padding-inline: var(--space-md);
+}

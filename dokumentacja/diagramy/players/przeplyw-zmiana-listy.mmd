@@ -1,0 +1,49 @@
+%% Diagram sekwencji: dodanie i usunięcie gracza na panelu listy graczy
+sequenceDiagram
+    autonumber
+    actor A as Administrator
+    participant C as PlayerListController
+    participant S as PlayerListServiceImpl
+    participant P as LaunchProfileService<br/>i PathService
+    participant F as Plik listy<br/>(katalog -savedir)
+    participant H as PlayerListExceptionHandler
+
+    A->>C: GET /players/{bans|admins|permitted}
+    C->>S: getEntries(lista)
+    S->>P: katalog zapisu z profilu,<br/>rozwiązany wewnątrz instalacji
+    S->>F: odczyt (najwyżej 1 MiB, bez dowiązań),<br/>brak pliku = pusta lista
+    S-->>C: wpisy w kolejności pliku,<br/>bez pustych linii i komentarzy //
+    C-->>A: ostrzeżenie o restarcie, formularz, tabela
+
+    alt POST .../add (platforma, identyfikator)
+        A->>C: dodanie gracza
+        alt błąd walidacji adnotacji
+            C-)H: PlayerListUpdateException (INVALID_INPUT)
+        else
+            C->>S: addPlayer(lista, formularz)
+            Note over S: synchronized: odczyt, sprawdzenie i zapis<br/>jako jedna zmiana
+            alt identyfikator nie pasuje do platformy
+                S-)H: INVALID_USER_ID, plik nietknięty
+            else gracz już na liście
+                S-)H: ALREADY_LISTED
+            else
+                S->>F: dopisanie Platforma_identyfikator,<br/>zapis atomowy (DurableFiles)
+                S-->>C: dodano
+                C-->>A: redirect ?added
+            end
+        end
+    else POST .../remove (wpis)
+        A->>C: usunięcie gracza
+        C->>S: removePlayer(lista, wpis)
+        alt wpisu nie ma na liście
+            S-)H: NOT_LISTED
+        else
+            S->>F: usunięcie każdej linii z tym wpisem,<br/>zapis atomowy
+            S-->>C: usunięto
+            C-->>A: redirect ?removed
+        end
+    end
+    opt błąd odczytu albo zapisu pliku
+        S-)H: SAVE_FAILED z przyczyną
+    end
+    H-->>A: redirect na panel listy z komunikatem<br/>i, przy dodaniu, wpisanym formularzem

@@ -70,7 +70,13 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   The `logs` feature serves `/console` ("Konsola", in the side menu's "Procesy" section): `console.js`
   polls `GET /console/log?offset=N` every second and `LogServiceImpl` reads the log file named by
   `ServerStatus.getLogFile()` from that byte (at most 256 KiB, cut at the last line break; the last
-  256 KiB without an offset). It keeps nothing in memory and uses no SSE. The `server` feature also serves
+  256 KiB without an offset). It keeps nothing in memory and uses no SSE. The `players` feature (AD-034)
+  serves the side menu's "Gracze" branch in "Procesy": `/players/{bans|admins|permitted}` ("Bany",
+  "Administratorzy", "Biała lista"), one `PlayerListController` and one view `players/player-list.html`,
+  showing `bannedlist.txt`, `adminlist.txt` or `permittedlist.txt` of the profile's save directory as a
+  table with add and remove. It changes only the files (crossplay assumed, entries `Steam_<SteamID64>` or
+  `Xbox_<XUID>`, other lines kept, `DurableFiles.write`, 1 MiB read limit through `DurableFiles.read`), so every
+  panel shows a restart warning and an "in progress" note. The `server` feature also serves
   `/server-state` ("Stan serwera", the accent action in the side menu's top strip `.side-menu-top`):
   `ServerStateController` takes the advice's `serverStatus` as `@ModelAttribute(binding = false)` and adds the
   cached `LaunchProfile`, `startedAt`, `uptime` and `logFileName` (SpEL cannot read `Path`); the read-only

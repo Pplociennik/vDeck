@@ -70,7 +70,12 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
   The `logs` feature serves `/console` ("Konsola", in the side menu's "Procesy" section): `console.js`
   polls `GET /console/log?offset=N` every second and `LogServiceImpl` reads the log file named by
   `ServerStatus.getLogFile()` from that byte (at most 256 KiB, cut at the last line break; the last
-  256 KiB without an offset). It keeps nothing in memory and uses no SSE. The `releasenotes` feature
+  256 KiB without an offset). It keeps nothing in memory and uses no SSE. The `server` feature also serves
+  `/server-state` ("Stan serwera", the accent action in the side menu's top strip `.side-menu-top`):
+  `ServerStateController` takes the advice's `serverStatus` as `@ModelAttribute(binding = false)` and adds the
+  cached `LaunchProfile`, `startedAt`, `uptime` and `logFileName` (SpEL cannot read `Path`); the read-only
+  groups end with text links to the related panels, and `server-state.js` swaps only the
+  `[data-server-state-values]` lists every five seconds. The `releasenotes` feature
   (AD-029) shows the „Co nowego w vDeck" card on `/` after an update: `ReleaseNotesReader` reads
   `release-notes/<X.Y.Z>.md` from the classpath, `ReleaseNotesServiceImpl` selects versions newer than
   the highest row of `release_notes_acknowledgements` and not newer than the installed version

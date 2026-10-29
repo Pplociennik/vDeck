@@ -260,6 +260,7 @@ vdeck/                                           ← parent i agregator Maven
         │   │   │   ├── ServerController
         │   │   │   ├── ServerExceptionHandler
         │   │   │   ├── ServerStatusAdvice
+        │   │   │   ├── ServerStateController    ← ekran „Stan serwera” (/server-state)
         │   │   │   ├── ServerMessage
         │   │   │   ├── exc/ServerStartException
         │   │   │   └── service/
@@ -456,6 +457,9 @@ Implementacja zatrzymania rozszerza powyższe poddrzewa o:
 
 Konsola (feature `logs`, opisany w drzewie powyżej) dodaje szablon `templates/logs/console.html`,
 `static/js/console.js` i `static/css/console.css`.
+
+Ekran „Stan serwera” (`feature.server.ServerStateController`) dodaje szablon
+`templates/server/server-state.html`, `static/js/server-state.js` i `static/css/server-state.css`.
 
 Panel „Co nowego w vDeck” (feature `releasenotes`, AD-029) jest osadzony w `templates/home/index.html`
 i ma style w `static/css/home.css`. Zainstalowaną wersję panel czyta z `BuildProperties`, które
@@ -1036,6 +1040,7 @@ jeden znacznik pending, aby odczyty nie tworzyły nieograniczonej kolejki skanó
 | Profil uruchomieniowy | Panele otwierane z sekcji „Konfiguracja” menu bocznego (AD-030): cztery panele rozwijanej gałęzi „Serwer” — „Ogólne” (`/server-settings/server` — nazwa, port, widoczność, crossplay), „Dostęp” (`/server-settings/access` — hasło), „Świat i zapis” (`/server-settings/world`) i „Kopie automatyczne” (`/server-settings/inner-server-backups`) — oraz „Ustawienia gry” (`/game-settings` — zestaw ustawień świata na górze, a modyfikatory i klucze świata w sekcji „Zaawansowane”, domyślnie ukrytej, z zapamiętywaną widocznością). Pola odpowiadają opcjom `valheim_server.exe` z instrukcji serwera dedykowanego, są pogrupowane w sekcje i każde ma opis z dozwolonymi wartościami. Każdy panel zapisuje atomowo wyłącznie własne ustawienia; hasło serwera nigdy nie wraca do przeglądarki. Zmiany obowiązują od następnego uruchomienia serwera. |
 | Lista zmian | Na stronie głównej panel „Co nowego w vDeck” (AD-029) pokazuje, od najnowszej, zmiany każdej wersji nowszej niż ostatnio potwierdzona i nie nowszej od zainstalowanej, z numerem każdej wersji. Bez żadnego potwierdzenia (aktualizacja z wersji sprzed tej funkcji) pokazuje tylko wersję zainstalowaną. Panel znika dopiero po „Zamknij” (`POST /release-notes/acknowledge`), które zapisuje zainstalowaną wersję. Świeża instalacja potwierdza swoją wersję przy starcie i panelu nie pokazuje. Treść pochodzi z `release-notes/<X.Y.Z>.md` w classpath: sekcje `## Nowości`, `## Zmiany`, `## Poprawki` w tej kolejności, każda pozycja to `- **Tytuł**` (do 80 znaków) i jedna wcięta linia opisu (do 200 znaków). Panel nie renderuje Markdownu, tylko wyświetla te pola przez `th:text`; uszkodzony plik jest pomijany z ostrzeżeniem w logu, a `ReleaseNotesFilesTest` zatrzymuje go w buildzie. Bez `BuildProperties` (uruchomienie z IDE) panel jest wyłączony. Ten sam plik jest opisem GitHub Release: workflow podaje go jako `--notes-file` z `--generate-notes`, a `.env/release.bat` i workflow przerywają wydanie, gdy plik nie opisuje żadnej zmiany. `release.bat` zakłada pusty plik następnej wersji z szablonu `.env/release-notes-template.md`. |
 | Konsola | Ekran `/console` z sekcji „Procesy” menu bocznego pokazuje log bieżącego uruchomienia. `console.js` co sekundę pobiera `GET /console/log?offset=N`; serwer czyta plik z `ServerStatus.getLogFile()` od podanego bajtu (najwyżej 256 KiB, do ostatniego pełnego wiersza), a bez pozycji zwraca ostatnie 256 KiB. Bez SSE i bez bufora w pamięci. |
+| Stan serwera | Przycisk „Stan serwera” na górze menu bocznego, nad przewijanymi sekcjami, otwiera `/server-state`: skrót tylko do odczytu złożony z migawki `ServerStatus` (stan, data i godzina uruchomienia, czas działania, PID, nazwa pliku logu) i zapisanego `LaunchProfile`, w grupach odpowiadających panelom, z których każda kończy się tekstowym odnośnikiem do panelu zmieniającego jej wartości. Hasło serwera tylko jako „ustawione/nieustawione”, z pliku logu tylko nazwa. Ekran nie czyta dysku ani nie kontaktuje się z serwerem; `server-state.js` co 5 s pobiera stronę ponownie i podmienia wyłącznie listy wartości. |
 | Bezpieczeństwo żądań | Włączone CSRF; token jest dodawany do `hx-post` przez `htmx:configRequest`. |
 
 Natywny JavaScript pozostaje bez build-stepu, dopóki jego rozmiar i zależności nie uzasadnią

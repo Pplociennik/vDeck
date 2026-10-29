@@ -146,6 +146,14 @@
     /* "Zamknij vDeck" stands out from the other buttons in the accent colour */
     --side-menu-close-color: var(--color-accent);
     --side-menu-close-border: rgba(232, 180, 90, 0.55);
+    /* "Stan serwera" at the top of the menu shares that look, a little larger than the entries below it */
+    --side-menu-state-block-size: 3.25rem;
+    --side-menu-state-font-size: 1rem;
+    /* Summary of the server state: grid of groups and the colours of the process state line */
+    --server-state-group-min-inline-size: 16rem;
+    --server-state-color-pending: var(--island-status-color-pending);
+    --server-state-color-running: var(--island-status-color-running);
+    --server-state-color-failed: var(--island-status-color-failed);
 
     /*
      * Home button. It is half the size of the side menu toggle and touches the toggle from the outside,

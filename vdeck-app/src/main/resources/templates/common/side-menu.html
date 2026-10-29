@@ -21,6 +21,9 @@
     server settings, with ids serverSettings.server, serverSettings.access, serverSettings.world and
     serverSettings.innerServerBackups.
 
+    Above the sections, the "Stan serwera" action opens the server state summary; its entry id is
+    serverState. It is slightly larger than the entries and shares the accent look of the close action.
+
     Below the scrolling sections, beside the cut-out corner, a row holds the "Admin" action - disabled
     until the system settings panel exists - and the square icon-only "Zamknij vDeck" action opening the
     panel shutdown confirmation. Below them a footer shows the panel version from the panelVersion model
@@ -38,6 +41,17 @@
     <nav id="side-menu-panel" class="side-menu-panel" data-state="closed" data-side-menu-panel inert
          th:attr="aria-label=#{sideMenu.label}">
         <div class="side-menu-surface surface surface--side-menu">
+            <!-- Strip above the scrolling sections, so the summary stays the first action of the menu. -->
+            <div class="side-menu-top">
+                <a class="side-menu-state" th:href="@{/server-state}"
+                   th:aria-current="${activeEntry == 'serverState'} ? 'page'">
+                    <svg class="icon" aria-hidden="true" focusable="false">
+                        <use th:href="@{/icons/icons.svg#icon-gauge}"></use>
+                    </svg>
+                    <span th:text="#{sideMenu.action.serverState}"></span>
+                </a>
+            </div>
+
             <div class="side-menu-sections">
                 <section class="side-menu-section" aria-labelledby="side-menu-section-title-configuration">
                     <h2 th:replace="~{common/side-menu :: sectionTitle('sideMenu.section.configuration', 'side-menu-section-title-configuration')}"></h2>

@@ -221,21 +221,24 @@ niedostępne są wyszarzone zawsze.
 
 === Menu boczne i przycisk strony głównej
 
-Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Sekcja *Konfiguracja* prowadzi do
-ekranów ustawień, a sekcja *Procesy* — do konsoli serwera.
+Okrągły przycisk w lewym dolnym rogu otwiera menu boczne. Na jego górze jest przycisk *Stan
+serwera*, sekcja *Konfiguracja* prowadzi do ekranów ustawień, a sekcja *Procesy* — do konsoli
+serwera.
 
 .Menu boczne
-image::menu-boczne.jpg[Menu boczne z rozwiniętą pozycją Serwer, pozycjami Ustawienia gry i Konsola, przyciskami Admin i Zamknij vDeck oraz wersją panelu,pdfwidth=40%]
+image::menu-boczne.jpg[Menu boczne z przyciskiem Stan serwera, rozwiniętą pozycją Serwer, pozycjami Ustawienia gry i Konsola, przyciskami Admin i Zamknij vDeck oraz wersją panelu,pdfwidth=40%]
 
 [horizontal]
-1:: *Serwer* — rozwija listę czterech paneli ustawień serwera: *Ogólne*, *Dostęp*, *Świat i zapis*
+1:: *Stan serwera* — skrót najważniejszych informacji o serwerze i jego ustawieniach
+(<<stan-serwera>>).
+2:: *Serwer* — rozwija listę czterech paneli ustawień serwera: *Ogólne*, *Dostęp*, *Świat i zapis*
 oraz *Kopie automatyczne* (<<ekran-serwer>>). Ponowne kliknięcie zwija listę.
-2:: *Ustawienia gry* — poziom trudności i zasady świata.
-3:: *Konsola* — log działającego serwera (<<konsola>>).
-4:: *Admin* — ustawienia systemu vDeck. Jeszcze niedostępny, dlatego jest wyszarzony.
-5:: *Zamknij vDeck* — kwadratowy przycisk z ikoną zasilania; zamyka panel po potwierdzeniu
+3:: *Ustawienia gry* — poziom trudności i zasady świata.
+4:: *Konsola* — log działającego serwera (<<konsola>>).
+5:: *Admin* — ustawienia systemu vDeck. Jeszcze niedostępny, dlatego jest wyszarzony.
+6:: *Zamknij vDeck* — kwadratowy przycisk z ikoną zasilania; zamyka panel po potwierdzeniu
 (<<zamykanie-panelu>>).
-6:: Numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
+7:: Numer zainstalowanej wersji vDeck — podaj go, gdy zgłaszasz problem.
 
 Pozycja otwartego ekranu jest wyróżniona złotą ramką.
 
@@ -258,6 +261,35 @@ układają się wtedy w dwóch rzędach, a formularze w jednej kolumnie.
 image::telefon-ekran-serwer.jpg[Panel Ogólne z menu Serwer wyświetlony na telefonie,pdfwidth=35%]
 
 Aby otworzyć panel z innego urządzenia, trzeba zmienić adres nasłuchu (<<adres-i-port>>).
+
+[#stan-serwera]
+=== Stan serwera
+
+Ekran *Stan serwera* zbiera w jednym miejscu najważniejsze informacje o serwerze. Otworzysz go
+przyciskiem *Stan serwera* na górze menu bocznego. Ekran tylko pokazuje dane — niczego nie zmienia
+i nie zatrzymuje serwera.
+
+.Ekran „Stan serwera”
+image::ekran-stan-serwera.jpg[Ekran Stan serwera z grupami Proces serwera, Ogólne, Dostęp, Świat i zapis, Kopie automatyczne i Ustawienia gry]
+
+[cols="1,3,2",options="header"]
+|===
+| Grupa | Co pokazuje | Odnośnik prowadzi do
+
+| Proces serwera | Stan serwera (<<stany>>), datę i godzinę uruchomienia, czas działania, identyfikator
+procesu (PID) i nazwę pliku logu ostatniego uruchomienia. Gdy serwer nie działa, w miejscu brakujących
+wartości widać kreskę. | Konsoli (<<konsola>>)
+| Ogólne | Nazwę serwera, parę portów, widoczność na liście serwerów, crossplay i identyfikator instancji. | Panelu *Ogólne*
+| Dostęp | Czy hasło serwera jest ustawione. Samo hasło nigdy nie jest wyświetlane. | Panelu *Dostęp*
+| Świat i zapis | Nazwę świata, katalog zapisu i interwał zapisu świata. | Panelu *Świat i zapis*
+| Kopie automatyczne | Liczbę kopii i interwały pierwszej oraz kolejnych kopii. | Panelu *Kopie automatyczne*
+| Ustawienia gry | Wybrany zestaw ustawień świata oraz liczbę zmienionych modyfikatorów i włączonych opcji
+świata. | Ekranu *Ustawienia gry* (<<ekran-ustawienia-gry>>)
+|===
+
+Wartości odświeżają się same co kilka sekund, więc stan i czas działania nadążają za serwerem.
+Ustawienia pokazują to, co jest zapisane w panelu — zmiany obowiązują od następnego uruchomienia
+serwera, tak jak na panelach ustawień.
 
 [#ekran-serwer]
 == Ustawienia serwera

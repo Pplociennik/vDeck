@@ -1038,16 +1038,14 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 }
 
 /*
- * "Zamknij vDeck" action: a square holding only the power icon. Its accent rim and icon make it read as a
- * control rather than a footnote; the accessible name comes from aria-label.
+ * Accent actions of the menu: "Zamknij vDeck" below the sections and "Stan serwera" above them. Their accent
+ * rim and colour make them read as panel actions rather than navigation entries.
  */
-.side-menu-close {
+.side-menu-close,
+.side-menu-state {
     display: flex;
-    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    inline-size: var(--control-touch-size);
-    block-size: var(--control-touch-size);
     -webkit-tap-highlight-color: transparent;
     border: 0.0625rem solid var(--side-menu-close-border);
     border-radius: var(--field-radius);
@@ -1059,20 +1057,52 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
 }
 
 @media (hover: hover) {
-    .side-menu-close:hover {
+    .side-menu-close:hover,
+    .side-menu-state:hover {
         border-color: var(--side-menu-close-color);
         background-color: var(--color-control-surface-hover);
     }
 }
 
-.side-menu-close:focus-visible {
+.side-menu-close:focus-visible,
+.side-menu-state:focus-visible {
     outline: var(--focus-ring-width) solid var(--color-accent);
     outline-offset: calc(-1 * var(--focus-ring-width));
 }
 
-.side-menu-close:active {
+.side-menu-close:active,
+.side-menu-state:active {
     border-color: var(--side-menu-close-color);
     background-color: var(--color-control-surface-active);
+}
+
+/* "Zamknij vDeck": a square holding only the power icon; the accessible name comes from aria-label. */
+.side-menu-close {
+    flex: 0 0 auto;
+    inline-size: var(--control-touch-size);
+    block-size: var(--control-touch-size);
+}
+
+/* Strip above the scrolling sections holding the "Stan serwera" action; it never scrolls away. */
+.side-menu-top {
+    flex: 0 0 auto;
+    padding: var(--space-sm) var(--space-sm) 0;
+}
+
+/* "Stan serwera": a full-width action, slightly taller and larger than the menu entries below it. */
+.side-menu-state {
+    gap: var(--space-sm);
+    inline-size: 100%;
+    min-block-size: var(--side-menu-state-block-size);
+    padding: var(--space-xs) var(--space-sm);
+    font-size: var(--side-menu-state-font-size);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+}
+
+/* The summary currently shown keeps a solid accent rim, like the current entry of the menu. */
+.side-menu-state[aria-current="page"] {
+    border-color: var(--side-menu-close-color);
 }
 
 /* Footer with the panel version: a faint centred line of text below a separator. */
@@ -1298,7 +1328,8 @@ body:has(.side-menu-toggle[aria-expanded="true"]) .home-button {
     .side-menu-entry,
     .side-menu-entry__chevron,
     .side-menu-admin,
-    .side-menu-close {
+    .side-menu-close,
+    .side-menu-state {
         transition: none;
     }
 

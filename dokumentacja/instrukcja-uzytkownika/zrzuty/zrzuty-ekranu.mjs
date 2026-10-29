@@ -82,12 +82,13 @@ try {
     await page.click( '[data-side-menu-branch]' );
     await page.waitForTimeout( 400 );
     await mark( page, [
-        { selector: '[data-side-menu-branch]', label: '1' },
-        { selector: '.side-menu-entry[href$="/game-settings"]', label: '2' },
-        { selector: '.side-menu-entry[href$="/console"]', label: '3' },
-        { selector: '.side-menu-admin', label: '4' },
-        { selector: '.side-menu-close', label: '5' },
-        { selector: '.side-menu-footer', label: '6' }
+        { selector: '.side-menu-state', label: '1' },
+        { selector: '[data-side-menu-branch]', label: '2' },
+        { selector: '.side-menu-entry[href$="/game-settings"]', label: '3' },
+        { selector: '.side-menu-entry[href$="/console"]', label: '4' },
+        { selector: '.side-menu-admin', label: '5' },
+        { selector: '.side-menu-close', label: '6' },
+        { selector: '.side-menu-footer', label: '7' }
     ] );
     await captureAround( page, '.side-menu-panel', 'menu-boczne', 16 );
     await clearMarks( page );
@@ -148,6 +149,10 @@ try {
     await captureElement( page, '#game-settings-advanced', 'gra-sekcja-zaawansowane' );
     await page.uncheck( '[data-advanced-toggle]' );
     await page.setViewportSize( { width: 1280, height: 800 } );
+
+    // The summary shows the sample profile saved above; without valheim_server.exe the server stays stopped.
+    await page.goto( `${baseUrl}/server-state` );
+    await capture( page, 'ekran-stan-serwera' );
 
     // The package has no valheim_server.exe, so no launch has a log and the console stays empty.
     await page.goto( `${baseUrl}/console` );

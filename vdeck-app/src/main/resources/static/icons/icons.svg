@@ -86,6 +86,13 @@
         <rect x="12.5" y="14.6" width="5.5" height="2"/>
     </symbol>
 
+    <!-- Gauge with a needle: the condensed state of the server. -->
+    <symbol id="icon-gauge" viewBox="0 0 24 24">
+        <path d="M2 17a10 10 0 0 1 20 0h-2.4a7.6 7.6 0 0 0-15.2 0z"/>
+        <path d="M10.8 16.2 16.6 9l1.2 1-5 7.6z"/>
+        <circle cx="12" cy="17" r="1.9"/>
+    </symbol>
+
     <!-- Points to the right; an expanded branch rotates it to point down. -->
     <symbol id="icon-chevron" viewBox="0 0 24 24">
         <path d="M9.4 5.6 8 7l5 5-5 5 1.4 1.4 6.4-6.4z"/>

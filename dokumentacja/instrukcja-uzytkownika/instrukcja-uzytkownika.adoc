@@ -927,7 +927,8 @@ zostaw domyślny adres `127.0.0.1`.
 | `.vDeck\config\vDeck.properties`
 | Ustawienia samego panelu, m.in. `panel.open.browser` (`true` albo `false`): czy po starcie
 przeglądarka ma sama otworzyć panel, oraz `panel.close.strategy` (`stop`, `graceful` albo
-`leave`): co panel robi z serwerem przy zamknięciu (<<zamykanie-panelu>>).
+`leave`): co panel robi z serwerem przy zamknięciu (<<zamykanie-panelu>>), i `server.file.check`
+(`true` albo `false`): czy panel przy starcie sprawdza, że obok leży `valheim_server.exe`.
 
 | `.vDeck\config\valheim-server.properties`
 | Ustawienia serwera z ekranów *Serwer* i *Ustawienia gry*, w tym hasło serwera.
@@ -1119,7 +1120,9 @@ Przeglądarka nie może połączyć się z panelem::
   Paczka vDeck została wypakowana w innym miejscu niż serwer gry. Pierwszy komunikat pojawia się
   w oknie konsoli zaraz po uruchomieniu `start-vDeck.bat` i panel wtedy się nie uruchamia; drugi
   pokazuje panel po kliknięciu *Uruchom serwer*, gdy plik zniknął w trakcie pracy. Przenieś
-  zawartość paczki obok `valheim_server.exe` i uruchom vDeck ponownie.
+  zawartość paczki obok `valheim_server.exe` i uruchom vDeck ponownie. Pierwszy komunikat
+  wyłączysz wpisem `server.file.check=false` w `.vDeck\config\vDeck.properties` (<<pliki>>), ale
+  wtedy panel uruchomi się, mimo że nie będzie mógł wystartować serwera gry.
 
 „Port serwera albo port o jeden wyższy jest zajęty przez inny program.”::
   Działa już inny serwer Valheim albo inny program używa tych portów. Zamknij go albo zmień

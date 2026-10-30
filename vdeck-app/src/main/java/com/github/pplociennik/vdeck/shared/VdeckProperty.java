@@ -77,7 +77,14 @@ public enum VdeckProperty implements SystemPropertyIf {
      * {@code 0} keeps every log. Older day directories are removed once the panel has started (AD-032). A
      * negative value or one that is not a number counts as the default.
      */
-    PANEL_LOG_RETENTION_DAYS( "panel.log.retention.days", "30", true );
+    PANEL_LOG_RETENTION_DAYS( "panel.log.retention.days", "30", true ),
+
+    /**
+     * Whether the panel refuses to start in a directory without {@code valheim_server.exe}; {@code true} or
+     * {@code false}. Read straight from the file before the Spring context exists, so a missing file or any
+     * other value counts as the default.
+     */
+    SERVER_FILE_CHECK( "server.file.check", "true", true );
 
     /**
      * Name of the properties file owning every setting declared by this enum.

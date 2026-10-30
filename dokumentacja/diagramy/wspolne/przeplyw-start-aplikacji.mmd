@@ -3,7 +3,7 @@ flowchart TD
     bat([start-vDeck.bat]) --> launcher[Launcher: blokady, aktualizacja,<br/>vDeck-start.properties]
     launcher --> bundled[jre/bin/java.exe -jar lib/vdeck.jar<br/>Katalog roboczy = instalacja<br/>Dostęp natywny, adres i port z ustawień startu]
     bundled --> start([Uruchomienie VdeckApplication])
-    start --> exeCheck{vdeck.server-file-check=false<br/>albo valheim_server.exe istnieje?}
+    start --> exeCheck{vdeck.server-file-check=false,<br/>server.file.check=false w vDeck.properties<br/>albo valheim_server.exe istnieje?}
     exeCheck -- nie --> exeFail([Komunikat w konsoli:<br/>start przerwany, kod 1])
     exeCheck -- tak --> handoff{Ustawiono<br/>vdeck.handoff?}
     handoff -- tak --> accept[Przejęcie vdeck.lock od launchera<br/>przed Springiem, bean installationLock]

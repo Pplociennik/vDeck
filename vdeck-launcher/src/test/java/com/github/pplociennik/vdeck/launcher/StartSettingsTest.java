@@ -168,6 +168,22 @@ class StartSettingsTest {
     }
 
     /**
+     * Verifies that a file created by the launcher is identical to the distribution template, comments and
+     * layout included.
+     */
+    @Test
+    void shouldCreateTemplateContents_whenFileIsMissing() throws Exception {
+        // GIVEN
+        byte[] template = Files.readAllBytes( DISTRIBUTION_TEMPLATE );
+
+        // WHEN
+        StartSettings.load( installation );
+
+        // THEN
+        assertThat( file ).hasBinaryContent( template );
+    }
+
+    /**
      * Verifies that null arguments are rejected.
      */
     @Test

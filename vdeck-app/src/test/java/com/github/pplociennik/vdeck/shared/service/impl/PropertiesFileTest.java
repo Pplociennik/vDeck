@@ -19,6 +19,7 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -374,6 +375,43 @@ class PropertiesFileTest {
 
         // THEN
         assertThat( readSettingsFile() ).containsEntry( "foreign.key", "kept" );
+    }
+
+    /**
+     * Verifies that a save changes only values and keeps comments, blank lines, key order and keys added
+     * by hand after the file was loaded.
+     */
+    @Test
+    void shouldKeepFileLayout_whenValueIsWritten() throws IOException {
+        // GIVEN
+        writeSettingsFile( "# Section\r\n\r\n# Second.\r\nsecond.key=configured\r\n\r\n# First.\r\n"
+                + "first.key=configured\r\n\r\noptional.key=\r\n" );
+        underTest = createUnderTest();
+        Files.writeString( settingsFile, "# Added by hand.\r\nlater.key=x\r\n", StandardCharsets.UTF_8,
+                StandardOpenOption.APPEND );
+
+        // WHEN
+        underTest.setValue( TestProperty.FIRST, "changed" );
+
+        // THEN
+        assertThat( settingsFile ).hasContent( "# Section\r\n\r\n# Second.\r\nsecond.key=configured\r\n\r\n"
+                + "# First.\r\nfirst.key=changed\r\n\r\noptional.key=\r\n# Added by hand.\r\nlater.key=x\r\n" );
+    }
+
+    /**
+     * Verifies that a key restored from its default is appended after the existing lines of the file.
+     */
+    @Test
+    void shouldAppendRestoredKey_whenItIsMissingInFile() throws IOException {
+        // GIVEN
+        writeSettingsFile( "# Kept.\nfirst.key=configured\nsecond.key=configured\n" );
+
+        // WHEN
+        underTest = createUnderTest();
+
+        // THEN
+        assertThat( settingsFile ).hasContent( "# Kept.\nfirst.key=configured\nsecond.key=configured\n"
+                + "optional.key=\n" );
     }
 
     /**

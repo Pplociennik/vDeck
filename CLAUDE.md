@@ -31,12 +31,15 @@ vDeck is an early-stage Maven reactor with five code modules and one distributio
 - `vdeck-updater` — pure Java, no Spring, no network, `lib/vdeck-updater.jar`, always run from the
   independent copy in `.vDeck/update/executor`. Applies the journaled transaction
   (`UpdateJournal`, `FileReplacer`, idempotent `UpdateRollback`), merges settings with
-  `PropertiesMerger` (AD-025), recovers with `--recover` and hands over to the installed launcher with
+  the shared `runtime.installation.PropertiesMerger` (AD-025), recovers with `--recover` and hands over to the installed launcher with
   `--after-update`. Run logs go to `.vDeck/logs/updater`.
 - `vdeck-runtime` also holds the shared start/update contract in `runtime.installation`:
   `InstallationLock`, `InstallationOwnership`, `HandoffProtocol` (one-time, acknowledged lock handoff
   through `.vDeck/handoff`), `SuccessorStarter`, `UpdateLayout`, `UpdateJournalHeader`,
-  `DistributionItem`, `DurableFiles`, `RunLogFile`, `ServerActivityCheck` and `UserConsole`.
+  `DistributionItem`, `DurableFiles`, `PropertiesMerger`, `RunLogFile`, `ServerActivityCheck` and
+  `UserConsole`. `PropertiesMerger` writes values into a settings file's layout: the updater merges
+  templates with it and the panel's `PropertiesFile` saves through `update`, so comments, blank lines,
+  section separators and key order survive a save.
   `UserConsole` takes only message keys (`ConsoleMessageIf` enums: `ConsoleMessage`, `LauncherMessage`,
   `UpdaterMessage`); `I18n` resolves them from `vdeck-runtime/src/main/resources/console-messages.properties`
   with `MessageFormat` and Polish number formatting, so no console text is hardcoded.
@@ -203,7 +206,10 @@ Configuration is split by owner (see `AD-002`):
   read through the static `shared.PropertyReader` (`read`, `readInt`, `readBoolean`, `readOptional`),
   which takes the service, file name, setting and fallback, instead of per-service read helpers.
   Resolve a file only through `PathService.getConfigurationFile(fileName)`. Created with defaults (and the directory) on first
-  start; missing keys are restored on the next start; an optional setting may be empty.
+  start; missing keys are restored on the next start; an optional setting may be empty. The `.dist`
+  templates follow the human-readable layout of `formating.md` §1 (sections between full-width
+  `# ===` separators, an English comment above every key, one `# - value: ...` line per possible
+  value, keys separated by a blank line).
 
 Interface texts are not a configuration channel (see `AD-009`): the panel is Polish-only and its
 texts live in `vdeck-app/src/main/resources/messages.properties`, read from the classpath by Spring

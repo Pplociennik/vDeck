@@ -960,6 +960,10 @@ Domyślnie przechowywane 30 dni (<<retencja-logow>>).
 Ścieżki w ustawieniach panelu muszą być względne i prowadzić do katalogów wewnątrz
 katalogu serwera.
 
+Pliki w `.vDeck\config` są podzielone na sekcje tematyczne, a nad każdym ustawieniem stoi
+angielski komentarz z opisem jego działania i wszystkich możliwych wartości. Panel zmienia przy
+zapisie tylko wartości, więc komentarze, kolejność i Twoje własne notatki zostają w pliku.
+
 CAUTION: Pliki `.properties` edytuj ręcznie tylko przy zamkniętym panelu. Wygodniej i bezpieczniej
 jest zmieniać ustawienia w panelu, który sprawdza poprawność wartości.
 

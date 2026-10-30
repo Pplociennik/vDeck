@@ -1,5 +1,6 @@
 package com.github.pplociennik.vdeck.shared.service.impl;
 
+import com.github.pplociennik.vdeck.runtime.installation.PropertiesMerger;
 import com.github.pplociennik.vdeck.shared.SystemPropertyIf;
 import com.github.pplociennik.vdeck.shared.SystemPropertyValues;
 import jakarta.annotation.Nonnull;
@@ -7,7 +8,6 @@ import jakarta.annotation.Nullable;
 import lombok.extern.log4j.Log4j2;
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
@@ -37,8 +37,10 @@ import static java.util.Objects.requireNonNull;
  * <p>Construction has side effects on disk. A missing file is created with default values, together
  * with its missing parent directories, and a file that lost a managed key has that key restored. This
  * is also the migration path — settings added in a new release appear in an existing installation on
- * first start. Entries not owned by this service are kept untouched, but comments and key order are
- * lost once the application saves the file.
+ * first start. Every save rewrites only the values: comments, blank lines, section separators, key order
+ * and entries not owned by this service are taken from the file as it is on disk at that moment, and a key
+ * missing from it is appended at its end ({@link PropertiesMerger#update}). A file created from defaults
+ * therefore holds bare keys without comments.
  *
  * <p>A {@linkplain SystemPropertyIf#isMandatory() mandatory} setting has a non-blank value both in
  * memory and in the file after construction: a blank stored value is replaced by the default. An
@@ -50,9 +52,7 @@ import static java.util.Objects.requireNonNull;
 @Log4j2
 final class PropertiesFile {
 
-    private static final String FILE_HEADER =
-            "vDeck panel settings. Managed by vDeck; comments and key order are not preserved when "
-                    + "the application saves this file.";
+    private static final PropertiesMerger MERGER = new PropertiesMerger();
 
     private final Path propertiesFile;
 
@@ -230,9 +230,10 @@ final class PropertiesFile {
         Path temporaryFile = null;
         try {
             temporaryFile = Files.createTempFile( propertiesFile.getParent(), "vDeck", ".properties.tmp" );
-            try ( BufferedWriter writer = Files.newBufferedWriter( temporaryFile, StandardCharsets.UTF_8 ) ) {
-                values.store( writer, FILE_HEADER );
-            }
+            String layout = Files.exists( propertiesFile )
+                    ? Files.readString( propertiesFile, StandardCharsets.UTF_8 )
+                    : "";
+            Files.writeString( temporaryFile, MERGER.update( layout, values ), StandardCharsets.UTF_8 );
             // Flush to the device before publishing, so a power loss cannot leave an empty settings file.
             try ( FileChannel channel = FileChannel.open( temporaryFile, StandardOpenOption.WRITE ) ) {
                 channel.force( true );

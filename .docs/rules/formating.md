@@ -19,6 +19,11 @@ fragmentów niezwiązanych z bieżącą zmianą, ponieważ zaciemnia to diff.
 - W plikach `.properties` polskie znaki diakrytyczne zapisujemy sekwencjami `\uXXXX`, a nie
   literalnie: tekst „Zmień hasło” zapisujemy jako `Zmie\u0144 has\u0142o`. Treść pliku pozostaje
   wtedy czysto ASCII i nie zależy od kodowania, jakim odczyta go edytor lub narzędzie.
+- Konfiguracyjne pliki `.properties` (szablony `.dist/.vDeck/config`, nie pliki tłumaczeń) piszemy dla
+  człowieka: krótki opis pliku na początku; ustawienia powiązane tematycznie w sekcjach, których tytuł
+  stoi między dwoma separatorami `# ===…` na całą szerokość linii (100 znaków); nad każdym kluczem
+  angielski komentarz dokładnie wyjaśniający jego działanie; przy kilku możliwych wartościach każda
+  opisana w osobnej linii od myślnika (`# - true: …`); klucze oddzielone pustą linią.
 - Nie zostawiamy białych znaków na końcu linii ani więcej niż jednej pustej linii z rzędu.
 
 ## 2. Odstępy wewnątrz nawiasów

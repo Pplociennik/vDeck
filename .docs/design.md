@@ -159,6 +159,7 @@ vdeck/                                           ← parent i agregator Maven
 │       │   │   ├── UpdateJournalHeader
 │       │   │   ├── DistributionItem             ← zamknięta lista plików paczki
 │       │   │   ├── DurableFiles
+│       │   │   ├── PropertiesMerger             ← wartości w układzie pliku ustawień
 │       │   │   ├── RunLogFile / RunLogRetention
 │       │   │   ├── ServerActivityCheck
 │       │   │   ├── ReleaseVersion               ← MAJOR.MINOR.PATCH (launcher i panel)
@@ -201,7 +202,6 @@ vdeck/                                           ← parent i agregator Maven
 │       ├── FileReplacer
 │       ├── UpdateRollback
 │       ├── TransactionFiles
-│       ├── PropertiesMerger
 │       └── UpdaterMessage                       ← klucze tekstów konsoli aktualizatora
 │
 └── vdeck-app/                                   ← aplikacja Spring Boot
@@ -614,9 +614,19 @@ tylko brakujący klucz. `setValues` zapisuje wiele właściwości jednym atomowy
 tworzony osobno dla każdego wywołania obiekt `SystemPropertyValues`, nie mapa. Wartości typowane
 (liczby, wartości logiczne, opcje z zamkniętej listy) odczytuje statyczne narzędzie
 `shared.PropertyReader`, które przy wartości niepasującej do ustawienia zwraca wartość zastępczą
-podaną przez wywołującego i loguje nazwę ustawienia na `WARN`. Plik jest kodowany w UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE` — dlatego
-zapis wykonany przez panel zachowuje wpisy nienależące do panelu, ale nie zachowuje komentarzy ani
-kolejności kluczy wpisanych ręcznie.
+podaną przez wywołującego i loguje nazwę ustawienia na `WARN`. Plik jest kodowany w UTF-8, a zapis odbywa się przez plik tymczasowy i `ATOMIC_MOVE`.
+Zapis wykonany przez panel zmienia tylko wartości: `PropertiesMerger.update` (`runtime.installation`,
+ten sam mechanizm co scalanie AD-025) bierze komentarze, puste linie, separatory sekcji, kolejność
+kluczy i wpisy nienależące do panelu z pliku w chwili zapisu, a klucz nieobecny w pliku dopisuje na
+końcu. Plik utworzony przez panel z wartości domyślnych zawiera więc same klucze; opisany układ daje
+mu szablon z `.dist` przy instalacji albo najbliższej aktualizacji.
+
+Szablony `.dist/.vDeck/config/*.properties` są czytelne dla człowieka: zaczynają się krótkim opisem
+pliku, ustawienia powiązane tematycznie tworzą sekcje z tytułem między dwoma separatorami `# ===…` na
+całą szerokość linii (100 znaków), nad każdym kluczem stoi komentarz dokładnie wyjaśniający jego
+działanie, a ustawienie o kilku możliwych wartościach opisuje każdą z nich w osobnej linii od
+myślnika; klucze rozdziela pusta linia. Komentarze są angielskie, bo plik pozostaje czystym ASCII.
+`StartSettings` tworzy brakujący `vDeck-start.properties` z identycznej treści, czego pilnuje test.
 
 Zapisy jednego pliku są serializowane. Zmienione wartości powstają w osobnym zestawie;
 `PropertiesFile` publikuje cały zestaw w pamięci dopiero po udanym zapisie pliku. Błąd zapisu

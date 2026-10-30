@@ -1,4 +1,4 @@
-package com.github.pplociennik.vdeck.updater;
+package com.github.pplociennik.vdeck.runtime.installation;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -14,7 +14,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /**
- * Verifies the merge of settings templates with the user's values (AD-025).
+ * Verifies the merge of settings templates with the user's values (AD-025) and the layout-preserving update
+ * of one settings file.
  */
 class PropertiesMergerTest {
 
@@ -198,6 +199,74 @@ class PropertiesMergerTest {
     }
 
     /**
+     * Verifies that an update replaces values in place and keeps comments, blank lines and key order.
+     */
+    @Test
+    void shouldKeepLayout_whenUpdatingValues() {
+        // GIVEN
+        String text = "# ====\r\n# Section\r\n# ====\r\n\r\n# First.\r\nfirst=1\r\n\r\n# Second.\r\nsecond=2\r\n";
+        Properties values = new Properties();
+        values.setProperty( "second", "zwei" );
+        values.setProperty( "first", "eins" );
+
+        // WHEN
+        String result = underTest.update( text, values );
+
+        // THEN
+        assertThat( result ).isEqualTo(
+                "# ====\r\n# Section\r\n# ====\r\n\r\n# First.\r\nfirst=eins\r\n\r\n# Second.\r\nsecond=zwei\r\n" );
+    }
+
+    /**
+     * Verifies that an update keeps a key without a new value and appends new keys in name order.
+     */
+    @Test
+    void shouldAppendMissingKeys_whenTextLacksThem() {
+        // GIVEN
+        String text = "# Comment.\nkept=as is\n";
+        Properties values = new Properties();
+        values.setProperty( "zeta", "z" );
+        values.setProperty( "alpha", "a" );
+
+        // WHEN
+        String result = underTest.update( text, values );
+
+        // THEN
+        assertThat( result ).isEqualTo( "# Comment.\nkept=as is\nalpha=a\nzeta=z\n" );
+    }
+
+    /**
+     * Verifies that an update of an empty text writes only the given keys.
+     */
+    @Test
+    void shouldWriteOnlyValues_whenTextIsEmpty() {
+        // GIVEN
+        Properties values = new Properties();
+        values.setProperty( "key", "Zażółć" );
+
+        // WHEN
+        String result = underTest.update( "", values );
+
+        // THEN
+        assertThat( result ).isEqualTo( "key=Za\\u017C\\u00F3\\u0142\\u0107\n" );
+    }
+
+    /**
+     * Verifies that an update of a malformed text fails instead of losing settings.
+     */
+    @Test
+    void shouldThrowException_whenUpdatedTextIsMalformed() {
+        // GIVEN
+        String text = "broken=\\u12\n";
+
+        // WHEN
+        var failure = catchThrowable( () -> underTest.update( text, new Properties() ) );
+
+        // THEN
+        assertThat( failure ).isInstanceOf( IllegalArgumentException.class );
+    }
+
+    /**
      * Verifies that null arguments are rejected.
      */
     @Test
@@ -208,9 +277,13 @@ class PropertiesMergerTest {
         // WHEN
         var missingTemplate = catchThrowable( () -> underTest.merge( null, "" ) );
         var missingTarget = catchThrowable( () -> underTest.mergeFiles( directory, directory, null ) );
+        var missingText = catchThrowable( () -> underTest.update( null, new Properties() ) );
+        var missingValues = catchThrowable( () -> underTest.update( "", null ) );
 
         // THEN
         assertThat( missingTemplate ).isInstanceOf( NullPointerException.class );
         assertThat( missingTarget ).isInstanceOf( NullPointerException.class );
+        assertThat( missingText ).isInstanceOf( NullPointerException.class );
+        assertThat( missingValues ).isInstanceOf( NullPointerException.class );
     }
 }

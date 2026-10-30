@@ -1,6 +1,5 @@
-package com.github.pplociennik.vdeck.updater;
+package com.github.pplociennik.vdeck.runtime.installation;
 
-import com.github.pplociennik.vdeck.runtime.installation.DurableFiles;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import lombok.extern.log4j.Log4j2;
@@ -20,7 +19,11 @@ import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.util.Objects.requireNonNull;
 
 /**
- * Merges a settings template of the new version with the user's settings file (AD-025).
+ * Writes settings values into the layout of a settings file, keeping its comments, blank lines, section
+ * separators and key order. Shared by the updater, which merges a template of the new version with the
+ * user's file (AD-025), and by the panel, which saves its settings files without losing their layout.
+ *
+ * <p>Rules of {@link #merge}:
  *
  * <ul>
  *     <li>the new template defines the set of keys, their order and every comment;</li>
@@ -29,12 +32,15 @@ import static java.util.Objects.requireNonNull;
  *     <li>a key only in the user's file disappears.</li>
  * </ul>
  *
+ * <p>{@link #update} applies the same rewrite to a single file but keeps every key: a key without a new
+ * value keeps its line, and a new key missing from the file is appended at its end.
+ *
  * <p>Both inputs are read as UTF-8. Output values are escaped like {@link Properties#store}, with every
  * character outside printable ASCII written as {@code \}{@code uXXXX}, so the result is plain ASCII.
  * Only key names are logged; values may be secrets such as the server password.
  */
 @Log4j2
-final class PropertiesMerger {
+public final class PropertiesMerger {
 
     private static final int MAX_SETTINGS_BYTES = 256 * 1024;
 
@@ -52,37 +58,52 @@ final class PropertiesMerger {
      *         if either text is not a valid properties file
      */
     @Nonnull
-    MergeResult merge( @Nonnull String template, @Nullable String user ) {
+    public MergeResult merge( @Nonnull String template, @Nullable String user ) {
         requireNonNull( template, "template must not be null" );
         Properties userValues = load( user == null ? "" : user );
-        String separator = template.contains( "\r\n" ) ? "\r\n" : "\n";
-        StringBuilder merged = new StringBuilder();
-        Set< String > templateKeys = new HashSet<>();
-        List< String > added = new ArrayList<>();
-        for ( String logicalLine : logicalLines( template, separator ) ) {
-            String key = keyOf( logicalLine );
-            if ( key == null || !templateKeys.add( key ) ) {
-                if ( key == null ) {
-                    merged.append( logicalLine ).append( separator );
-                }
-                continue;
-            }
-            if ( userValues.containsKey( key ) ) {
-                merged.append( escape( key, true ) ).append( '=' )
-                        .append( escape( userValues.getProperty( key ), false ) ).append( separator );
-            } else {
-                added.add( key );
-                merged.append( logicalLine ).append( separator );
-            }
-        }
+        Rewrite rewrite = rewrite( template, userValues );
         List< String > removed = new ArrayList<>();
         for ( String key : userValues.stringPropertyNames() ) {
-            if ( !templateKeys.contains( key ) ) {
+            if ( !rewrite.layoutKeys().contains( key ) ) {
                 removed.add( key );
             }
         }
         removed.sort( null );
-        return new MergeResult( merged.toString(), List.copyOf( added ), List.copyOf( removed ) );
+        return new MergeResult( rewrite.text().toString(), List.copyOf( rewrite.keptLines() ),
+                List.copyOf( removed ) );
+    }
+
+    /**
+     * Writes new values into the layout of one settings file without I/O. Every key of {@code values}
+     * present in the text gets its value in place; a key of the text without a new value keeps its line;
+     * a key of {@code values} missing from the text is appended at its end, in key name order.
+     *
+     * @param text
+     *         current contents of the settings file; empty for a file that does not exist yet
+     * @param values
+     *         values to write
+     * @return the updated text
+     * @throws NullPointerException
+     *         if an argument is null
+     * @throws IllegalArgumentException
+     *         if the text is not a valid properties file
+     */
+    @Nonnull
+    public String update( @Nonnull String text, @Nonnull Properties values ) {
+        requireNonNull( text, "text must not be null" );
+        requireNonNull( values, "values must not be null" );
+        Rewrite rewrite = rewrite( text, values );
+        List< String > appended = new ArrayList<>();
+        for ( String key : values.stringPropertyNames() ) {
+            if ( !rewrite.layoutKeys().contains( key ) ) {
+                appended.add( key );
+            }
+        }
+        appended.sort( null );
+        for ( String key : appended ) {
+            appendEntry( rewrite.text(), key, values.getProperty( key ), rewrite.separator() );
+        }
+        return rewrite.text().toString();
     }
 
     /**
@@ -101,7 +122,7 @@ final class PropertiesMerger {
      * @throws IllegalArgumentException
      *         if a file is not a valid properties file
      */
-    void mergeFiles( @Nonnull Path template, @Nonnull Path user, @Nonnull Path target ) throws IOException {
+    public void mergeFiles( @Nonnull Path template, @Nonnull Path user, @Nonnull Path target ) throws IOException {
         requireNonNull( template, "template must not be null" );
         requireNonNull( user, "user must not be null" );
         requireNonNull( target, "target must not be null" );
@@ -111,6 +132,35 @@ final class PropertiesMerger {
         DurableFiles.write( target, result.contents().getBytes( StandardCharsets.UTF_8 ) );
         log.info( "Merged settings {}: added keys {}, removed keys {}", user.getFileName(), result.addedKeys(),
                 result.removedKeys() );
+    }
+
+    /**
+     * Copies every line of the layout, replacing the value of each key found in {@code values}. A
+     * repeated key keeps only its first line. Keys without a new value keep their original line.
+     */
+    private static Rewrite rewrite( String layout, Properties values ) {
+        String separator = layout.contains( "\r\n" ) ? "\r\n" : "\n";
+        StringBuilder text = new StringBuilder();
+        Set< String > layoutKeys = new HashSet<>();
+        List< String > keptLines = new ArrayList<>();
+        for ( String logicalLine : logicalLines( layout, separator ) ) {
+            String key = keyOf( logicalLine );
+            if ( key == null ) {
+                text.append( logicalLine ).append( separator );
+            } else if ( !layoutKeys.add( key ) ) {
+                continue;
+            } else if ( values.containsKey( key ) ) {
+                appendEntry( text, key, values.getProperty( key ), separator );
+            } else {
+                keptLines.add( key );
+                text.append( logicalLine ).append( separator );
+            }
+        }
+        return new Rewrite( text, separator, layoutKeys, keptLines );
+    }
+
+    private static void appendEntry( StringBuilder text, String key, String value, String separator ) {
+        text.append( escape( key, true ) ).append( '=' ).append( escape( value, false ) ).append( separator );
     }
 
     private static String read( Path file ) throws IOException {
@@ -156,8 +206,9 @@ final class PropertiesMerger {
         if ( current != null ) {
             lines.add( current.toString() );
         }
-        // split(-1) yields a trailing empty element for a text ending with a line break.
-        if ( !lines.isEmpty() && lines.getLast().isEmpty() && ( text.endsWith( "\n" ) || text.endsWith( "\r" ) ) ) {
+        // split(-1) yields a trailing empty element for an empty text or one ending with a line break.
+        if ( !lines.isEmpty() && lines.getLast().isEmpty()
+                && ( text.isEmpty() || text.endsWith( "\n" ) || text.endsWith( "\r" ) ) ) {
             lines.removeLast();
         }
         return lines;
@@ -220,7 +271,15 @@ final class PropertiesMerger {
      * @param removedKeys
      *         keys of the user's file dropped because the template no longer has them
      */
-    record MergeResult( @Nonnull String contents, @Nonnull List< String > addedKeys,
-                        @Nonnull List< String > removedKeys ) {
+    public record MergeResult( @Nonnull String contents, @Nonnull List< String > addedKeys,
+                               @Nonnull List< String > removedKeys ) {
+    }
+
+    /**
+     * Rewritten layout: the text so far, its line separator, every key the layout holds and the keys whose
+     * original line was kept because no new value was given.
+     */
+    private record Rewrite( StringBuilder text, String separator, Set< String > layoutKeys,
+                            List< String > keptLines ) {
     }
 }

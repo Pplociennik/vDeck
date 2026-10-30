@@ -7,6 +7,7 @@ import com.github.pplociennik.vdeck.runtime.installation.HandoffResult;
 import com.github.pplociennik.vdeck.runtime.installation.HandoffRole;
 import com.github.pplociennik.vdeck.runtime.installation.InstallationOwnership;
 import com.github.pplociennik.vdeck.runtime.installation.JarManifests;
+import com.github.pplociennik.vdeck.runtime.installation.PropertiesMerger;
 import com.github.pplociennik.vdeck.runtime.installation.RunLogRetention;
 import com.github.pplociennik.vdeck.runtime.installation.ServerActivityCheck;
 import com.github.pplociennik.vdeck.runtime.installation.SuccessorStarter;

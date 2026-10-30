@@ -355,7 +355,8 @@ w trakcie działania jest bezpieczna.
 
 Źródło diagramu: [`diagramy/wspolne/przeplyw-transakcja-aktualizacji.mmd`](diagramy/wspolne/przeplyw-transakcja-aktualizacji.mmd)
 
-**Scalanie ustawień (AD-025).** `PropertiesMerger` traktuje szablon nowej wersji jako wzorzec: klucz obecny
+**Scalanie ustawień (AD-025).** `PropertiesMerger` (`vdeck-runtime`, `runtime.installation`; ten sam
+mechanizm zachowuje układ pliku przy zapisie z panelu) traktuje szablon nowej wersji jako wzorzec: klucz obecny
 w obu plikach zachowuje wartość użytkownika (także pustą), nowy klucz dostaje wartość domyślną,
 klucz usunięty z szablonu znika. Komentarze i kolejność pochodzą z szablonu, wynik jest ASCII
 (`\uXXXX`), a log zawiera tylko nazwy dodanych i usuniętych kluczy. `DistributionTemplatesTest`
@@ -574,8 +575,10 @@ Zasady obsługi plików:
   ustawienia obowiązkowego, a ustawienie opcjonalne zachowuje ją;
 - obowiązkowe ustawienie z pustą wartością domyślną jest odrzucane już przy wczytaniu, a zapis
   pustej wartości ustawienia obowiązkowego kończy się `IllegalArgumentException`;
-- wpisy nienależące do zbioru zarządzanego są zachowywane, ale komentarze i kolejność kluczy przepadają
-  przy pierwszym zapisie pliku przez aplikację;
+- zapis zmienia tylko wartości: `PropertiesMerger.update` z `vdeck-runtime` bierze komentarze, puste
+  linie, separatory sekcji, kolejność kluczy i wpisy nienależące do zbioru zarządzanego z pliku w chwili
+  zapisu, a klucz nieobecny w pliku (np. przywrócony domyślny) dopisuje na końcu; plik utworzony z
+  wartości domyślnych zawiera więc same klucze, bez komentarzy;
 - `getValue` jest zwykłym odczytem z pamięci i nigdy nie zwraca `null`;
 - `setValues` zmienia wiele ustawień naraz: najpierw sprawdza wszystkie wpisy, potem zapisuje plik
   **jeden raz** — zmieniają się wszystkie wartości albo żadna;
@@ -1991,7 +1994,8 @@ Znane ograniczenia stanu bieżącego:
 - ścieżka bazy `jdbc:sqlite:vdeck.db` z `application.yaml` jest względna wobec katalogu roboczego
   procesu i **nie** przechodzi przez `PathService`;
 - pliki ustawień są czytane wyłącznie przy starcie, więc ręczna edycja wymaga restartu panelu;
-- zapis pliku ustawień gubi komentarze i kolejność kluczy;
+- plik ustawień utworzony przez panel (brakujący przy starcie) nie ma komentarzy szablonu, dopóki
+  nie przywróci ich najbliższa aktualizacja;
 - brak testów ArchUnit egzekwujących opisane granice pakietów;
 - lista zmian znika dla całej instalacji po zamknięciu przez dowolną sesję, bo potwierdzenie dotyczy
   wersji, a nie konta; bez `BuildProperties` (uruchomienie z IDE) panel nie pojawia się wcale;

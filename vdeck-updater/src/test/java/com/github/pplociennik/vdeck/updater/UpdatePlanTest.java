@@ -2,6 +2,7 @@ package com.github.pplociennik.vdeck.updater;
 
 import com.github.pplociennik.vdeck.runtime.installation.DistributionItem;
 import com.github.pplociennik.vdeck.runtime.installation.DurableFiles;
+import com.github.pplociennik.vdeck.runtime.installation.PropertiesMerger;
 import com.github.pplociennik.vdeck.runtime.installation.UpdateLayout;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

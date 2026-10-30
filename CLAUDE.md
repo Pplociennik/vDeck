@@ -225,8 +225,10 @@ would be written into a directory devtools watches, causing a restart loop.
 
 `VdeckApplication.main()` first runs `feature.server.ServerExecutableCheck`: without a regular
 `valheim_server.exe` in the installation directory it prints a console message and exits with 1
-before the launcher handoff and Spring. It is on by default; `-Dvdeck.server-file-check=false`
-disables it, e.g. for a sandbox without the game server (or `JAVA_TOOL_OPTIONS` for the package).
+before the launcher handoff and Spring. It is on by default; `server.file.check=false` in
+`vDeck.properties` (read straight from the file, since Spring is not up yet; a missing or unreadable
+file keeps the check on) or `-Dvdeck.server-file-check=false` disables it, e.g. for a sandbox without
+the game server (or `JAVA_TOOL_OPTIONS` for the package).
 
 Native Windows calls require `--enable-native-access=ALL-UNNAMED` when running with `java -jar`
 or from an IDE. Surefire and `spring-boot:run` set it in their POM configuration; when overriding

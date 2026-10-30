@@ -177,6 +177,82 @@ class ServerExecutableCheckTest {
     }
 
     /**
+     * Verifies that the setting in {@code vDeck.properties} set to false, in any letter case, skips the check
+     * without a message.
+     *
+     * @param value
+     *         value of the setting
+     */
+    @ParameterizedTest( name = "[{index}] server.file.check={0} disables the check" )
+    @ValueSource( strings = { "false", "FALSE", " false " } )
+    void shouldPassWithoutChecking_whenSettingIsFalse( String value ) throws IOException {
+        // GIVEN
+        writeSettings( "server.file.check=" + value );
+
+        // WHEN
+        boolean result = underTest.passes();
+
+        // THEN
+        assertThat( result ).isTrue();
+        assertThat( printed() ).isEmpty();
+    }
+
+    /**
+     * Verifies that a settings file whose setting is not false, or that lacks it, keeps the check enabled.
+     *
+     * @param contents
+     *         contents of {@code vDeck.properties}
+     */
+    @ParameterizedTest( name = "[{index}] settings \"{0}\" keep the check" )
+    @ValueSource( strings = { "server.file.check=true", "server.file.check=", "server.file.check=no",
+            "panel.open.browser=false" } )
+    void shouldStillCheck_whenSettingIsNotFalse( String contents ) throws IOException {
+        // GIVEN
+        writeSettings( contents );
+
+        // WHEN
+        boolean result = underTest.passes();
+
+        // THEN
+        assertThat( result ).isFalse();
+    }
+
+    /**
+     * Verifies that an unreadable settings path, here a directory, keeps the check enabled instead of
+     * failing the start.
+     */
+    @Test
+    void shouldStillCheck_whenSettingsFileIsUnreadable() throws IOException {
+        // GIVEN
+        Files.createDirectories( installation.resolve( ".vDeck/config/vDeck.properties" ) );
+
+        // WHEN
+        boolean result = underTest.passes();
+
+        // THEN
+        assertThat( result ).isFalse();
+        assertThat( printed() ).contains( "valheim_server.exe" );
+    }
+
+    /**
+     * Verifies that the setting is read from the application home when no directory override is set.
+     */
+    @Test
+    void shouldReadSettingFromApplicationHome_whenNoDirectoryOverrideIsSet() throws IOException {
+        // GIVEN
+        properties.remove( UpdateLayout.SERVER_DIRECTORY_PROPERTY );
+        Path file = applicationHome.resolve( ".vDeck/config/vDeck.properties" );
+        Files.createDirectories( file.getParent() );
+        Files.writeString( file, "server.file.check=false" );
+
+        // WHEN
+        boolean result = underTest.passes();
+
+        // THEN
+        assertThat( result ).isTrue();
+    }
+
+    /**
      * Verifies that null system properties are rejected.
      */
     @Test
@@ -218,5 +294,11 @@ class ServerExecutableCheckTest {
 
     private String printed() {
         return output.toString( StandardCharsets.UTF_8 );
+    }
+
+    private void writeSettings( String contents ) throws IOException {
+        Path file = installation.resolve( ".vDeck/config/vDeck.properties" );
+        Files.createDirectories( file.getParent() );
+        Files.writeString( file, contents );
     }
 }
